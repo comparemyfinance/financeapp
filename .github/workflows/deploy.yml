@@ -21,3 +21,15 @@ jobs:
 
       - name: Push to Apps Script
         run: clasp push -f
+
+      - name: Push to Apps Script
+        run: clasp push -f
+
+      - name: Create new version
+        run: clasp version "CI $GITHUB_SHA"
+
+      - name: Redeploy existing deployment
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          clasp deploy -i "$GAS_DEPLOYMENT_ID" -d "CI redeploy $GITHUB_SHA"
