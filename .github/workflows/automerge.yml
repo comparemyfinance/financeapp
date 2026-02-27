@@ -22,8 +22,9 @@ jobs:
           script: |
             const pr = context.payload.pull_request;
 
-            // SAFETY GATES (edit these to match your setup)
+            // SAFETY GATES
             // 1) Only auto-merge PRs that were opened by your Codex integration user/bot
+comparemyfinance-patch-1
             //    If you don't know the login yet, see section "Find the PR author login".
         const allowedAuthors = new Set([
               "comparemyfinance" 
