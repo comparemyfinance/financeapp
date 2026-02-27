@@ -2,15 +2,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   sanity:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Sanity checks (Apps Script structure)
+      - name: Sanity checks
         run: |
           test -f Code.gs
           test -f Index.html
