@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Basic sanity checks
+      - name: Sanity checks (Apps Script structure)
         run: |
           test -f Code.gs
           test -f Index.html

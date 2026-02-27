@@ -25,6 +25,7 @@ jobs:
             // SAFETY GATES
             // 1) Only auto-merge PRs that were opened by your Codex integration user/bot
             const allowedAuthors = new Set([
+comparemyfinance-patch-3
               "comparemyfinance"
             ]);
 
