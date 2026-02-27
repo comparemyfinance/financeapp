@@ -1,0 +1,64 @@
+name: Auto-merge Codex PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+
+    # Only attempt automerge if PR is not draft
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Enable auto-merge for Codex PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // SAFETY GATES (edit these to match your setup)
+            // 1) Only auto-merge PRs that were opened by your Codex integration user/bot
+            //    If you don't know the login yet, see section "Find the PR author login".
+            const allowedAuthors = new Set([
+              "codex",                // example
+              "openai-codex",         // example
+              "comparemyfinance-bot"  // example
+            ]);
+
+            const author = pr.user.login;
+            core.info(`PR author: ${author}`);
+
+            if (!allowedAuthors.has(author)) {
+              core.info("Not an allowed author; skipping auto-merge.");
+              return;
+            }
+
+            // 2) Only auto-merge into main
+            if (pr.base.ref !== "main") {
+              core.info("Base branch is not main; skipping.");
+              return;
+            }
+
+            // Enable auto-merge (squash)
+            // GitHub will merge only after required checks (if any) pass.
+            await github.graphql(`
+              mutation EnableAutoMerge($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: SQUASH
+                }) {
+                  pullRequest {
+                    number
+                    autoMergeRequest { enabledAt }
+                  }
+                }
+              }
+            `, { pullRequestId: pr.node_id });
+
+            core.info("Auto-merge enabled.");
