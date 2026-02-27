@@ -25,10 +25,8 @@ jobs:
             // SAFETY GATES (edit these to match your setup)
             // 1) Only auto-merge PRs that were opened by your Codex integration user/bot
             //    If you don't know the login yet, see section "Find the PR author login".
-            const allowedAuthors = new Set([
-              "codex",                // example
-              "openai-codex",         // example
-              "comparemyfinance-bot"  // example
+        const allowedAuthors = new Set([
+              "comparemyfinance" 
             ]);
 
             const author = pr.user.login;
