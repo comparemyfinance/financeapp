@@ -19,17 +19,15 @@ jobs:
 
       - run: npm install -g @google/clasp
 
-      # Recommended: store CLASPRC_JSON_B64 as base64 of ~/.clasprc.json
       - name: Write clasp creds
         run: |
           echo "${{ secrets.CLASPRC_JSON_B64 }}" | base64 -d > ~/.clasprc.json
+          chmod 600 ~/.clasprc.json
 
-      # Ensure clasp knows which Apps Script project to target
-      # Either commit .clasp.json, or write it from a secret:
       - name: Write .clasp.json
         run: |
           cat > .clasp.json <<'EOF'
-          {"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}
+          {"scriptId":"${{ secrets.CLASP_SCRIPT_ID }}","rootDir":"."}
           EOF
 
       - name: Push to Apps Script
