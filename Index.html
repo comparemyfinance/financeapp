@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -69,8 +68,6 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   min-height: 70vh;
 }
 </style>
-
-
 
 <script>
 // ===== UI: Stage-change highlight =========================================
@@ -749,7 +746,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 #sales-pipeline-crm .kanban-column > .title-bar,
 #sales-pipeline-crm .kanban-column > div:first-child{
   display:flex !important;
-  align-items:center !important;
+align-items:center !important;
   justify-content: space-between !important;
   gap: var(--cmf-stage-header-gap) !important;
   font-size: var(--cmf-stage-header-font-size) !important;
@@ -3564,8 +3561,72 @@ const initializePSE = () => {
                             decision: match.decision || 'accept'
                         } : null
                     };
+
+                  codex/add-soft-score-client-button-and-column-oxc0h6
+                });
+                applyResultsSort();
+            };
+            const getSortableValue = (product, key) => {
+                if (!product) return null;
+                switch (key) {
+                    case 'lender': return (product.lender || '').toString().toLowerCase();
+                    case 'apr': return Number(product.aprOffer ?? product.apr ?? Number.POSITIVE_INFINITY);
+                    case 'balloon': return Number(product.calculatedBalloonPayment ?? Number.POSITIVE_INFINITY);
+                    case 'term': return Number(product.term ?? window.appState.financeDetails.remainingTerm ?? Number.POSITIVE_INFINITY);
+                    case 'monthly': return Number(product.calculatedMonthlyPayment ?? Number.POSITIVE_INFINITY);
+                    case 'total': return Number(product.totalPayable ?? Number.POSITIVE_INFINITY);
+                    case 'commission': return Number(product.calculatedCommission ?? Number.POSITIVE_INFINITY);
+                    case 'softScore': return Number(product.acceptanceRating && Number.isFinite(product.acceptanceRating.score) ? product.acceptanceRating.score : -1);
+                    default: return null;
+                }
+            };
+            const syncSelectedProductIndex = () => {
+                const selectedLenderId = window.appState.selectedProductLenderId;
+                if (!selectedLenderId) return;
+                const idx = (window.appState.products || []).findIndex((p) => getLenderIdForProduct(p) === selectedLenderId);
+                window.appState.selectedProductIndex = idx >= 0 ? idx : null;
+            };
+            const applyResultsSort = () => {
+                const sortState = window.appState.resultsSort || { key: 'apr', direction: 'asc' };
+                const directionFactor = sortState.direction === 'desc' ? -1 : 1;
+                window.appState.products = (window.appState.products || []).slice().sort((a, b) => {
+                    const av = getSortableValue(a, sortState.key);
+                    const bv = getSortableValue(b, sortState.key);
+                    if (typeof av === 'string' || typeof bv === 'string') {
+                        const left = (av || '').toString();
+                        const right = (bv || '').toString();
+                        return left.localeCompare(right) * directionFactor;
+                    }
+                    const na = Number.isFinite(av) ? av : Number.POSITIVE_INFINITY;
+                    const nb = Number.isFinite(bv) ? bv : Number.POSITIVE_INFINITY;
+                    if (na === nb) return ((a.lender || '').localeCompare(b.lender || '')) * directionFactor;
+                    return (na - nb) * directionFactor;
+                });
+                syncSelectedProductIndex();
+            };
+            const setResultsSort = (key) => {
+                const sortState = window.appState.resultsSort || { key: 'apr', direction: 'asc' };
+                if (sortState.key === key) sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+                else {
+                    sortState.key = key;
+                    sortState.direction = key === 'lender' ? 'asc' : 'desc';
+                }
+                window.appState.resultsSort = sortState;
+                applyResultsSort();
+                updateResultsTable();
+            };
+            const getSoftScorePillClass = (rating) => {
+                const label = (rating && rating.label ? rating.label : '').toLowerCase();
+                if (label === 'very high' || label === 'high') return 'bg-green-100 text-green-800';
+                if (label === 'medium') return 'bg-amber-100 text-amber-800';
+                if (label === 'low' || label === 'very low') return 'bg-red-100 text-red-800';
+                return 'bg-gray-100 text-gray-700';
+            };
+
                 }).sort((a, b) => ((a.aprOffer ?? a.apr ?? 999) - (b.aprOffer ?? b.apr ?? 999)));
             };
+  
+  main
             const runSoftScoreClient = async () => {
                 if (!window.appState.products.length) {
                     showToast('Run FIND NEW PRODUCTS first.', 'error');
@@ -3640,7 +3701,7 @@ const initializePSE = () => {
                 const totalSaving = totalCostIfKept - p.totalPayable;
                 const balloonDiff = origBalloon - p.calculatedBalloonPayment;
                 const summaryBox = (label, value, valueClass, details) => `<div class="summary-box"><p class="label">${label}</p><p class="value ${valueClass}">${value}</p><div class="details">${details}</div></div>`;
-                setHtml('comparison-container', `<div class="main-comparison-area grid grid-cols-1 lg:grid-cols-3 gap-6"><div class="comparison-column" id="current-agreement-col"><h3>Current Agreement</h3><div class="comparison-details"><div class="detail-item"><span>Monthly Payment:</span><strong>£${toFixed2(origMonthly)}</strong></div><div class="detail-item"><span>Interest Rate (APR):</span><strong>${toFixed2(originalApr)}%</strong></div><div class="detail-item"><span>Remaining Term:</span><strong>${originalRemainingTerm} months</strong></div><div class="detail-item"><span>Final Balloon Payment:</span><strong>£${toFixed2(origBalloon)}</strong></div><div class="detail-item"><span>Total Payable from Today:</span><strong>£${toFixed2(totalCostIfKept)}</strong></div><div class="detail-item"><span>Settlement Figure:</span><strong>£${toFixed2(settlementFigure)}</strong></div></div></div><div class="comparison-column" id="proposed-agreement-col"><h3>Proposed New Agreement</h3><div class="comparison-details"><div class="detail-item"><span>Monthly Payment:</span><strong>£${toFixed2(p.calculatedMonthlyPayment)}</strong></div><div class="detail-item"><span>Interest Rate (APR):</span><strong>${toFixed2(p.apr)}%</strong></div><div class="detail-item"><span>Term:</span><strong>${remainingTerm} months</strong></div><div class="detail-item"><span>Final Balloon Payment:</span><strong>£${toFixed2(p.calculatedBalloonPayment)}</strong></div><div class="detail-item"><span>Total Payable:</span><strong>£${toFixed2(p.totalPayable)}</strong></div><div class="detail-item"><span>Amount to Finance:</span><strong>£${toFixed2(settlementFigure)}</strong></div></div><div class="term-adjust-container"><button id="term-minus-btn" class="term-adjust-btn" ${remainingTerm <= 1 ? 'disabled' : ''}>-1 Month</button><button id="term-plus-btn" class="term-adjust-btn">+1 Month</button></div></div><div class="comparison-column" id="summary-col"><h3>Summary Savings</h3><div class="savings-summary-area">${summaryBox('Monthly Payment', `£${toFixed2(Math.abs(monthlyDiff))}`, monthlyDiff >= 0 ? 'text-green-600' : 'text-red-600', `<span>Current: <strong>£${toFixed2(origMonthly)}</strong></span><br><span>New: <strong>£${toFixed2(p.calculatedMonthlyPayment)}</strong></span>`)}${summaryBox('Balance to Own', `£${toFixed2(Math.abs(totalSaving))}`, totalSaving >= 0 ? 'text-green-600' : 'text-red-600', `<div>Current: <strong>£${toFixed2(totalCostIfKept)}</strong></div><div>New: <strong>£${toFixed2(p.totalPayable)}</strong></div>`)}${summaryBox('Term Length', remainingTerm - originalRemainingTerm === 0 ? 'No Change' : `${remainingTerm - originalRemainingTerm > 0 ? '+' : ''}${remainingTerm - originalRemainingTerm} mo`, 'text-gray-800', `<span>Current: <strong>${originalRemainingTerm} mo</strong></span><br><span>New: <strong>${remainingTerm} mo</strong></span>`)}${summaryBox('Balloon Change', `£${toFixed2(Math.abs(balloonDiff))}`, balloonDiff >= 0 ? 'text-green-600' : 'text-orange-600', `<div>Current: <strong>£${toFixed2(origBalloon)}</strong></div><div>New: <strong>£${toFixed2(p.calculatedBalloonPayment)}</strong></div>`)}</div></div></div>`);
+                setHtml('comparison-container', `<div class="main-comparison-area grid grid-cols-1 lg:grid-cols-3 gap-6"><div class="comparison-column" id="current-agreement-col"><h3>Current Agreement</h3><div class="comparison-details"><div class="detail-item"><span>Monthly Payment:</span><strong>£${toFixed2(origMonthly)}</strong></div><div class="detail-item"><span>Interest Rate (APR):</span><strong>${toFixed2(originalApr)}%</strong></div><div class="detail-item"><span>Remaining Term:</span><strong>${originalRemainingTerm} months</strong></div><div class="detail-item"><span>Final Balloon Payment:</span><strong>£${toFixed2(origBalloon)}</strong></div><div class="detail-item"><span>Total Payable from Today:</span><strong>£${toFixed2(totalCostIfKept)}</strong></div><div class="detail-item"><span>Settlement Figure:</span><strong>£${toFixed2(settlementFigure)}</strong></div></div></div><div class="comparison-column" id="proposed-agreement-col"><h3>Proposed New Agreement</h3><div class="comparison-details"><div class="detail-item"><span>Monthly Payment:</span><strong>£${toFixed2(p.calculatedMonthlyPayment)}</strong></div><div class="detail-item"><span>Interest Rate (APR):</span><strong>${toFixed2(p.aprOffer ?? p.apr)}%</strong></div><div class="detail-item"><span>Term:</span><strong>${productTerm} months</strong></div><div class="detail-item"><span>Final Balloon Payment:</span><strong>£${toFixed2(p.calculatedBalloonPayment)}</strong></div><div class="detail-item"><span>Total Payable:</span><strong>£${toFixed2(p.totalPayable)}</strong></div><div class="detail-item"><span>Amount to Finance:</span><strong>£${toFixed2(settlementFigure)}</strong></div></div><div class="term-adjust-container"><button id="term-minus-btn" class="term-adjust-btn" ${remainingTerm <= 1 ? 'disabled' : ''}>-1 Month</button><button id="term-plus-btn" class="term-adjust-btn">+1 Month</button></div></div><div class="comparison-column" id="summary-col"><h3>Summary Savings</h3><div class="savings-summary-area">${summaryBox('Monthly Payment', `£${toFixed2(Math.abs(monthlyDiff))}`, monthlyDiff >= 0 ? 'text-green-600' : 'text-red-600', `<span>Current: <strong>£${toFixed2(origMonthly)}</strong></span><br><span>New: <strong>£${toFixed2(p.calculatedMonthlyPayment)}</strong></span>`)}${summaryBox('Balance to Own', `£${toFixed2(Math.abs(totalSaving))}`, totalSaving >= 0 ? 'text-green-600' : 'text-red-600', `<div>Current: <strong>£${toFixed2(totalCostIfKept)}</strong></div><div>New: <strong>£${toFixed2(p.totalPayable)}</strong></div>`)}${summaryBox('Term Length', productTerm - originalRemainingTerm === 0 ? 'No Change' : `${productTerm - originalRemainingTerm > 0 ? '+' : ''}${productTerm - originalRemainingTerm} mo`, 'text-gray-800', `<span>Current: <strong>${originalRemainingTerm} mo</strong></span><br><span>New: <strong>${productTerm} mo</strong></span>`)}${summaryBox('Balloon Change', `£${toFixed2(Math.abs(balloonDiff))}`, balloonDiff >= 0 ? 'text-green-600' : 'text-orange-600', `<div>Current: <strong>£${toFixed2(origBalloon)}</strong></div><div>New: <strong>£${toFixed2(p.calculatedBalloonPayment)}</strong></div>`)}</div></div></div>`);
             };
             const calcOutstanding = (p, t, apr, b, pm) => {
                 const r = apr / 100 / 12;
@@ -3721,7 +3782,8 @@ const initializePSE = () => {
                     const total = (monthly * remainingTerm) + balloon;
                     return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
                 }));
-                window.appState.products = productsWithBalloons.sort((a, b) => a.apr - b.apr);
+                window.appState.products = productsWithBalloons;
+                applyResultsSort();
             };
             const handleFormSubmit = async (e) => {
                 e.preventDefault();
@@ -3736,6 +3798,7 @@ const initializePSE = () => {
                 window.appState.financeDetails = { settlementFigure: settlement, totalCostIfKept: (monthly * remTerm) + f(getVal('original-final-balloon')), calculatedMonthlyPayment: monthly, remainingTerm: remTerm, originalRemainingTerm: remTerm, outstandingBalance: outBalance, erc: erc, originalApr: oApr };
                 await processAndSortProducts();
                 window.appState.selectedProductIndex = null;
+                window.appState.selectedProductLenderId = null;
                 updateResultsTable();
                 updateComparisonView();
                 getEl('demands-and-needs-section').style.display = 'block';
@@ -4143,7 +4206,7 @@ const handleVrnLookup = async () => {
                 window.appState.financeDetails.remainingTerm = newTerm;
                 const { settlementFigure } = window.appState.financeDetails;
                 window.appState.products.forEach(p => {
-                    p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, p.apr, p.calculatedBalloonPayment);
+                    p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, (p.aprOffer ?? p.apr), p.calculatedBalloonPayment);
                     p.totalPayable = (p.calculatedMonthlyPayment * newTerm) + p.calculatedBalloonPayment;
                 });
                 updateResultsTable();
@@ -4155,7 +4218,7 @@ const handleVrnLookup = async () => {
                 const p = products[selectedProductIndex];
                 const sDate = new Date(getVal('agreement-start-date'));
                 const monthsPassed = (new Date().getFullYear() - sDate.getFullYear()) * 12 + (new Date().getMonth() - sDate.getMonth());
-                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: p.apr, newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
+                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: (p.aprOffer ?? p.apr), newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
                 if (typeof window.prefillLetterCreator === 'function') window.prefillLetterCreator();
             };
             const solveForAPR = (p, t, pmt, b) => {
@@ -4279,9 +4342,16 @@ const handleVrnLookup = async () => {
             });
             on(getEl('finance-form'), 'submit', handleFormSubmit);
             on(getEl('results-container'), 'click', e => {
+                const sortHeader = e.target.closest('th[data-results-sort]');
+                if (sortHeader) {
+                    setResultsSort(sortHeader.dataset.resultsSort);
+                    return;
+                }
                 const row = e.target.closest('tr');
                 if (row && !e.target.classList.contains('balloon-input') && !e.target.classList.contains('ps-edit-input')) {
                     window.appState.selectedProductIndex = i(row.dataset.productIndex);
+                    const clickedProduct = window.appState.products[window.appState.selectedProductIndex];
+                    window.appState.selectedProductLenderId = clickedProduct ? getLenderIdForProduct(clickedProduct) : null;
                     updateResultsTable();
                     updateComparisonView();
                     bridgeDataToLetterCreator();
