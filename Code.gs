@@ -398,6 +398,21 @@ function doGet(e) {
   });
 }
 
+function sanitizeActionName_(value) {
+  const action = String(value || "").trim();
+  if (!action || action.length > 80 || !/^[A-Za-z0-9_]+$/.test(action)) {
+    return "unknown";
+  }
+  return action;
+}
+
+function normalizePayload_(payload) {
+  if (payload == null) return {};
+  if (typeof payload === "string") return payload;
+  if (typeof payload !== "object") return {};
+  return payload;
+}
+
 /**
  * Bridge function for internal google.script.run calls.
  * google.script.run cannot invoke doPost/doGet; it calls server functions directly.
@@ -405,8 +420,8 @@ function doGet(e) {
  */
 function handleWebClientRequest(request) {
   const req = request || {};
-  const action = req.action || "unknown";
-  const payload = req.payload != null ? req.payload : {};
+  const action = sanitizeActionName_(req.action);
+  const payload = normalizePayload_(req.payload);
   const result = routeAction_(action, payload, req);
   // Return JSON string for maximum compatibility with google.script.run
   return safeClientJson_(result);
@@ -595,11 +610,14 @@ function routeAction_(action, payload, fullRequest) {
       return { success: false, error: "Unknown action: " + action };
     });
   } catch (err) {
+    console.error("routeAction_ failed", {
+      action: action,
+      error: String(err && err.message ? err.message : err),
+      stack: err && err.stack ? String(err.stack) : "",
+    });
     return {
       success: false,
-      error: String(err && err.message ? err.message : err),
-      details: String(err),
-      stack: err && err.stack ? String(err.stack) : null,
+      error: "Internal server error",
       action: action,
     };
   }
@@ -639,8 +657,8 @@ function doPost(e) {
     });
   }
 
-  const action = request && request.action ? request.action : "unknown";
-  const payload = request && request.payload ? request.payload : {};
+  const action = sanitizeActionName_(request && request.action);
+  const payload = normalizePayload_(request && request.payload);
 
   // Route and wrap for HTTP
   const result = routeAction_(action, payload, request);
@@ -807,8 +825,7 @@ function batchUpdate_(sheet, deals) {
       return;
     }
 
-    const vals = sheet.getRange(row, 1, 1, headers.length).getValues()[0];
-    const existing = rowsToObjects_(headers, [vals])[0];
+    const existing = idx.objects[row - 2] || {};
 
     const merged = mergeInto_(existing, d);
 
@@ -1070,6 +1087,30 @@ function setupJigsawUatProperties_() {
     true,
   );
 }
+function fetchWithRetry_(url, options, maxAttempts) {
+  const attempts = Math.max(1, Number(maxAttempts || 2));
+  let lastErr = null;
+
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = UrlFetchApp.fetch(url, options || {});
+      const code = Number(res.getResponseCode() || 0);
+      const shouldRetryStatus = code === 429 || code >= 500;
+      if (shouldRetryStatus && i < attempts) {
+        Utilities.sleep(Math.min(1000, 150 * i));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (i >= attempts) throw err;
+      Utilities.sleep(Math.min(1000, 150 * i));
+    }
+  }
+
+  throw lastErr || new Error("UrlFetch failed after retries");
+}
+
 function getJigsawBaseUrl_() {
   const env = (getProp_("JIGSAW_ENV") || "uat").toString().trim().toLowerCase();
   return env === "prod" || env === "production"
@@ -1217,7 +1258,7 @@ function getJigsawToken_() {
     "&password=" +
     encodeURIComponent(password);
 
-  const res = UrlFetchApp.fetch(tokenUrl, {
+  const res = fetchWithRetry_(tokenUrl, {
     method: "post",
     contentType: "application/x-www-form-urlencoded",
     payload: formBody,
@@ -1251,7 +1292,7 @@ function jigsawPostJson_(path, payloadObj) {
 
   while (attempt < 2) {
     attempt++;
-    const res = UrlFetchApp.fetch(url, {
+    const res = fetchWithRetry_(url, {
       method: "post",
       contentType: "application/json",
       payload: JSON.stringify(payloadObj),
@@ -1468,7 +1509,7 @@ function jigsawFetch_(method, path, payloadObj, opts) {
 
   while (attempt < 2) {
     attempt++;
-    const res = UrlFetchApp.fetch(url, fetchOpts);
+    const res = fetchWithRetry_(url, fetchOpts, 3);
     const status = res.getResponseCode();
 
     if ((status === 401 || status === 403) && attempt === 1) {
