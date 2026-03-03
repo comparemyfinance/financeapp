@@ -4,6 +4,9 @@ on:
   push:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -16,11 +19,18 @@ jobs:
 
       - run: npm install -g @google/clasp
 
+      # Recommended: store CLASPRC_JSON_B64 as base64 of ~/.clasprc.json
       - name: Write clasp creds
-        run: echo '${{ secrets.CLASP_CREDS }}' > ~/.clasprc.json
+        run: |
+          echo "${{ secrets.CLASPRC_JSON_B64 }}" | base64 -d > ~/.clasprc.json
 
-      - name: Push to Apps Script
-        run: clasp push -f
+      # Ensure clasp knows which Apps Script project to target
+      # Either commit .clasp.json, or write it from a secret:
+      - name: Write .clasp.json
+        run: |
+          cat > .clasp.json <<'EOF'
+          {"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}
+          EOF
 
       - name: Push to Apps Script
         run: clasp push -f
