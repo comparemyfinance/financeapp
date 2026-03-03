@@ -6,14 +6,12 @@ Scope: repository-level static audit; no runtime behavior changes.
 ## 1) Architecture Map
 
 ### Components
-
-- **Backend/API (Apps Script):** `Code.gs` routes actions from `doPost` and `handleWebClientRequest` through `routeAction_`, then reads/writes Google Sheets and calls external APIs.
+- **Backend/API (Apps Script):** `Code.gs` routes actions from `doPost` and `handleWebClientRequest` through `routeAction_`, then reads/writes Google Sheets and calls external APIs. 
 - **Auth module:** `Auth.js` implements plaintext user/password validation and cache-backed tokens.
 - **Frontend UI:** `Index.html` calls backend via `google.script.run.handleWebClientRequest(...)`, stores auth token in browser storage, renders CRM UI.
 - **Config/Deployment:** `appsscript.json` defines runtime/webapp exposure; GitHub Actions deploy with `clasp`.
 
 ### Data Stores
-
 - Google Sheet as system of record for deals and logs.
 - Apps Script CacheService for row index cache and auth/session tokens.
 - Script Properties for third-party environment credentials/secrets.
@@ -22,26 +20,22 @@ Scope: repository-level static audit; no runtime behavior changes.
 ## 2) Data Flows
 
 ### Flow A — UI bootstrap and session gate
-
 1. `doGet` serves `Index.html` for non-API requests.
 2. Frontend checks `localStorage` token (`CMF_AUTH_TOKEN`) and calls `authStatus`.
 3. If valid, UI initializes; otherwise login modal remains.
 
 ### Flow B — Auth
-
 1. Frontend submits username/password via `authLogin`.
 2. `auth_login_plain_` validates against `AUTH_USERS` and writes UUID token to CacheService with TTL.
 3. Frontend stores token in `localStorage` and attaches it to subsequent calls.
 
 ### Flow C — CRUD/CRM operations
-
 1. Frontend calls action via `google.script.run`.
 2. `handleWebClientRequest` -> `routeAction_`.
 3. `routeAction_` gates non-auth actions via `auth_check_token_`.
 4. For write operations, `withLock_` wraps Sheet mutations.
 
 ### Flow D — Jigsaw integrations/webhooks
-
 1. API actions call `UrlFetchApp.fetch` with bearer token from `getJigsawToken_`.
 2. Webhook requests are validated with HMAC secret and then update Sheet/log rows.
 
@@ -63,12 +57,10 @@ Scope: repository-level static audit; no runtime behavior changes.
 ## 5) Dependencies and Versions
 
 ### Runtime/Platform
-
 - Google Apps Script runtime: `V8`.
 - Enabled advanced service: Drive API `v3`.
 
 ### CI/CD Actions & Tooling
-
 - `actions/checkout@v4`
 - `actions/setup-node@v4` (Node `20`)
 - Global npm tool in deploy workflow: `@google/clasp` (unpinned latest)
@@ -78,7 +70,7 @@ Scope: repository-level static audit; no runtime behavior changes.
 ## P0 (Immediate)
 
 1. **Remove hardcoded credentials from source and rotate now.**
-   - `Auth.js` plaintext users/passwords.
+   - `Auth.js` plaintext users/passwords. 
    - `Code.gs` hardcoded `JIGSAW_PASSWORD` default in setup helper.
 2. **Stop returning stack traces to client responses.**
    - `routeAction_` currently includes `details` and `stack` in API error payload.
@@ -102,9 +94,9 @@ Scope: repository-level static audit; no runtime behavior changes.
 
 - UI/API entry and router: `Code.gs` doGet/bridge/router and auth gate. (Code.gs:328-347, 356-363, 380-407)
 - HTTP POST parse/routing: `Code.gs` doPost. (Code.gs:540-559)
-- Full read/index hot path: `Code.gs` loadIndex*/getRowsData*. (Code.gs:266-276, 301-304)
-- Batch row-by-row operations: `Code.gs` batchUpdate\_. (Code.gs:670-714)
-- Error payload includes stack: `Code.gs` routeAction\_ catch block. (Code.gs:514-520)
+- Full read/index hot path: `Code.gs` loadIndex_/getRowsData_. (Code.gs:266-276, 301-304)
+- Batch row-by-row operations: `Code.gs` batchUpdate_. (Code.gs:670-714)
+- Error payload includes stack: `Code.gs` routeAction_ catch block. (Code.gs:514-520)
 - Hardcoded Jigsaw password helper: `Code.gs` setup properties. (Code.gs:911-919)
 - Plaintext auth users/passwords: `Auth.js`. (Auth.js:1-11, 18-27)
 - Frontend token in localStorage: `Index.html` auth bootstrap/login/logout. (Index.html:8900-8914, 8949-8953)
