@@ -12,34 +12,40 @@
  */
 
 function listLenders_() {
-  return getLenderDefaults_().map(function(x) {
+  return getLenderDefaults_().map(function (x) {
     return {
       lenderKey: toLenderKey_(x.lender),
       lender: x.lender,
       apr: x.apr,
       commissionPct: x.commissionPct,
-      highlight: x.highlight
+      highlight: x.highlight,
     };
   });
 }
 
 function getLenderQuote(payload) {
   payload = payload || {};
-  var lenderKey = String(payload.lenderKey || payload.lender || '').trim();
+  var lenderKey = String(payload.lenderKey || payload.lender || "").trim();
   var settlementFigure = toNumber_(payload.settlementFigure);
   var remainingTerm = toInt_(payload.remainingTerm);
   var origLoan = toNumber_(payload.origLoan);
 
   if (!lenderKey) return { success: false, error: "lenderKey required" };
-  if (!isFinite(settlementFigure) || settlementFigure <= 0) return { success: false, error: "settlementFigure required" };
-  if (!isFinite(remainingTerm) || remainingTerm <= 0) return { success: false, error: "remainingTerm required" };
-  if (!isFinite(origLoan) || origLoan <= 0) return { success: false, error: "origLoan required" };
+  if (!isFinite(settlementFigure) || settlementFigure <= 0)
+    return { success: false, error: "settlementFigure required" };
+  if (!isFinite(remainingTerm) || remainingTerm <= 0)
+    return { success: false, error: "remainingTerm required" };
+  if (!isFinite(origLoan) || origLoan <= 0)
+    return { success: false, error: "origLoan required" };
 
   var defaults = getLenderDefaults_();
   var keyNorm = toLenderKey_(lenderKey);
   var lenderDef = null;
   for (var i = 0; i < defaults.length; i++) {
-    if (toLenderKey_(defaults[i].lender) === keyNorm) { lenderDef = defaults[i]; break; }
+    if (toLenderKey_(defaults[i].lender) === keyNorm) {
+      lenderDef = defaults[i];
+      break;
+    }
   }
   if (!lenderDef) {
     // Unknown lender: return a safe placeholder with no overrides
@@ -50,11 +56,16 @@ function getLenderQuote(payload) {
       quoteInputs: {},
       quoteOutputs: {},
       reasons: ["unknown_lender_key"],
-      raw: {}
+      raw: {},
     };
   }
 
-  var product = computeProduct_(lenderDef, settlementFigure, remainingTerm, origLoan);
+  var product = computeProduct_(
+    lenderDef,
+    settlementFigure,
+    remainingTerm,
+    origLoan,
+  );
 
   return {
     success: true,
@@ -63,7 +74,7 @@ function getLenderQuote(payload) {
     quoteInputs: {
       apr: lenderDef.apr,
       commissionPct: lenderDef.commissionPct,
-      balloon: product.calculatedBalloonPayment
+      balloon: product.calculatedBalloonPayment,
     },
     quoteOutputs: {
       lender: product.lender,
@@ -71,10 +82,10 @@ function getLenderQuote(payload) {
       calculatedMonthlyPayment: product.calculatedMonthlyPayment,
       calculatedBalloonPayment: product.calculatedBalloonPayment,
       calculatedCommission: product.calculatedCommission,
-      totalPayable: product.totalPayable
+      totalPayable: product.totalPayable,
     },
     reasons: [],
-    raw: {}
+    raw: {},
   };
 }
 
@@ -84,17 +95,22 @@ function getLenderQuotesBatch(payload) {
   var remainingTerm = toInt_(payload.remainingTerm);
   var origLoan = toNumber_(payload.origLoan);
 
-  if (!isFinite(settlementFigure) || settlementFigure <= 0) return { success: false, error: "settlementFigure required" };
-  if (!isFinite(remainingTerm) || remainingTerm <= 0) return { success: false, error: "remainingTerm required" };
-  if (!isFinite(origLoan) || origLoan <= 0) return { success: false, error: "origLoan required" };
+  if (!isFinite(settlementFigure) || settlementFigure <= 0)
+    return { success: false, error: "settlementFigure required" };
+  if (!isFinite(remainingTerm) || remainingTerm <= 0)
+    return { success: false, error: "remainingTerm required" };
+  if (!isFinite(origLoan) || origLoan <= 0)
+    return { success: false, error: "origLoan required" };
 
   var defaults = getLenderDefaults_();
-  var products = defaults.map(function(def) {
+  var products = defaults.map(function (def) {
     return computeProduct_(def, settlementFigure, remainingTerm, origLoan);
   });
 
   // Mirror UI sort: ascending APR
-  products.sort(function(a,b) { return a.apr - b.apr; });
+  products.sort(function (a, b) {
+    return a.apr - b.apr;
+  });
 
   return {
     success: true,
@@ -103,7 +119,7 @@ function getLenderQuotesBatch(payload) {
     remainingTerm: remainingTerm,
     origLoan: origLoan,
     products: products,
-    lenders: listLenders_()
+    lenders: listLenders_(),
   };
 }
 
@@ -116,13 +132,18 @@ function computeProduct_(lenderDef, settlementFigure, remainingTerm, origLoan) {
   if (lenderDef.highlight) {
     if (lenderDef.lender === "Alphera") v = 1.05;
     else if (lenderDef.lender === "Motonovo") v = 0.98;
-    else if (lenderDef.lender === "Northridge Finance") v = 1.10;
+    else if (lenderDef.lender === "Northridge Finance") v = 1.1;
   }
   var balloon = baseBalloon * v;
 
   var commission = settlementFigure * (lenderDef.commissionPct / 100);
-  var monthly = calcMonthly_(settlementFigure, remainingTerm, lenderDef.apr, balloon);
-  var total = (monthly * remainingTerm) + balloon;
+  var monthly = calcMonthly_(
+    settlementFigure,
+    remainingTerm,
+    lenderDef.apr,
+    balloon,
+  );
+  var total = monthly * remainingTerm + balloon;
 
   return {
     lenderKey: toLenderKey_(lenderDef.lender),
@@ -133,7 +154,7 @@ function computeProduct_(lenderDef, settlementFigure, remainingTerm, origLoan) {
     calculatedMonthlyPayment: monthly,
     calculatedBalloonPayment: balloon,
     calculatedCommission: commission,
-    totalPayable: total
+    totalPayable: total,
   };
 }
 
@@ -147,23 +168,31 @@ function getBalloonPerc_(term, price) {
     { m: 24, p: 0.5865 },
     { m: 37, p: 0.5352 },
     { m: 49, p: 0.4542 },
-    { m: 60, p: 0.3597 }
+    { m: 60, p: 0.3597 },
   ];
   if (term <= dp[0].m) return dp[0].p;
   if (term >= dp[dp.length - 1].m) return dp[dp.length - 1].p;
-  var lb = dp[0], ub = dp[dp.length - 1];
+  var lb = dp[0],
+    ub = dp[dp.length - 1];
   for (var i = 0; i < dp.length - 1; i++) {
-    if (term >= dp[i].m && term <= dp[i + 1].m) { lb = dp[i]; ub = dp[i + 1]; break; }
+    if (term >= dp[i].m && term <= dp[i + 1].m) {
+      lb = dp[i];
+      ub = dp[i + 1];
+      break;
+    }
   }
-  return lb.p + (term - lb.m) * (ub.p - lb.p) / (ub.m - lb.m);
+  return lb.p + ((term - lb.m) * (ub.p - lb.p)) / (ub.m - lb.m);
 }
 
 function calcMonthly_(p, t, apr, b) {
-  p = toNumber_(p); t = toInt_(t); apr = toNumber_(apr); b = toNumber_(b);
+  p = toNumber_(p);
+  t = toInt_(t);
+  apr = toNumber_(apr);
+  b = toNumber_(b);
   if (t <= 0) return 0;
   var r = apr / 100 / 12;
   if (r === 0) return (p - b) / t;
-  var n = p - (b / Math.pow(1 + r, t));
+  var n = p - b / Math.pow(1 + r, t);
   var d = (1 - Math.pow(1 + r, -t)) / r;
   return n / d;
 }
@@ -172,115 +201,117 @@ function calcMonthly_(p, t, apr, b) {
 
 function getLenderDefaults_() {
   return [
-  {
-    "lender": "BNP Paribas Finance",
-    "apr": 12.9,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Motonovo",
-    "apr": 11.9,
-    "commissionPct": 4,
-    "highlight": true
-  },
-  {
-    "lender": "V12",
-    "apr": 15.9,
-    "commissionPct": 5,
-    "highlight": false
-  },
-  {
-    "lender": "Close Brothers",
-    "apr": 12.9,
-    "commissionPct": 4.5,
-    "highlight": false
-  },
-  {
-    "lender": "Credit Agricole",
-    "apr": 14.0,
-    "commissionPct": 3,
-    "highlight": false
-  },
-  {
-    "lender": "Northridge Finance",
-    "apr": 9.9,
-    "commissionPct": 3.5,
-    "highlight": true
-  },
-  {
-    "lender": "Alphera",
-    "apr": 10.9,
-    "commissionPct": 4,
-    "highlight": true
-  },
-  {
-    "lender": "Zopa",
-    "apr": 17.9,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Advantage Finance",
-    "apr": 31.4,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Automoney",
-    "apr": 28.0,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Moneybarn",
-    "apr": 33.7,
-    "commissionPct": 2.6,
-    "highlight": false
-  },
-  {
-    "lender": "Moneyway",
-    "apr": 26.65,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Oodle",
-    "apr": 23.1,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Lendable",
-    "apr": 29.8,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Startline Finance",
-    "apr": 24.3,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Tandem",
-    "apr": 22.25,
-    "commissionPct": 4,
-    "highlight": false
-  },
-  {
-    "lender": "Billing Finance",
-    "apr": 35.4,
-    "commissionPct": 1.3,
-    "highlight": false
-  }
-];
+    {
+      lender: "BNP Paribas Finance",
+      apr: 12.9,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Motonovo",
+      apr: 11.9,
+      commissionPct: 4,
+      highlight: true,
+    },
+    {
+      lender: "V12",
+      apr: 15.9,
+      commissionPct: 5,
+      highlight: false,
+    },
+    {
+      lender: "Close Brothers",
+      apr: 12.9,
+      commissionPct: 4.5,
+      highlight: false,
+    },
+    {
+      lender: "Credit Agricole",
+      apr: 14.0,
+      commissionPct: 3,
+      highlight: false,
+    },
+    {
+      lender: "Northridge Finance",
+      apr: 9.9,
+      commissionPct: 3.5,
+      highlight: true,
+    },
+    {
+      lender: "Alphera",
+      apr: 10.9,
+      commissionPct: 4,
+      highlight: true,
+    },
+    {
+      lender: "Zopa",
+      apr: 17.9,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Advantage Finance",
+      apr: 31.4,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Automoney",
+      apr: 28.0,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Moneybarn",
+      apr: 33.7,
+      commissionPct: 2.6,
+      highlight: false,
+    },
+    {
+      lender: "Moneyway",
+      apr: 26.65,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Oodle",
+      apr: 23.1,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Lendable",
+      apr: 29.8,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Startline Finance",
+      apr: 24.3,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Tandem",
+      apr: 22.25,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "Billing Finance",
+      apr: 35.4,
+      commissionPct: 1.3,
+      highlight: false,
+    },
+  ];
 }
 
 // === Helpers ===
 
 function toLenderKey_(s) {
-  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 function toNumber_(v) {
@@ -299,41 +330,68 @@ function toInt_(v) {
  */
 function getFinanceNavigatorSoftScore(payload) {
   payload = payload || {};
-  var lendersFromPayload = Array.isArray(payload.lenders) ? payload.lenders : [];
+  var lendersFromPayload = Array.isArray(payload.lenders)
+    ? payload.lenders
+    : [];
   var defaults = getLenderDefaults_();
-  var lenders = lendersFromPayload.length ? lendersFromPayload : defaults.map(function(def){
-    return {
-      lenderId: toLenderKey_(def.lender),
-      lenderName: def.lender,
-      baseApr: def.apr
-    };
-  });
+  var lenders = lendersFromPayload.length
+    ? lendersFromPayload
+    : defaults.map(function (def) {
+        return {
+          lenderId: toLenderKey_(def.lender),
+          lenderName: def.lender,
+          baseApr: def.apr,
+        };
+      });
 
   var clientScore = toInt_(payload.clientScore);
   if (!isFinite(clientScore)) {
-    var scoreRnd = seededNumber_((payload.clientId || payload.quoteId || payload.vrn || 'anon') + '|client-score');
-    clientScore = Math.round(35 + (scoreRnd * 55));
+    var scoreRnd = seededNumber_(
+      (payload.clientId || payload.quoteId || payload.vrn || "anon") +
+        "|client-score",
+    );
+    clientScore = Math.round(35 + scoreRnd * 55);
   }
   clientScore = Math.max(0, Math.min(100, clientScore));
 
-  var clientSeed = [payload.clientId || '', payload.quoteId || '', payload.vrn || '', clientScore].join('|');
-  var offers = lenders.map(function(entry, idx) {
-    var lenderName = entry.lenderName || entry.lender || '';
-    var lenderId = normalizeLenderId_(entry.lenderId || entry.lenderKey || lenderName || ('lender-' + idx));
-    var rand = seededNumber_(clientSeed + '|' + lenderId);
-    var rand2 = seededNumber_(clientSeed + '|' + lenderId + '|a');
-    var rand3 = seededNumber_(clientSeed + '|' + lenderId + '|d');
+  var clientSeed = [
+    payload.clientId || "",
+    payload.quoteId || "",
+    payload.vrn || "",
+    clientScore,
+  ].join("|");
+  var offers = lenders.map(function (entry, idx) {
+    var lenderName = entry.lenderName || entry.lender || "";
+    var lenderId = normalizeLenderId_(
+      entry.lenderId || entry.lenderKey || lenderName || "lender-" + idx,
+    );
+    var rand = seededNumber_(clientSeed + "|" + lenderId);
+    var rand2 = seededNumber_(clientSeed + "|" + lenderId + "|a");
+    var rand3 = seededNumber_(clientSeed + "|" + lenderId + "|d");
     var baseApr = toNumber_(entry.baseApr);
     if (!isFinite(baseApr)) {
-      var found = defaults.filter(function(def){ return toLenderKey_(def.lender) === lenderId; })[0];
+      var found = defaults.filter(function (def) {
+        return toLenderKey_(def.lender) === lenderId;
+      })[0];
       baseApr = found ? found.apr : 12.9;
     }
     var primeBias = clientScore >= 70 ? 1 : -1;
-    var acceptanceScore = Math.max(3, Math.min(97, Math.round(clientScore + ((rand - 0.5) * 26) + (primeBias * 6) - ((baseApr > 20 ? 1 : 0) * 8))));
+    var acceptanceScore = Math.max(
+      3,
+      Math.min(
+        97,
+        Math.round(
+          clientScore +
+            (rand - 0.5) * 26 +
+            primeBias * 6 -
+            (baseApr > 20 ? 1 : 0) * 8,
+        ),
+      ),
+    );
     var decline = acceptanceScore < 18 && rand3 < 0.7;
     var aprOffer = null;
     if (!decline) {
-      var aprShift = ((rand2 - 0.45) * (clientScore >= 70 ? 2.2 : 4.8));
+      var aprShift = (rand2 - 0.45) * (clientScore >= 70 ? 2.2 : 4.8);
       aprOffer = Math.max(3.9, Math.ceil((baseApr + aprShift) * 10) / 10);
     }
 
@@ -341,47 +399,50 @@ function getFinanceNavigatorSoftScore(payload) {
       lenderId: lenderId,
       lenderName: lenderName,
       aprOffer: aprOffer,
-      decision: decline ? 'decline' : 'accept',
+      decision: decline ? "decline" : "accept",
       acceptanceScore: acceptanceScore,
-      acceptanceLabel: acceptanceLabelFromScore_(acceptanceScore)
+      acceptanceLabel: acceptanceLabelFromScore_(acceptanceScore),
     };
   });
 
   return {
     success: true,
-    mode: 'placeholder',
-    source: 'finance-navigator-sim',
+    mode: "placeholder",
+    source: "finance-navigator-sim",
     clientSeed: clientSeed,
     clientScore: clientScore,
-    offers: offers
+    offers: offers,
   };
 }
 
 function normalizeLenderId_(name) {
-  return String(name || '')
+  return String(name || "")
     .toLowerCase()
-    .replace(/\b(ltd|limited|plc|finance|financial|consumer|bank|group|services|uk)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(
+      /\b(ltd|limited|plc|finance|financial|consumer|bank|group|services|uk)\b/g,
+      " ",
+    )
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 function seededNumber_(seed) {
-  var str = String(seed || 'seed');
+  var str = String(seed || "seed");
   var h = 2166136261;
   for (var idx = 0; idx < str.length; idx++) {
     h ^= str.charCodeAt(idx);
     h = Math.imul(h, 16777619);
   }
-  var state = (h >>> 0) || 1;
+  var state = h >>> 0 || 1;
   state = (1664525 * state + 1013904223) >>> 0;
   return state / 4294967296;
 }
 
 function acceptanceLabelFromScore_(score) {
-  if (score >= 85) return 'Very High';
-  if (score >= 70) return 'High';
-  if (score >= 50) return 'Medium';
-  if (score >= 30) return 'Low';
-  return 'Very Low';
+  if (score >= 85) return "Very High";
+  if (score >= 70) return "High";
+  if (score >= 50) return "Medium";
+  if (score >= 30) return "Low";
+  return "Very Low";
 }
