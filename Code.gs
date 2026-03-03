@@ -417,6 +417,9 @@ function routeAction_(action, payload, fullRequest) {
     if (action === 'getLenderQuotesBatch') {
       return getLenderQuotesBatch(payload || {});
     }
+    if (action === 'getFinanceNavigatorSoftScore') {
+      return getFinanceNavigatorSoftScore(payload || {});
+    }
 
 
 
