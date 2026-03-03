@@ -4103,6 +4103,7 @@ const handleVrnLookup = async () => {
                 try {
                 const vrn = getVal('vrn').toUpperCase().replace(/\s/g, '');
                 if (!vrn) return;
+                window.appState.vrnPayload = null;
                 const spinner = getEl('vrn-spinner'), text = getEl('vrn-lookup-text'), btn = getEl('vrn-lookup-btn');
                 spinner.style.display = 'block'; text.style.display = 'none'; btn.disabled = true;
                 // 1) Payload service (Deals/Backup) MUST run before DB/API lookups
@@ -4119,9 +4120,11 @@ const handleVrnLookup = async () => {
                         }
                         setTxt('vrn-status', 'Found in backup. Proceeding to database/API for vehicle lookup...');
                     } else {
+                        window.appState.vrnPayload = null;
                         setTxt('vrn-status', 'Not found in Database. Checking VRN data...');
                     }
                 } catch (e) {
+                    window.appState.vrnPayload = null;
                     console.error('Payload service error:', e);
                     setTxt('vrn-status', 'Could not query Deals Database. Checking VRN data...');
                 }
@@ -4166,6 +4169,7 @@ const handleVrnLookup = async () => {
                         setTxt('vrn-status', getEl('vrn-status').textContent + (vehicleData.finance ? ' Finance details pre-filled & saved.' : ' No finance record found. Saved vehicle details.'));
                     } else { throw new Error(apiData.error || 'Vehicle not found via API.'); }
                 } catch (error) {
+                    window.appState.vrnPayload = null;
                     setTxt('vrn-status', `Error: ${error.message}`);
                     getEl('vrn-status').style.color = 'red';
                 } finally {
