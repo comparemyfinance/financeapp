@@ -3056,7 +3056,7 @@ mascotImage: "",
             if (!window.pollingInterval) {
                 window.pollingInterval = setInterval(() => this.fetchConversations(), 5000);
             }
-        }},
+        },
 
         async fetchConversations() {
             if (!this.settings.scriptUrl) {
@@ -9975,6 +9975,8 @@ function loadCustomerUploadIframe(){
         }catch(err){reject(err);}
       });
     }
+  })();
+
   function showTab(tabEl) {
     var tabs = $all('.tab-link');
     var panels = $all('.tab-content');
