@@ -5,13 +5,24 @@ on:
     branches: ["main"]
 
 jobs:
-  sanity:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Sanity checks
-        run: |
-          test -f Code.gs
-          test -f Index.html
-          test -f appsscript.json
-          echo "Sanity OK"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format code with Prettier
+        run: npx prettier --write .
+
+      - name: Lint / format check
+        run: npm run lint
+
+      - name: Sanity tests
+        run: npm test
