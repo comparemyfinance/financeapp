@@ -292,3 +292,96 @@ function toInt_(v) {
   var n = parseInt(v, 10);
   return isFinite(n) ? n : NaN;
 }
+
+/**
+ * Placeholder FINANCE NAVIGATOR soft-score simulation.
+ * Deterministic by client + lender so results are stable per client.
+ */
+function getFinanceNavigatorSoftScore(payload) {
+  payload = payload || {};
+  var lendersFromPayload = Array.isArray(payload.lenders) ? payload.lenders : [];
+  var defaults = getLenderDefaults_();
+  var lenders = lendersFromPayload.length ? lendersFromPayload : defaults.map(function(def){
+    return {
+      lenderId: toLenderKey_(def.lender),
+      lenderName: def.lender,
+      baseApr: def.apr
+    };
+  });
+
+  var clientScore = toInt_(payload.clientScore);
+  if (!isFinite(clientScore)) {
+    var scoreRnd = seededNumber_((payload.clientId || payload.quoteId || payload.vrn || 'anon') + '|client-score');
+    clientScore = Math.round(35 + (scoreRnd * 55));
+  }
+  clientScore = Math.max(0, Math.min(100, clientScore));
+
+  var clientSeed = [payload.clientId || '', payload.quoteId || '', payload.vrn || '', clientScore].join('|');
+  var offers = lenders.map(function(entry, idx) {
+    var lenderName = entry.lenderName || entry.lender || '';
+    var lenderId = normalizeLenderId_(entry.lenderId || entry.lenderKey || lenderName || ('lender-' + idx));
+    var rand = seededNumber_(clientSeed + '|' + lenderId);
+    var rand2 = seededNumber_(clientSeed + '|' + lenderId + '|a');
+    var rand3 = seededNumber_(clientSeed + '|' + lenderId + '|d');
+    var baseApr = toNumber_(entry.baseApr);
+    if (!isFinite(baseApr)) {
+      var found = defaults.filter(function(def){ return toLenderKey_(def.lender) === lenderId; })[0];
+      baseApr = found ? found.apr : 12.9;
+    }
+    var primeBias = clientScore >= 70 ? 1 : -1;
+    var acceptanceScore = Math.max(3, Math.min(97, Math.round(clientScore + ((rand - 0.5) * 26) + (primeBias * 6) - ((baseApr > 20 ? 1 : 0) * 8))));
+    var decline = acceptanceScore < 18 && rand3 < 0.7;
+    var aprOffer = null;
+    if (!decline) {
+      var aprShift = ((rand2 - 0.45) * (clientScore >= 70 ? 2.2 : 4.8));
+      aprOffer = Math.max(3.9, Math.ceil((baseApr + aprShift) * 10) / 10);
+    }
+
+    return {
+      lenderId: lenderId,
+      lenderName: lenderName,
+      aprOffer: aprOffer,
+      decision: decline ? 'decline' : 'accept',
+      acceptanceScore: acceptanceScore,
+      acceptanceLabel: acceptanceLabelFromScore_(acceptanceScore)
+    };
+  });
+
+  return {
+    success: true,
+    mode: 'placeholder',
+    source: 'finance-navigator-sim',
+    clientSeed: clientSeed,
+    clientScore: clientScore,
+    offers: offers
+  };
+}
+
+function normalizeLenderId_(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\b(ltd|limited|plc|finance|financial|consumer|bank|group|services|uk)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function seededNumber_(seed) {
+  var str = String(seed || 'seed');
+  var h = 2166136261;
+  for (var idx = 0; idx < str.length; idx++) {
+    h ^= str.charCodeAt(idx);
+    h = Math.imul(h, 16777619);
+  }
+  var state = (h >>> 0) || 1;
+  state = (1664525 * state + 1013904223) >>> 0;
+  return state / 4294967296;
+}
+
+function acceptanceLabelFromScore_(score) {
+  if (score >= 85) return 'Very High';
+  if (score >= 70) return 'High';
+  if (score >= 50) return 'Medium';
+  if (score >= 30) return 'Low';
+  return 'Very Low';
+}

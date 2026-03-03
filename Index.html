@@ -1111,7 +1111,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </form>
 </div>
 <div class="grid-card" id="results-card">
-<div class="section-header"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors" id="soft-score-client-btn" type="button">Soft-Score Client</button></div>
 <div id="results-container"><div class="placeholder-text"><p>New finance products will be displayed here after you submit your current details.</p></div></div>
 </div>
 <div class="grid-card" id="comparison-card">
@@ -3426,7 +3426,7 @@ const ensurePercent = (v) => {
 const initializePSE = () => {
             const GOOGLE_SCRIPT_URL = CONFIG.ENDPOINTS.PSE;
             window.illustratorResultsData = {};
-            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null };
+            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, vrnPayload: null, softScoreMeta: null };
             const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
             const f = (v) => parseFloat(v) || 0;
             const i = (v) => parseInt(v, 10) || 0;
@@ -3447,11 +3447,187 @@ const initializePSE = () => {
                 const d = (1 - Math.pow(1 + r, -t)) / r;
                 return n / d;
             };
+            const suffixStripRegex = /\b(ltd|limited|plc|finance|financial|consumer|bank|group|services|uk)\b/g;
+            const lenderAliases = {
+                'santander consumer': 'santander',
+                'close brothers motor finance': 'close brothers',
+                'bnp paribas': 'bnp paribas finance'
+            };
+            const normalizeLenderName = (name) => {
+                const base = (name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(suffixStripRegex, ' ').replace(/\s+/g, ' ').trim();
+                return lenderAliases[base] || base;
+            };
+            const makeDeterministicHash = (str) => {
+                const src = (str || '').toString();
+                let h = 2166136261;
+                for (let idx = 0; idx < src.length; idx += 1) {
+                    h ^= src.charCodeAt(idx);
+                    h = Math.imul(h, 16777619);
+                }
+                return h >>> 0;
+            };
+            const seededRandom = (seed) => {
+                let state = makeDeterministicHash(seed) || 1;
+                return () => {
+                    state = (1664525 * state + 1013904223) >>> 0;
+                    return state / 4294967296;
+                };
+            };
+            const acceptanceLabelFromScore = (score) => {
+                if (score >= 85) return 'Very High';
+                if (score >= 70) return 'High';
+                if (score >= 50) return 'Medium';
+                if (score >= 30) return 'Low';
+                return 'Very Low';
+            };
+            const parseAprValue = (value) => {
+                const n = parseFloat(value);
+                return Number.isFinite(n) ? n : null;
+            };
+            const getLenderIdForProduct = (product) => normalizeLenderName(product && (product.lenderId || product.lenderKey || product.lender));
+            const getCurrentClientSeed = () => {
+                const payload = window.appState && window.appState.vrnPayload;
+                const raw = payload && payload.raw ? payload.raw : {};
+                const candidate = raw.id || raw.ID || raw.quoteId || raw.referenceNumber || getVal('vrn') || `${getVal('ps_client_firstName')}|${getVal('ps_client_lastName')}|${getVal('ps_client_currentPostcode')}`;
+                return (candidate || '').toString().trim().toUpperCase();
+            };
+            const getFinanceNavigatorPayload = () => {
+                const payload = window.appState && window.appState.vrnPayload;
+                const raw = payload && payload.raw ? payload.raw : {};
+                const client = (payload && payload.dnsPayload && payload.dnsPayload.client) || {};
+                return {
+                    clientId: raw.id || raw.ID || raw.quoteId || '',
+                    quoteId: raw.quoteId || raw.referenceNumber || '',
+                    vrn: (getVal('vrn') || '').toUpperCase().replace(/\s/g, ''),
+                    firstName: client.firstName || getVal('ps_client_firstName') || '',
+                    lastName: client.lastName || getVal('ps_client_lastName') || '',
+                    postcode: client.postcode || getVal('ps_client_currentPostcode') || '',
+                    clientScore: (() => {
+                        const scoreCandidate = raw.creditScore || raw.softScore || raw.score || '';
+                        const n = parseInt(scoreCandidate, 10);
+                        if (Number.isFinite(n)) return Math.max(0, Math.min(100, n));
+                        const rand = seededRandom(`${getCurrentClientSeed()}|client-score`)();
+                        return Math.round(35 + (rand * 55));
+                    })(),
+                    lenders: (window.appState.products || []).map((product) => ({
+                        lenderId: getLenderIdForProduct(product),
+                        lenderName: product.lender,
+                        baseApr: parseAprValue(product.apr),
+                        aprOffer: parseAprValue(product.aprOffer)
+                    }))
+                };
+            };
+            const simulateFinanceNavigatorOffers = (payload) => {
+                const clientSeed = `${payload.clientId || payload.quoteId || payload.vrn || 'anon'}|${payload.clientScore}`;
+                const isPrimeClient = payload.clientScore >= 70;
+                return (payload.lenders || []).map((entry, idx) => {
+                    const lenderId = entry.lenderId || normalizeLenderName(entry.lenderName || `lender-${idx}`);
+                    const rng = seededRandom(`${clientSeed}|${lenderId}`);
+                    const baseApr = parseAprValue(entry.baseApr) ?? 12.9;
+                    const primeBias = isPrimeClient ? 1 : -1;
+                    const acceptanceRaw = Math.max(3, Math.min(97, Math.round(payload.clientScore + ((rng() - 0.5) * 26) + (primeBias * 6) - ((baseApr > 20 ? 1 : 0) * 8))));
+                    const decline = acceptanceRaw < 18 && rng() < 0.7;
+                    const aprShift = decline ? null : ((rng() - 0.45) * (isPrimeClient ? 2.2 : 4.8));
+                    const offeredApr = decline ? null : Math.max(3.9, roundUpToTenth(baseApr + aprShift));
+                    return {
+                        lenderId,
+                        lenderName: entry.lenderName,
+                        aprOffer: offeredApr,
+                        decision: decline ? 'decline' : 'accept',
+                        acceptanceScore: acceptanceRaw,
+                        acceptanceLabel: acceptanceLabelFromScore(acceptanceRaw)
+                    };
+                });
+            };
+            const applySoftScoreOffersToProducts = (offers) => {
+                const byLenderId = new Map();
+                const byName = new Map();
+                (offers || []).forEach((offer) => {
+                    if (!offer) return;
+                    const offerLenderId = normalizeLenderName(offer.lenderId || '');
+                    const offerName = normalizeLenderName(offer.lenderName || '');
+                    if (offerLenderId) byLenderId.set(offerLenderId, offer);
+                    if (offerName) byName.set(offerName, offer);
+                });
+                window.appState.products = (window.appState.products || []).map((product) => {
+                    const lenderId = getLenderIdForProduct(product);
+                    const lenderNameKey = normalizeLenderName(product.lender);
+                    const match = byLenderId.get(lenderId) || byName.get(lenderNameKey) || null;
+                    const acceptedApr = match && Number.isFinite(match.aprOffer) ? match.aprOffer : null;
+                    return {
+                        ...product,
+                        lenderId,
+                        aprOffer: acceptedApr,
+                        acceptanceRating: match ? {
+                            label: match.acceptanceLabel || acceptanceLabelFromScore(match.acceptanceScore || 0),
+                            score: Number.isFinite(match.acceptanceScore) ? match.acceptanceScore : 0,
+                            decision: match.decision || 'accept'
+                        } : null
+                    };
+                }).sort((a, b) => ((a.aprOffer ?? a.apr ?? 999) - (b.aprOffer ?? b.apr ?? 999)));
+            };
+            const runSoftScoreClient = async () => {
+                if (!window.appState.products.length) {
+                    showToast('Run FIND NEW PRODUCTS first.', 'error');
+                    return;
+                }
+                const payload = getFinanceNavigatorPayload();
+                if (!payload.vrn) {
+                    showToast('Run VRN lookup first.', 'error');
+                    return;
+                }
+                const btn = getEl('soft-score-client-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = 'Scoring...';
+                    btn.classList.add('opacity-70', 'cursor-not-allowed');
+                }
+                try {
+                    let offers = [];
+                    if (window.App && typeof App.apiCall === 'function') {
+                        let token = '';
+                        try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch(e) {}
+                        const res = await App.apiCall('POST', {
+                            action: 'getFinanceNavigatorSoftScore',
+                            payload: { ...payload, token }
+                        });
+                        if (res && res.success && Array.isArray(res.offers) && res.offers.length) offers = res.offers;
+                    }
+                    if (!offers.length) offers = simulateFinanceNavigatorOffers(payload);
+                    applySoftScoreOffersToProducts(offers);
+                    window.appState.softScoreMeta = { ranAt: Date.now(), payload, offersCount: offers.length };
+                    updateResultsTable();
+                    if (window.appState.selectedProductIndex !== null) updateComparisonView();
+                    showToast('Soft-Score Client results loaded.', 'success');
+                } catch (err) {
+                    console.error('Soft score simulation failed', err);
+                    showToast('Unable to fetch soft-score offers.', 'error');
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Soft-Score Client';
+                        btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                    }
+                }
+            };
             const updateResultsTable = () => {
                 const { products, selectedProductIndex, financeDetails } = window.appState;
-                if (!products.length) return placeholder('results-container', 'No products found. Please check your input.');
-                const rows = products.map((p, idx) => `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(p.apr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span></td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td></tr>`).join('');
-                setHtml('results-container', `<table id="products-table"><thead><tr><th>Lender</th><th>Rate</th><th>Balloon (GFV)</th><th>Term</th><th>Monthly</th><th>Total</th><th>Commission</th></tr></thead><tbody>${rows}</tbody></table>`);
+                if (!products.length) {
+                    const softBtn = getEl('soft-score-client-btn');
+                    if (softBtn) softBtn.classList.add('hidden');
+                    return placeholder('results-container', 'No products found. Please check your input.');
+                }
+                const softBtn = getEl('soft-score-client-btn');
+                if (softBtn) softBtn.classList.remove('hidden');
+                const rows = products.map((p, idx) => {
+                    const effectiveApr = p.aprOffer ?? p.apr;
+                    const aprSourceTag = Number.isFinite(p.aprOffer) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">FN</span>' : '';
+                    const rating = p.acceptanceRating
+                        ? `<span class="inline-flex items-center rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs font-semibold" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === 'decline' ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ''}`
+                        : '<span class="text-xs text-gray-500">N/A</span>';
+                    return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
+                }).join('');
+                setHtml('results-container', `<table id="products-table"><thead><tr><th>Lender</th><th>Rate</th><th>Balloon (GFV)</th><th>Term</th><th>Monthly</th><th>Total</th><th>Commission</th><th>Soft-Score</th></tr></thead><tbody>${rows}</tbody></table>`);
             };
             const updateComparisonView = () => {
                 const { selectedProductIndex, financeDetails, products } = window.appState;
@@ -3518,7 +3694,7 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            window.appState.products = res.products.slice().sort((a, b) => (a.apr || 0) - (b.apr || 0));
+                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), aprOffer: null, acceptanceRating: null })).sort((a, b) => (a.apr || 0) - (b.apr || 0));
                             return;
                         }
 
@@ -3543,7 +3719,7 @@ const initializePSE = () => {
                     const commission = settlementFigure * (p.c / 100);
                     const monthly = calcMonthly(settlementFigure, remainingTerm, p.a, balloon);
                     const total = (monthly * remainingTerm) + balloon;
-                    return { lender: p.l, apr: p.a, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
+                    return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
                 }));
                 window.appState.products = productsWithBalloons.sort((a, b) => a.apr - b.apr);
             };
@@ -3871,6 +4047,7 @@ const handleVrnLookup = async () => {
                 try {
                     const payloadJson = await fetchVrnPayloadFromSheet(vrn);
                     if (payloadJson && payloadJson.ok && payloadJson.found) {
+                        window.appState.vrnPayload = payloadJson;
                         applyDnsPayloadToUI(payloadJson);
                         if (payloadJson.foundInDeals) {
                             setTxt('vrn-status', 'Found in Deal Database.'); getEl('vrn-status').style.color = 'green';
@@ -4074,6 +4251,8 @@ const handleVrnLookup = async () => {
                 switch (field) {
                     case 'apr':
                         product.apr = asNumber(raw);
+                        product.aprOffer = null;
+                        product.acceptanceRating = null;
                         break;
                     case 'term':
                         product.term = Math.max(1, parseInt(raw, 10) || 0);
@@ -4124,6 +4303,7 @@ const handleVrnLookup = async () => {
             on(getEl('original-final-balloon'), 'input', () => getEl('original-final-balloon').dataset.manuallySet = 'true');
             on(getEl('finance-type'), 'change', handleFinanceTypeChange);
             on(getEl('vrn-lookup-btn'), 'click', handleVrnLookup);
+            on(getEl('soft-score-client-btn'), 'click', runSoftScoreClient);
             on(getEl('vrn'), 'keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
