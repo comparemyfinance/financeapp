@@ -3623,10 +3623,6 @@ const initializePSE = () => {
                 return 'bg-gray-100 text-gray-700';
             };
 
-                }).sort((a, b) => ((a.aprOffer ?? a.apr ?? 999) - (b.aprOffer ?? b.apr ?? 999)));
-            };
-  
-  main
             const runSoftScoreClient = async () => {
                 if (!window.appState.products.length) {
                     showToast('Run FIND NEW PRODUCTS first.', 'error');
