@@ -134,7 +134,7 @@ function headerIndexMap_(headers) {
     m[h] = i + 1;
     const c = canonicalHeader_(h);
     if (c && !m[c]) m[c] = i + 1;
-  });
+  }, 3);
   return m;
 }
 
@@ -1015,6 +1015,29 @@ function saveVrnData_(vrn, data) {
 }
 
 // ------------------------- Jigsaw auth/token
+function fetchWithTransientRetry_(url, options, maxAttempts) {
+  const attempts = Math.max(1, Number(maxAttempts || 1));
+  let lastErr = null;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = UrlFetchApp.fetch(url, options);
+      const code = res.getResponseCode();
+      const retriableHttp = code === 408 || code === 429 || code >= 500;
+      if (retriableHttp && i < attempts) {
+        Utilities.sleep(200 * i);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (i >= attempts) throw err;
+      Utilities.sleep(200 * i);
+    }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error('fetchWithTransientRetry_ failed without response');
+}
+
 function getJigsawToken_() {
   const username = getProp_('JIGSAW_USERNAME');
   const password = getProp_('JIGSAW_PASSWORD');
@@ -1031,7 +1054,7 @@ function getJigsawToken_() {
     '&username=' + encodeURIComponent(username) +
     '&password=' + encodeURIComponent(password);
 
-  const res = UrlFetchApp.fetch(tokenUrl, {
+  const res = fetchWithTransientRetry_(tokenUrl, {
     method: 'post',
     contentType: 'application/x-www-form-urlencoded',
     payload: formBody,
@@ -1060,13 +1083,13 @@ function jigsawPostJson_(path, payloadObj) {
 
   while (attempt < 2) {
     attempt++;
-    const res = UrlFetchApp.fetch(url, {
+    const res = fetchWithTransientRetry_(url, {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payloadObj),
       headers: { Authorization: 'Bearer ' + token },
       muteHttpExceptions: true,
-    });
+    }, 3);
 
     const status = res.getResponseCode();
     const bodyText = res.getContentText();
@@ -1249,7 +1272,7 @@ function jigsawFetch_(method, path, payloadObj, opts) {
 
   while (attempt < 2) {
     attempt++;
-    const res = UrlFetchApp.fetch(url, fetchOpts);
+    const res = fetchWithTransientRetry_(url, fetchOpts, 3);
     const status = res.getResponseCode();
 
     if ((status === 401 || status === 403) && attempt === 1) {
