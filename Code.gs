@@ -325,6 +325,10 @@ function mergeInto_(existingObj, patchObj) {
  * AI NOTE: Keep doGet side-effect free (read-only). Any writes should be POST.
  */
 
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
 function doGet(e) {
   const params = (e && e.parameter) ? e.parameter : {};
   const wantsApiJson = (params.api === '1' || params.format === 'json');
