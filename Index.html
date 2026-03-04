@@ -13815,18 +13815,24 @@
                       applyResultsSort();
                       updateResultsTable();
                   };
-                  const getSoftScorePillClass = (rating) => {
-                      const label = (rating && rating.label ? rating.label : '').toLowerCase();
-                      if (label === 'very high' || label === 'high') return 'bg-green-100 text-green-800';
-                      if (label === 'medium') return 'bg-amber-100 text-amber-800';
-                      if (label === 'low' || label === 'very low') return 'bg-red-100 text-red-800';
-                      return 'bg-gray-100 text-gray-700';
-                  };
-
                       }).sort((a, b) => ((a.aprOffer ?? a.apr ?? 999) - (b.aprOffer ?? b.apr ?? 999)));
                   };
 
-        main
+                  const resetPseProductSourceState = () => {
+                      try {
+                          if (window.appState) {
+                              window.appState.products = [];
+                              window.appState.selectedProductIndex = null;
+                              window.appState.resultsSort = { key: 'apr', direction: 'asc' };
+                          }
+                          placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
+                          placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
+                          const dns = getEl('demands-and-needs-section');
+                          if (dns) dns.classList.add('hidden');
+                      } catch (err) {}
+                  };
+                  window.resetPseProductSourceState = resetPseProductSourceState;
+
                   const runSoftScoreClient = async () => {
                       if (!window.appState.products.length) {
                           showToast('Run FIND NEW PRODUCTS first.', 'error');
@@ -19293,6 +19299,9 @@
 
                           // Close the modal so the PSE tab is visible
                           try { if (window.App && App.ui && typeof App.ui.closeModal === 'function') App.ui.closeModal('customer'); } catch (err) {}
+
+                          // Clear previous Product Source state before switching clients
+                          try { if (typeof window.resetPseProductSourceState === 'function') window.resetPseProductSourceState(); } catch (err) {}
 
                           // Switch tab then auto-run the VRN lookup
                           try { switchTab('pse'); } catch (err) {}
