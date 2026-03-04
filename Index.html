@@ -2233,10 +2233,10 @@
                 </div>
                 <button
                   class="hidden px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors"
-                  id="soft-score-client-btn"
+                  id="soft-score-client-btn-legacy"
                   type="button"
                 >
-                  Soft-Score Client
+                  Pre-Qual Client
                 </button>
               </div>
               <div id="results-container">
@@ -13826,7 +13826,21 @@
                       }).sort((a, b) => ((a.aprOffer ?? a.apr ?? 999) - (b.aprOffer ?? b.apr ?? 999)));
                   };
 
-        main
+                  const resetPseProductSourceState = () => {
+                      try {
+                          if (window.appState) {
+                              window.appState.products = [];
+                              window.appState.selectedProductIndex = null;
+                              window.appState.resultsSort = { key: 'apr', direction: 'asc' };
+                          }
+                          placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
+                          placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
+                          const dns = getEl('demands-and-needs-section');
+                          if (dns) dns.classList.add('hidden');
+                      } catch (err) {}
+                  };
+                  window.resetPseProductSourceState = resetPseProductSourceState;
+
                   const runSoftScoreClient = async () => {
                       if (!window.appState.products.length) {
                           showToast('Run FIND NEW PRODUCTS first.', 'error');
@@ -13884,11 +13898,11 @@
                           const effectiveApr = p.aprOffer ?? p.apr;
                           const aprSourceTag = Number.isFinite(p.aprOffer) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">FN</span>' : '';
                           const rating = p.acceptanceRating
-                              ? `<span class="inline-flex items-center rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs font-semibold" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === 'decline' ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ''}`
+                              ? `<span class="pq-pill ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === 'decline' ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ''}`
                               : '<span class="text-xs text-gray-500">N/A</span>';
                           return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
                       }).join('');
-                      setHtml('results-container', `<table id="products-table"><thead><tr><th>Lender</th><th>Rate</th><th>Balloon (GFV)</th><th>Term</th><th>Monthly</th><th>Total</th><th>Commission</th><th>Soft-Score</th></tr></thead><tbody>${rows}</tbody></table>`);
+                      setHtml('results-container', `<table id="products-table"><thead><tr><th colspan="7"></th><th><button class="px-3 py-2 rounded-lg text-white font-semibold text-xs bg-purple-600 hover:bg-purple-700 transition-colors whitespace-nowrap" id="soft-score-client-btn" type="button">Pre-Qual Client</button></th></tr><tr><th>Lender</th><th>Rate</th><th>Balloon (GFV)</th><th>Term</th><th>Monthly</th><th>Total</th><th>Commission</th><th>PQ-Score</th></tr></thead><tbody>${rows}</tbody></table>`);
                   };
                   const updateComparisonView = () => {
                       const { selectedProductIndex, financeDetails, products } = window.appState;
@@ -14546,6 +14560,12 @@
                   });
                   on(getEl('finance-form'), 'submit', handleFormSubmit);
                   on(getEl('results-container'), 'click', e => {
+                      const preQualBtn = e.target.closest('#soft-score-client-btn');
+                      if (preQualBtn) {
+                          e.preventDefault();
+                          runSoftScoreClient();
+                          return;
+                      }
                       const sortHeader = e.target.closest('th[data-results-sort]');
                       if (sortHeader) {
                           setResultsSort(sortHeader.dataset.resultsSort);
@@ -14577,7 +14597,6 @@
                   on(getEl('original-final-balloon'), 'input', () => getEl('original-final-balloon').dataset.manuallySet = 'true');
                   on(getEl('finance-type'), 'change', handleFinanceTypeChange);
                   on(getEl('vrn-lookup-btn'), 'click', handleVrnLookup);
-                  on(getEl('soft-score-client-btn'), 'click', runSoftScoreClient);
                   on(getEl('vrn'), 'keydown', (e) => {
                       if (e.key === 'Enter') {
                           e.preventDefault();
@@ -19294,6 +19313,9 @@
                           // Close the modal so the PSE tab is visible
                           try { if (window.App && App.ui && typeof App.ui.closeModal === 'function') App.ui.closeModal('customer'); } catch (err) {}
 
+                          // Clear previous Product Source state before switching clients
+                          try { if (typeof window.resetPseProductSourceState === 'function') window.resetPseProductSourceState(); } catch (err) {}
+
                           // Switch tab then auto-run the VRN lookup
                           try { switchTab('pse'); } catch (err) {}
 
@@ -19542,6 +19564,17 @@
         border: 1px solid rgba(0, 66, 37, 0.25);
         background: rgba(255, 255, 255, 0.8);
         font-size: 0.9rem;
+        font-weight: 700;
+      }
+
+      #pse #form-card .pq-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        line-height: 1.2;
       }
 
       #pse #form-card .ps-client-field--full {
