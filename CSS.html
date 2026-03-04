@@ -1,3 +1,4 @@
+<style id="tailwind-built">
 /*! tailwindcss v4.2.0 | MIT License | https://tailwindcss.com */ @layer
 properties{@supports (((-webkit-hyphens:none)) and (not (margin-trim:inline)))
 or ((-moz-orient:inline) and (not (color:rgb(from red r g
@@ -441,3 +442,61 @@ var(--tw-ring-offset-color)}.focus\:outline-none:focus{--tw-outline-style:none;o
     ></percentage
   ></percentage
 >
+
+</style>
+<style id="forms-lite">
+/* forms-lite: soften default control chrome (replaces Tailwind forms plugin basics) */
+input[type="text"], input[type="number"], input[type="email"], input[type="tel"], input[type="url"],
+input[type="password"], input[type="search"], input[type="date"], input[type="time"],
+select, textarea {
+  border: 1px solid rgba(17, 24, 39, 0.18); /* soft slate */
+  border-radius: 0.75rem; /* matches rounded-xl vibe */
+  background-color: #fff;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(34, 197, 94, 0.55); /* soft green */
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
+</style>
+<style id="ui-polish-patches">
+/* ---- UI polish patches (post-tailwind) ---- */
+
+/* 1) Make all .input-field controls consistent outside #pse (fix dark outline on CURRENT APR etc.) */
+.input-field{
+  border: 1px solid rgba(17, 24, 39, 0.18) !important;
+  border-radius: 0.75rem !important;
+  outline: none !important;
+}
+.input-field:focus{
+  outline: none !important;
+  border-color: rgba(34, 197, 94, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18) !important;
+}
+
+/* 2) Soften borders inside the Application modal (sections/boxes looking too dark) */
+#customerModal .border,
+#customerModal .border-2,
+#customerModal .border-b,
+#customerModal .border-t,
+#customerModal .border-l,
+#customerModal .border-r{
+  border-color: rgba(17, 24, 39, 0.14) !important;
+}
+
+/* 3) Client Files: make document preview larger and reliably tall */
+#client-files-view{
+  min-height: 82vh;
+}
+#client-files-view .drive-layout,
+#client-files-view .drive-pane,
+#client-files-view .drive-preview,
+#client-files-view .drive-preview-area{
+  min-height: 70vh;
+}
+#drive-preview-frame{
+  min-height: 70vh;
+}
+</style>
