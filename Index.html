@@ -1113,7 +1113,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </form>
 </div>
 <div class="grid-card" id="results-card">
-<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors" id="soft-score-client-btn" type="button">Soft-Score Client</button></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors" id="soft-score-client-btn" type="button">Pre-Qual Client</button></div>
 <div id="results-container"><div class="placeholder-text"><p>New finance products will be displayed here after you submit your current details.</p></div></div>
 </div>
 <div class="grid-card" id="comparison-card">
@@ -3506,7 +3506,7 @@ const initializePSE = () => {
                 if (label.includes('very high')) return 'bg-green-100 text-green-800';
                 if (label.includes('high')) return 'bg-green-50 text-green-700';
                 if (label.includes('medium')) return 'bg-yellow-100 text-yellow-800';
-                if (label.includes('low')) return 'bg-orange-100 text-orange-800';
+                if (label.includes('low')) return 'bg-red-100 text-red-700';
                 return 'bg-red-100 text-red-700';
             };
             const updateResultsTable = () => {
@@ -3525,7 +3525,7 @@ const initializePSE = () => {
                         : '<span class="text-xs text-gray-500">—</span>';
                     return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
                 }).join('');
-                setHtml('results-container', `<table id="products-table"><thead><tr><th data-results-sort="lender" role="button" title="Sort">Lender${getSortIndicator('lender')}</th><th data-results-sort="apr" role="button" title="Sort">Rate${getSortIndicator('apr')}</th><th data-results-sort="balloon" role="button" title="Sort">Balloon (GFV)${getSortIndicator('balloon')}</th><th data-results-sort="term" role="button" title="Sort">Term${getSortIndicator('term')}</th><th data-results-sort="monthly" role="button" title="Sort">Monthly${getSortIndicator('monthly')}</th><th data-results-sort="total" role="button" title="Sort">Total${getSortIndicator('total')}</th><th data-results-sort="commission" role="button" title="Sort">Commission${getSortIndicator('commission')}</th><th data-results-sort="softScore" role="button" title="Sort">Soft Score${getSortIndicator('softScore')}</th></tr></thead><tbody>${rows}</tbody></table>`);
+                setHtml('results-container', `<table id="products-table"><thead><tr><th data-results-sort="lender" role="button" title="Sort">Lender${getSortIndicator('lender')}</th><th data-results-sort="apr" role="button" title="Sort">Rate${getSortIndicator('apr')}</th><th data-results-sort="balloon" role="button" title="Sort">Balloon (GFV)${getSortIndicator('balloon')}</th><th data-results-sort="term" role="button" title="Sort">Term${getSortIndicator('term')}</th><th data-results-sort="monthly" role="button" title="Sort">Monthly${getSortIndicator('monthly')}</th><th data-results-sort="total" role="button" title="Sort">Total${getSortIndicator('total')}</th><th data-results-sort="commission" role="button" title="Sort">Commission${getSortIndicator('commission')}</th><th data-results-sort="softScore" role="button" title="Sort">PQ-Score${getSortIndicator('softScore')}</th></tr></thead><tbody>${rows}</tbody></table>`);
             };
             const updateComparisonView = () => {
                 const { selectedProductIndex, financeDetails, products } = window.appState;

@@ -375,20 +375,33 @@ function getFinanceNavigatorSoftScore(payload) {
       })[0];
       baseApr = found ? found.apr : 12.9;
     }
-    var primeBias = clientScore >= 70 ? 1 : -1;
+    // Lender appetite model (placeholder):
+    // - Prime lenders (lower APR) are stricter for weaker clients.
+    // - Higher-APR lenders are generally more accepting, especially for weaker clients.
+    var primeStrictness = Math.max(0, Math.min(1, (14 - baseApr) / 8));
+    var subprimeAppetite = Math.max(0, Math.min(1, (baseApr - 16) / 16));
+    var highClientBoost = clientScore >= 75 ? 8 : (clientScore >= 60 ? 4 : 0);
+    var lowClientPenaltyAtPrime = (clientScore < 60 ? 11 : 6) * primeStrictness;
+    var lowClientSupportAtHighApr = (clientScore < 60 ? 12 : 6) * subprimeAppetite;
+
     var acceptanceScore = Math.max(
       3,
       Math.min(
         97,
         Math.round(
           clientScore +
-            (rand - 0.5) * 26 +
-            primeBias * 6 -
-            (baseApr > 20 ? 1 : 0) * 8,
+            (rand - 0.5) * 22 +
+            highClientBoost +
+            lowClientSupportAtHighApr -
+            lowClientPenaltyAtPrime,
         ),
       ),
     );
-    var decline = acceptanceScore < 18 && rand3 < 0.7;
+
+    // Higher-APR lenders should be less likely to hard-decline near the lower edge.
+    var declineThreshold = Math.max(8, 18 - Math.round(subprimeAppetite * 8));
+    var declineChance = Math.max(0.2, 0.7 - subprimeAppetite * 0.25);
+    var decline = acceptanceScore < declineThreshold && rand3 < declineChance;
     var aprOffer = null;
     if (!decline) {
       var aprShift = (rand2 - 0.45) * (clientScore >= 70 ? 2.2 : 4.8);
