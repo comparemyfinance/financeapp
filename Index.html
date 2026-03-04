@@ -3894,6 +3894,7 @@ buildDraft({ dealId, deal, formData }) {
                             else if (state === 'validated') badge.classList.add('bg-blue-100','text-blue-800');
                             else badge.classList.add('bg-gray-200','text-gray-700');
                         }
+                        fd.employmentAddressCity = fd.currentCity || fd.employmentAddressCity || '';
 
                         if (refEl && ref !== undefined) refEl.textContent = (ref && String(ref).trim() !== '') ? String(ref).trim() : '—';
                         if (lastEl && lastAt !== undefined) lastEl.textContent = (lastAt && String(lastAt).trim() !== '') ? String(lastAt).trim() : '—';
@@ -4290,6 +4291,7 @@ if (dataObj && dataObj.success === false) {
                                     }
                                 }
                             }
+                        },
 
                             this.state.parsedDeals = {
                                 unique: Array.from(seen.values()),
@@ -4499,6 +4501,16 @@ saveStages() {
                         if (!apiCheck.ok) {
                             showNavMessage(`${apiCheck.message} (You can still save; Jigsaw Validate/Send will require this.)`, 'warning', 6000);
                         }
+                    },
+                    async sendJigsaw() {
+                        const dealId = App.elements.dealId.value;
+                        if (!dealId) return showNavMessage("Please save the deal before sending to Jigsaw.", "error");
+                        const deal = App.state.deals.find(d => String(App.utils.getDealId(d)) === String(dealId)) || null;
+                        const formData = App.ui.getFormData();
+                        const draft = App.jigsaw.buildDraft({ dealId, deal, formData });
+                        App.utils.applyApiAutofillFields(formData, { updateDom: true });
+                        const apiCheck = App.utils.validateApiApplicationData(formData);
+                        if (!apiCheck.ok) return showNavMessage(apiCheck.message, 'error');
 
 // Build the deal object the backend expects (mapping to JigsawReferral happens server-side)
                         const payloadDeal = Object.assign({}, (deal || {}), (formData || {}));
@@ -5566,6 +5578,7 @@ async function jigsawFetchAction(action, payload) {
                                 if(App.diagnostics) App.diagnostics.log("Folder Open Error: " + e.message, "error");
                             }
                         }
+                    },
 
                 },
 
@@ -7158,6 +7171,9 @@ document.body.addEventListener('click', async (e) => {
                     // Close the modal so the PSE tab is visible
                     try { if (window.App && App.ui && typeof App.ui.closeModal === 'function') App.ui.closeModal('customer'); } catch (err) {}
 
+                    // Clear previous Product Source state before switching to a new client lookup
+                    try { if (typeof window.resetPseProductSourceState === 'function') window.resetPseProductSourceState(); } catch (err) {}
+
                     // Switch tab then auto-run the VRN lookup
                     try { switchTab('pse'); } catch (err) {}
 
@@ -7172,6 +7188,43 @@ document.body.addEventListener('click', async (e) => {
                         if (findBtn) findBtn.click();
                     }, 150);
 
+                    return;
+                }
+
+                const addDocBtn = e.target.closest('#addDocShortcutBtn');
+                if (addDocBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+
+                    let surname = '';
+                    let postcode = '';
+                    try {
+                        if (window.App && App.elements && App.elements.customerForm && App.elements.customerForm.elements) {
+                            const f = App.elements.customerForm.elements;
+                            surname = (f['lastName'] && f['lastName'].value) || surname;
+                            postcode = (f['currentPostcode'] && f['currentPostcode'].value) || postcode;
+                        }
+                        if ((!surname || !postcode) && window.App && App.ui && typeof App.ui.getFormData === 'function') {
+                            const fd = App.ui.getFormData() || {};
+                            surname = surname || fd.lastName || '';
+                            postcode = postcode || fd.currentPostcode || fd.postcode || '';
+                        }
+                    } catch (err) {}
+
+                    surname = String(surname || '').trim();
+                    postcode = String(postcode || '').trim();
+                    if (!surname && !postcode) {
+                        alert('No surname/postcode found in this application.');
+                        return;
+                    }
+
+                    try { if (window.App && App.ui && typeof App.ui.closeModal === 'function') App.ui.closeModal('customer'); } catch (err) {}
+
+                    try { window.__cmfDocUploadPayload = { surname, postcode, ts: Date.now() }; } catch (err) {}
+                    try { switchTab('document-upload'); } catch (err) {}
+                    setTimeout(() => { try { if (typeof window.applyDocumentUploadPayload === 'function') window.applyDocumentUploadPayload(); } catch (err) {} }, 150);
+                    setTimeout(() => { try { if (typeof window.applyDocumentUploadPayload === 'function') window.applyDocumentUploadPayload(); } catch (err) {} }, 2300);
                     return;
                 }
 
@@ -7395,6 +7448,7 @@ button[onclick*="manageStages"],
     border: 1px solid rgba(0, 66, 37, 0.25);
     background: rgba(255, 255, 255, 0.8);
     font-size: 0.9rem;
+    font-weight: 700;
   }
 
   #pse #form-card .ps-client-field--full {
