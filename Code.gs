@@ -417,9 +417,9 @@ function routeAction_(action, payload, fullRequest) {
     if (action === 'getLenderQuotesBatch') {
       return getLenderQuotesBatch(payload || {});
     }
-
-
-
+    if (action === 'getFinanceNavigatorSoftScore') {
+      return getFinanceNavigatorSoftScore(payload || {});
+    }
 
     // Cache-based locks
     if (action === 'acquireLock' || action === 'releaseLock' || action === 'heartbeatLock') {

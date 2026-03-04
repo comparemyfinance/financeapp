@@ -1113,7 +1113,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </form>
 </div>
 <div class="grid-card" id="results-card">
-<div class="section-header"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors" id="soft-score-client-btn" type="button">Soft-Score Client</button></div>
 <div id="results-container"><div class="placeholder-text"><p>New finance products will be displayed here after you submit your current details.</p></div></div>
 </div>
 <div class="grid-card" id="comparison-card">
@@ -3434,6 +3434,14 @@ const initializePSE = () => {
             const i = (v) => parseInt(v, 10) || 0;
             const toFixed2 = (n) => n.toFixed(2);
             const roundUpToTenth = (n) => Math.ceil(n * 10) / 10;
+            const normalizeLenderName = (name) => (name || '')
+                .toString()
+                .toLowerCase()
+                .replace(/\b(ltd|limited|plc|finance|financial|consumer|bank|group|services|uk)\b/g, ' ')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const getLenderIdForProduct = (product) => normalizeLenderName(product && (product.lenderId || product.lenderKey || product.lender));
             const formatApr = (n) => {
                 const num = parseFloat(n);
                 if (!Number.isFinite(num)) return '';
@@ -3451,7 +3459,12 @@ const initializePSE = () => {
             };
             const updateResultsTable = () => {
                 const { products, selectedProductIndex, financeDetails } = window.appState;
-                if (!products.length) return placeholder('results-container', 'No products found. Please check your input.');
+                const softBtn = getEl('soft-score-client-btn');
+                if (!products.length) {
+                    if (softBtn) softBtn.classList.add('hidden');
+                    return placeholder('results-container', 'No products found. Please check your input.');
+                }
+                if (softBtn) softBtn.classList.remove('hidden');
                 const rows = products.map((p, idx) => `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(p.apr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span></td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td></tr>`).join('');
                 setHtml('results-container', `<table id="products-table"><thead><tr><th>Lender</th><th>Rate</th><th>Balloon (GFV)</th><th>Term</th><th>Monthly</th><th>Total</th><th>Commission</th></tr></thead><tbody>${rows}</tbody></table>`);
             };
@@ -3520,7 +3533,7 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            window.appState.products = res.products.slice().sort((a, b) => (a.apr || 0) - (b.apr || 0));
+                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), aprOffer: null, acceptanceRating: null })).sort((a, b) => (a.apr || 0) - (b.apr || 0));
                             return;
                         }
 
@@ -3545,9 +3558,72 @@ const initializePSE = () => {
                     const commission = settlementFigure * (p.c / 100);
                     const monthly = calcMonthly(settlementFigure, remainingTerm, p.a, balloon);
                     const total = (monthly * remainingTerm) + balloon;
-                    return { lender: p.l, apr: p.a, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
+                    return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
                 }));
                 window.appState.products = productsWithBalloons.sort((a, b) => a.apr - b.apr);
+            };
+            const runSoftScoreClient = async () => {
+                const products = window.appState.products || [];
+                if (!products.length) return showToast('Find products before requesting soft-score.', 'error');
+                const btn = getEl('soft-score-client-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.classList.add('opacity-60', 'cursor-not-allowed');
+                }
+                try {
+                    let token = '';
+                    try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch (e) {}
+                    if (!(window.App && typeof App.apiCall === 'function')) throw new Error('API client unavailable');
+                    const payload = {
+                        token,
+                        clientId: getVal('agreement-number') || getVal('vrn') || 'anon',
+                        vrn: getVal('vrn') || '',
+                        lenders: products.map((product) => ({
+                            lenderId: getLenderIdForProduct(product),
+                            lenderName: product.lender,
+                            baseApr: Number(product.apr) || null
+                        }))
+                    };
+                    const res = await App.apiCall('POST', { action: 'getFinanceNavigatorSoftScore', payload });
+                    if (!res || !res.success || !Array.isArray(res.offers)) throw new Error('Invalid soft-score response');
+
+                    const byId = new Map();
+                    const byName = new Map();
+                    res.offers.forEach((offer) => {
+                        const idKey = normalizeLenderName(offer && offer.lenderId);
+                        const nameKey = normalizeLenderName(offer && offer.lenderName);
+                        if (idKey) byId.set(idKey, offer);
+                        if (nameKey) byName.set(nameKey, offer);
+                    });
+
+                    window.appState.products = products.map((product) => {
+                        const idKey = getLenderIdForProduct(product);
+                        const nameKey = normalizeLenderName(product && product.lender);
+                        const match = byId.get(idKey) || byName.get(nameKey) || null;
+                        return {
+                            ...product,
+                            aprOffer: match && Number.isFinite(Number(match.aprOffer)) ? Number(match.aprOffer) : null,
+                            acceptanceRating: match ? {
+                                score: Number(match.acceptanceScore) || 0,
+                                label: match.acceptanceLabel || 'Unknown',
+                                decision: match.decision || 'accept'
+                            } : null
+                        };
+                    });
+
+                    showToast('Soft-score placeholder offers loaded.', 'success');
+                    updateResultsTable();
+                    updateComparisonView();
+                    bridgeDataToLetterCreator();
+                } catch (err) {
+                    console.error('Soft-score request failed', err);
+                    showToast('Unable to fetch soft-score offers.', 'error');
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    }
+                }
             };
             const handleFormSubmit = async (e) => {
                 e.preventDefault();
@@ -4111,6 +4187,7 @@ const handleVrnLookup = async () => {
                 }
             });
             on(getEl('comparison-container'), 'click', e => { if (e.target.id === 'term-plus-btn') adjustTerm(1); else if (e.target.id === 'term-minus-btn') adjustTerm(-1); });
+            on(getEl('soft-score-client-btn'), 'click', runSoftScoreClient);
             $$('#pse .original-input').forEach(input => {
                 on(input, 'input', (e) => {
                     if (e.target.id === 'original-apr' || e.target.id === 'original-final-balloon') return;
