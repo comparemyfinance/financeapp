@@ -1,0 +1,467 @@
+<div class="tab-content" id="sales-pipeline-crm" style="display: block">
+  <nav
+    class="top-nav w-full flex justify-center items-center p-2 flex-shrink-0"
+  >
+    <div
+      class="absolute right-4 text-sm font-medium text-white transition-opacity duration-500 opacity-0 pointer-events-none"
+      id="nav-message-area"
+    >
+      <span id="nav-message-text"></span>
+    </div>
+    <div class="flex items-center space-x-4">
+      <button
+        class="nav-tab active w-14 h-14 flex items-center justify-center rounded-xl text-white hover:bg-green-700 transition-colors"
+        data-view="pipeline"
+        title="Sales Pipeline"
+      >
+        <i class="fas fa-briefcase text-2xl"></i></button
+      ><button
+        class="nav-tab w-14 h-14 flex items-center justify-center rounded-xl text-white hover:bg-green-700 transition-colors"
+        data-view="forecasting"
+        title="Forecasting"
+      >
+        <i class="fas fa-chart-line text-2xl"></i></button
+      ><button
+        class="nav-tab w-14 h-14 flex items-center justify-center rounded-xl text-white hover:bg-green-700 transition-colors"
+        data-view="contacts"
+        title="Contacts"
+      >
+        <i class="fas fa-address-book text-2xl"></i></button
+      ><button
+        class="nav-tab w-14 h-14 flex items-center justify-center rounded-xl text-white hover:bg-green-700 transition-colors"
+        data-view="data"
+        title="Data Management"
+      >
+        <i class="fas fa-database text-2xl"></i>
+      </button>
+    </div>
+  </nav>
+  <header
+    class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white flex-shrink-0"
+  >
+    <div class="flex items-center space-x-2" id="title-and-buttons-wrapper">
+      <h1 class="text-3xl font-bold text-gray-800" id="pageTitle">
+        Sales Pipeline
+      </h1>
+    </div>
+    <!-- DEBUG/OBSERVABILITY: “Jigsaw response” status panel. Shows last server/API response for the active deal (status + reference + raw/summary). Safe to hide for production; keep for troubleshooting. -->
+  </header>
+  <div
+    class="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-[var(--pale-green)]"
+    id="app"
+  >
+    <div class="view" id="pipeline-view">
+      <div
+        class="w-full max-w-xl mb-3 px-1 flex flex-col sm:flex-row sm:space-x-2"
+        id="kanban-toolbar"
+      >
+        <div class="w-full sm:w-1/2 mb-2 sm:mb-0">
+          <label class="sr-only" for="surnameSearch">Search surname</label>
+          <input
+            aria-label="Search surname across all deal stages"
+            autocomplete="off"
+            class="w-full px-3 py-2 border rounded-lg"
+            id="surnameSearch"
+            inputmode="text"
+            name="surnameSearch"
+            placeholder="Search surname…"
+            type="search"
+          />
+        </div>
+        <div class="w-full sm:w-1/2">
+          <label class="sr-only" for="expertSearch">Search expert</label>
+          <input
+            aria-label="Search expert across all deal stages"
+            autocomplete="off"
+            class="w-full px-3 py-2 border rounded-lg"
+            id="expertSearch"
+            inputmode="text"
+            name="expertSearch"
+            placeholder="Search expert…"
+            type="search"
+          />
+        </div>
+      </div>
+      <div class="flex overflow-x-auto space-x-4 pb-4" id="kanban-board"></div>
+    </div>
+    <div class="view hidden" id="contacts-view">
+      <div class="mb-4 flex justify-between items-center">
+        <div class="relative w-full max-w-md">
+          <input
+            class="w-full p-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-2 focus:ring-green-800"
+            id="contactSearch"
+            placeholder="Search contacts..."
+            type="text"
+          /><i
+            class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          ></i>
+        </div>
+        <div class="hidden" id="contacts-actions">
+          <button
+            class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-colors ml-4"
+            id="delete-selected-btn"
+          >
+            <i class="fas fa-trash mr-2"></i>Delete Selected
+          </button>
+        </div>
+      </div>
+      <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full divide-y divide-gray-200" id="contacts-table">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left">
+                  <input id="select-all-contacts" type="checkbox" />
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="receivedDate"
+                >
+                  Received Date <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="referer"
+                >
+                  Referer <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="vrn"
+                >
+                  VRN <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="firstName"
+                >
+                  First Name <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="lastName"
+                >
+                  Last Name <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="phone"
+                >
+                  Phone Number <span class="sort-indicator">▼</span>
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  data-sort-key="settlementTotal"
+                >
+                  Value <span class="sort-indicator">▼</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="bg-white divide-y divide-gray-200"
+              id="contacts-list"
+            ></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="view hidden" id="forecasting-view">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4">
+            Projected Revenue (Next 3 Months)
+          </h2>
+          <div class="space-y-4" id="projected-revenue-chart"></div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4">
+            Previous 3 Months Performance
+          </h2>
+          <div class="space-y-4" id="previous-performance-chart"></div>
+        </div>
+      </div>
+    </div>
+    <div class="view hidden" id="data-view">
+      <div
+        class="bg-white p-6 rounded-lg shadow-lg max-w-4xl mx-auto space-y-8"
+        id="data-content"
+      >
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Data Management</h2>
+        <div
+          class="bg-green-50 border-l-4 border-green-400 text-green-800 p-4 rounded-md flex items-center justify-between"
+        >
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-circle" id="connection-status-icon"></i>
+            <p class="font-bold" id="connection-status-text">
+              Connection Status: Checking...
+            </p>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md border mt-8">
+          <h3 class="text-xl font-semibold mb-4 text-gray-700">
+            Import/Export Data
+          </h3>
+          <label class="custom-file-upload" for="importFile"
+            ><i class="fas fa-file-excel text-4xl text-gray-400"></i>
+            <p class="mt-2 text-gray-600">Click to import Excel file</p>
+            <p class="text-sm text-gray-500 mt-1" id="fileName"></p></label
+          ><input accept=".xls, .xlsx" id="importFile" type="file" />
+          <div class="mt-4 text-sm" id="status-message"></div>
+          <div class="flex justify-end mt-4 space-x-2">
+            <button
+              class="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center space-x-2 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              disabled=""
+              id="importButton"
+            >
+              <i class="fas fa-file-import"></i><span>Import Data</span></button
+            ><button
+              class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center space-x-2"
+              id="exportButton"
+            >
+              <i class="fas fa-file-export"></i><span>Export Data</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="fixed inset-0 bg-black/60 items-center justify-center hidden z-50"
+    id="manageStagesModal"
+  >
+    <div
+      class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 text-gray-800"
+    >
+      <h2 class="text-xl font-bold mb-4">Manage Sales Stages</h2>
+      <div class="space-y-2 mb-4" id="stage-list"></div>
+      <button
+        class="text-green-700 font-semibold hover:text-green-800 transition-colors mb-4"
+        id="addStageBtn"
+      >
+        + Add Stage
+      </button>
+      <div class="flex justify-end space-x-3">
+        <button
+          class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+          id="cancelStages"
+        >
+          Cancel</button
+        ><button
+          class="bg-[var(--gold-orange)] text-white font-semibold py-2 px-4 rounded-lg hover:opacity-90 transition-opacity"
+          id="saveStages"
+        >
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 p-4"
+    id="customerModal"
+  >
+    <div
+      class="bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col"
+    >
+      <div
+        class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40"
+      >
+        <h2 class="text-xl font-bold truncate pr-28 min-w-0" id="modalTitle">
+          Application
+        </h2>
+        <div
+          class="absolute right-4 top-4 flex items-center gap-2 z-50"
+          id="customerModalTopActions"
+        >
+          <button
+            class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            id="closeCustomerModal"
+            type="button"
+          >
+            <span>Close</span
+            ><span
+              class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"
+              ><i class="fas fa-times text-red-600"></i
+            ></span>
+          </button>
+        </div>
+      </div>
+      <form
+        class="p-6 space-y-6 modal-content modal-body-scroll"
+        id="customerForm"
+      >
+        <input id="dealId" type="hidden" />
+      </form>
+      <div class="flex items-center justify-between p-4 border-t gap-3">
+        <div class="text-sm text-gray-600 flex-1 space-y-1" id="lenderStatuses">
+          <div>
+            Jigsaw:
+            <span class="font-semibold text-gray-700" id="jigsawStatusText"
+              >Not sent</span
+            >
+          </div>
+          <div>
+            CarMoney:
+            <span class="font-semibold text-gray-700" id="carMoneyStatusText"
+              >Not sent</span
+            >
+          </div>
+          <div>
+            CF247:
+            <span class="font-semibold text-gray-700" id="cf247StatusText"
+              >Not sent</span
+            >
+          </div>
+        </div>
+        <div
+          class="flex-[2] flex flex-wrap sm:flex-nowrap justify-center gap-2 w-full"
+        >
+          <button
+            class="bg-white text-[#001f3f] border border-[#001f3f] font-semibold rounded-lg hover:bg-slate-50 transition-colors px-2 py-1.5 flex flex-col items-center justify-center leading-tight flex-1 min-w-[120px] sm:min-w-0 text-center"
+            id="validateJigsawBtn"
+            title="Validate application with Jigsaw (no submission)"
+            type="button"
+          >
+            <span class="text-[0.65rem] font-semibold opacity-90">VALIDATE</span
+            ><span class="text-[0.85rem] font-semibold break-words"
+              >JIGSAW</span
+            ></button
+          ><button
+            class="bg-[#001f3f] text-white font-semibold rounded-lg hover:opacity-90 transition-opacity px-2 py-1.5 flex flex-col items-center justify-center leading-tight flex-1 min-w-[120px] sm:min-w-0 text-center"
+            id="sendJigsawBtn"
+            title="Send full application to Jigsaw"
+            type="button"
+          >
+            <span class="text-[0.65rem] font-semibold opacity-90">SEND</span
+            ><span class="text-[0.85rem] font-semibold break-words"
+              >JIGSAW</span
+            ></button
+          ><button
+            class="bg-green-600 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity px-2 py-1.5 flex flex-col items-center justify-center leading-tight flex-1 min-w-[120px] sm:min-w-0 text-center"
+            id="sendCarMoneyBtn"
+            title="Placeholder - not yet wired"
+            type="button"
+          >
+            <span class="text-[0.65rem] font-semibold opacity-90">SEND</span
+            ><span class="text-[0.85rem] font-semibold break-words"
+              >CARMONEY</span
+            ></button
+          ><button
+            class="bg-purple-600 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity px-2 py-1.5 flex flex-col items-center justify-center leading-tight flex-1 min-w-[120px] sm:min-w-0 text-center"
+            id="sendCF247Btn"
+            title="Placeholder - not yet wired"
+            type="button"
+          >
+            <span class="text-[0.65rem] font-semibold opacity-90">SEND</span
+            ><span class="text-[0.85rem] font-semibold break-words">CF247</span>
+          </button>
+          <button
+            class="bg-gray-700 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity px-2 py-1 flex flex-col items-center justify-center leading-tight flex-1 min-w-[110px] sm:min-w-0 text-center"
+            id="printApplicationPdfBtn"
+            title="Generate a PDF of the full application"
+            type="button"
+          >
+            <span class="text-[0.6rem] font-semibold opacity-90">PRINT</span>
+            <span class="text-[0.8rem] font-semibold break-words">PDF</span>
+          </button>
+        </div>
+        <div class="flex-1 flex justify-end gap-3">
+          <button
+            class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors hidden"
+            id="deleteDealBtn"
+            type="button"
+          >
+            Delete</button
+          ><button
+            class="bg-[var(--gold-orange)] text-white font-semibold py-2 px-4 rounded-lg hover:opacity-90 transition-opacity"
+            id="saveDealBtn"
+            type="button"
+          >
+            Save Deal
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50"
+    id="confirmModal"
+  >
+    <div
+      class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4 text-gray-800"
+    >
+      <h2 class="text-lg font-bold mb-4" id="confirmTitle">Are you sure?</h2>
+      <p class="text-gray-600 mb-6" id="confirmMessage">
+        This action cannot be undone.
+      </p>
+      <div class="flex justify-end space-x-3">
+        <button
+          class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+          id="confirmCancel"
+        >
+          Cancel</button
+        ><button
+          class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+          id="confirmAction"
+        >
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50"
+    id="duplicateModal"
+  >
+    <div
+      class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 text-gray-800 flex flex-col max-h-[90vh]"
+    >
+      <h2 class="text-xl font-bold mb-2">Duplicate Check</h2>
+      <p class="text-gray-600 mb-4">
+        Found <span id="duplicateCount"></span> duplicates based on VRN. Do you
+        want to skip them and import the unique contacts?
+      </p>
+      <div
+        class="flex-1 overflow-y-auto border rounded-lg p-2 modal-body-scroll"
+      >
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+              >
+                VRN
+              </th>
+              <th
+                class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+              >
+                Name
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            class="bg-white divide-y divide-gray-200"
+            id="duplicateList"
+          ></tbody>
+        </table>
+      </div>
+      <div class="flex justify-end space-x-3 mt-6">
+        <button
+          class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+          id="cancelDuplicate"
+        >
+          Cancel</button
+        ><button
+          class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-opacity"
+          id="importAllBtn"
+        >
+          Import All</button
+        ><button
+          class="bg-[var(--gold-orange)] text-white font-semibold py-2 px-4 rounded-lg hover:opacity-90 transition-opacity"
+          id="confirmDuplicate"
+        >
+          Skip &amp; Import
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

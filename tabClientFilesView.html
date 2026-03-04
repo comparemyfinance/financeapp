@@ -1,0 +1,206 @@
+<div
+  class="tab-content hidden h-screen flex flex-col bg-gray-100"
+  id="client-files-view"
+  style="display: none; height: 100%"
+>
+  <div
+    class="hidden bg-slate-900 text-cyan-400 font-mono text-xs border-b border-cyan-900 shrink-0"
+    id="sys-console"
+  >
+    <div class="flex items-center justify-between px-4 py-2 bg-slate-800">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <div
+            class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"
+            id="sys-status-dot"
+          ></div>
+          <span
+            class="font-bold uppercase tracking-wider text-red-400"
+            id="sys-status-text"
+            >DISCONNECTED</span
+          >
+        </div>
+        <div class="h-4 w-px bg-slate-600"></div>
+        <span id="sys-latency">Latency: --ms</span>
+      </div>
+      <div class="flex gap-2">
+        <button
+          class="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 text-white rounded transition-colors uppercase font-bold tracking-wide text-[10px]"
+          onclick="App.diagnostics.runFullTest()"
+        >
+          ▶ Run Diagnostics
+        </button>
+        <button
+          class="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors text-[10px]"
+          onclick="
+            document
+              .getElementById('sys-log-container')
+              .classList.toggle('hidden')
+          "
+        >
+          Toggle Logs
+        </button>
+        <button
+          class="px-3 py-1 bg-green-700 hover:bg-green-600 text-white rounded transition-colors uppercase font-bold tracking-wide text-[10px]"
+          onclick="console.log('Force Clicked'); if(window.App &amp;&amp; App.handlers &amp;&amp; App.handlers.runFolderSearch) App.handlers.runFolderSearch('');"
+        >
+          ▼ FORCE LOAD FILES
+        </button>
+      </div>
+    </div>
+    <div
+      class="hidden h-48 overflow-y-auto p-4 space-y-1 bg-slate-950/50 shadow-inner"
+      id="sys-log-container"
+    >
+      <div class="opacity-50 border-b border-dashed border-slate-700 pb-2 mb-2">
+        System Console Initialized... waiting for command.
+      </div>
+    </div>
+  </div>
+  <div
+    class="bg-white border-b border-gray-200 px-6 py-4 shadow-sm flex items-center justify-between shrink-0"
+  >
+    <div>
+      <h2 class="text-xl font-bold text-gray-800">Client File Explorer</h2>
+      <p class="text-sm text-gray-500">
+        Browse all client folders, or type to filter by surname/VRN
+      </p>
+    </div>
+    <div class="flex gap-2 w-1/2 max-w-xl">
+      <div class="relative flex-1">
+        <input
+          class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+          id="drive-search-input"
+          oninput="App.handlers.handleLiveSearch(this.value)"
+          placeholder="Type Surname to filter (or leave empty to browse all)..."
+          type="text"
+        />
+        <svg
+          class="w-5 h-5 text-gray-400 absolute left-3 top-2.5"
+          fill="none"
+          stroke="currentColor"
+          viewbox="0 0 24 24"
+        >
+          <path
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          ></path>
+        </svg>
+      </div>
+      <button
+        class="bg-green-700 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-800 transition-colors shadow-sm"
+        onclick="App.handlers.runFolderSearch(document.getElementById(\'drive-search-input\').value)"
+      >
+        Search
+      </button>
+    </div>
+  </div>
+  <div class="drive-layout flex flex-1 overflow-hidden p-4 gap-4">
+    <div
+      class="w-1/3 bg-white rounded-xl shadow border border-gray-200 flex flex-col overflow-hidden"
+    >
+      <div
+        class="p-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex justify-between items-center"
+      >
+        <span>Search Results</span>
+        <span
+          class="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full hidden"
+          id="drive-result-count"
+          >0</span
+        >
+      </div>
+      <div class="flex-1 overflow-y-auto p-2 space-y-1" id="drive-file-list">
+        <div
+          class="flex flex-col items-center justify-center h-full text-gray-400"
+        >
+          <div class="bg-gray-50 p-4 rounded-full mb-3">
+            <svg
+              class="w-8 h-8 opacity-40"
+              fill="none"
+              stroke="currentColor"
+              viewbox="0 0 24 24"
+            >
+              <path
+                d="M8 16l2.879-2.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+              ></path>
+            </svg>
+          </div>
+          <p class="text-sm font-medium">Ready to search</p>
+          <p class="text-xs opacity-70">Enter a client VRN above</p>
+        </div>
+      </div>
+    </div>
+    <div
+      class="w-2/3 bg-white rounded-xl shadow border border-gray-200 flex flex-col overflow-hidden relative"
+    >
+      <div
+        class="h-10 bg-gray-50 border-b border-gray-200 flex items-center justify-between px-4"
+      >
+        <span class="text-xs font-semibold text-gray-500 uppercase"
+          >Document Preview</span
+        >
+        <button
+          class="text-xs text-red-500 hover:text-red-700 font-medium"
+          onclick="
+            document.getElementById('drive-preview-frame').src = 'about:blank';
+            document.getElementById('drive-placeholder').style.display = 'flex';
+          "
+        >
+          Close Preview
+        </button>
+      </div>
+      <div
+        class="flex-1 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-gray-100"
+      >
+        <iframe
+          class="w-full h-full border-none bg-white"
+          id="drive-preview-frame"
+          src="about:blank"
+        ></iframe>
+        <div
+          class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10"
+          id="drive-placeholder"
+        >
+          <div
+            class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 text-center max-w-sm"
+          >
+            <div
+              class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <svg
+                class="w-8 h-8 text-blue-500"
+                fill="none"
+                stroke="currentColor"
+                viewbox="0 0 24 24"
+              >
+                <path
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+                <path
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                ></path>
+              </svg>
+            </div>
+            <h4 class="text-lg font-bold text-gray-800">
+              No Document Selected
+            </h4>
+            <p class="text-sm text-gray-500 mt-2">
+              Click a file from the list on the left to preview it here.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
