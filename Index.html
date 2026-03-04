@@ -3478,37 +3478,32 @@ const initializePSE = () => {
                 const sortState = window.appState.resultsSort || { key: 'apr', direction: 'asc' };
                 const directionFactor = sortState.direction === 'desc' ? -1 : 1;
                 window.appState.products = (window.appState.products || []).slice().sort((a, b) => {
-                          const av = getSortableValue(a, sortState.key);
-                          const bv = getSortableValue(b, sortState.key);
-                          if (typeof av === 'string' || typeof bv === 'string') {
-                              const left = (av || '').toString();
-                              const right = (bv || '').toString();
-                              return left.localeCompare(right) * directionFactor;
-                          }
-                          const na = Number.isFinite(av) ? av : Number.POSITIVE_INFINITY;
-                          const nb = Number.isFinite(bv) ? bv : Number.POSITIVE_INFINITY;
-                          if (na === nb) return ((a.lender || '').localeCompare(b.lender || '')) * directionFactor;
-                          return (na - nb) * directionFactor;
-                      });
-                      syncSelectedProductIndex();
-                  };
+                    const av = getSortableValue(a, sortState.key);
+                    const bv = getSortableValue(b, sortState.key);
+                    if (typeof av === 'string' || typeof bv === 'string') {
+                        return String(av).localeCompare(String(bv)) * directionFactor;
+                    }
+                    if (av === bv) return String(a.lender || '').localeCompare(String(b.lender || ''));
+                    return (av - bv) * directionFactor;
+                });
+            };
+            
+            const resetPseProductSourceState = () => {
+                                  try {
+                                      if (window.appState) {
+                                          window.appState.products = [];
+                                          window.appState.selectedProductIndex = null;
+                                          window.appState.resultsSort = { key: 'apr', direction: 'asc' };
+                                      }
+                                      placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
+                                      placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
+                                      const dns = getEl('demands-and-needs-section');
+                                      if (dns) dns.classList.add('hidden');
+                                  } catch (err) {}
+                              };
+            window.resetPseProductSourceState = resetPseProductSourceState;
 
-                  const resetPseProductSourceState = () => {
-                      try {
-                          if (window.appState) {
-                              window.appState.products = [];
-                              window.appState.selectedProductIndex = null;
-                              window.appState.resultsSort = { key: 'apr', direction: 'asc' };
-                          }
-                          placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
-                          placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
-                          const dns = getEl('demands-and-needs-section');
-                          if (dns) dns.classList.add('hidden');
-                      } catch (err) {}
-                  };
-                  window.resetPseProductSourceState = resetPseProductSourceState;
-
-                  const setResultsSort = (key) => {
+            const setResultsSort = (key) => {
                 const sortState = window.appState.resultsSort || { key: 'apr', direction: 'asc' };
                 if (sortState.key === key) sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
                 else {
@@ -3712,9 +3707,6 @@ const initializePSE = () => {
                     }
                 }
             };
-            /* duplicate resetPseProductSourceState removed */
-            window.resetPseProductSourceState = resetPseProductSourceState;
-
             const handleFormSubmit = async (e) => {
                 e.preventDefault();
                 // Show global loading spinner (reuse Save Deal overlay)
