@@ -112,8 +112,8 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
         #pse .page-container { display: flex; flex-direction: column; gap: 25px; max-width: 1800px; margin: 0 auto; }
         #pse .grid-card { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07); animation: fadeIn 0.5s forwards; display: flex; flex-direction: column; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        #pse .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; border-bottom: 2px solid #D8E4C6; padding-bottom: 10px; }
-        #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
+        #pse .section-header { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 25px; border-bottom: 2px solid #D8E4C6; padding-bottom: 10px; }
+        #pse #results-card .section-header > .flex, #pse #comparison-card .section-header > .flex { display: inline-flex; align-items: center; justify-content: center; } #pse #results-card #soft-score-client-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); } #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
         #pse h2 { color: #004225; text-align: center; margin: 0; font-size: 1.8em; border: none; padding: 0; }
         #pse h3 { color: #004225; margin-top: 0; }
         #pse #finance-form { display: flex; flex-direction: column; flex-grow: 1; }
@@ -1021,7 +1021,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <div class="spinner hidden" id="vrn-spinner"></div>
 </button>
 </div><small class="mt-1 ps-vrn-status" id="vrn-status"></small></div></div><div class="ps-client-col">
-<div class="ps-client-placeholder">
+<div class="ps-client-placeholder ps-client-pulse">
 <div class="ps-client-title">Client Details Selected</div>
 <div class="ps-client-grid">
 <div class="ps-client-field">
@@ -1113,12 +1113,12 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </form>
 </div>
 <div class="grid-card" id="results-card">
-<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden ml-auto px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse" id="soft-score-client-btn" type="button">Pre-Qual Client</button></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-6 py-4 rounded-lg text-white font-semibold text-lg bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse" id="soft-score-client-btn" type="button">Pre-Qual Client</button></div>
 
 <div id="results-container"><div class="placeholder-text"><p>New finance products will be displayed here after you submit your current details.</p></div></div>
 </div>
 <div class="grid-card" id="comparison-card">
-<div class="section-header"><img alt="colincompare-laptop-image" src="https://lh3.googleusercontent.com/d/1z1OLTlJGykDP98DAwljiEJN02u6bDLZT"/><h2 class="ml-4">Comparison</h2></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-laptop-image" src="https://lh3.googleusercontent.com/d/1z1OLTlJGykDP98DAwljiEJN02u6bDLZT"/><h2 class="ml-4">Comparison</h2></div></div>
 <div id="comparison-container"><div class="placeholder-text"><p>Select a product from the results table above to see a detailed comparison.</p></div></div>
 </div>
 <div class="grid-card hidden" id="demands-and-needs-section">
@@ -3460,7 +3460,7 @@ const initializePSE = () => {
                 const d = (1 - Math.pow(1 + r, -t)) / r;
                 return n / d;
             };
-            const getEffectiveApr = (product) => Number.isFinite(Number(product && product.aprOffer)) ? Number(product.aprOffer) : Number(product && product.apr);
+            const getEffectiveApr = (product) => { const weightedApr = Number(product && product.aprOffer); if (Number.isFinite(weightedApr)) return weightedApr; const standardApr = Number(product && product.standardApr); if (Number.isFinite(standardApr)) return standardApr; return Number(product && product.apr); };
             const getSortableValue = (product, key) => {
                 switch (key) {
                     case 'lender': return (product.lender || '').toLowerCase();
@@ -3538,7 +3538,7 @@ const initializePSE = () => {
                 if (preQualBtn) preQualBtn.classList.remove('hidden');
                 const rows = products.map((p, idx) => {
                     const effectiveApr = getEffectiveApr(p);
-                    const aprSourceTag = Number.isFinite(Number(p.aprOffer)) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">FN</span>' : '';
+                    const aprSourceTag = Number.isFinite(Number(p.aprOffer)) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">PQ</span>' : '<span class="ml-1 text-[10px] text-gray-500 font-semibold">STD</span>';
                     const rating = p.acceptanceRating
                         ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === 'decline' ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ''}`
                         : '<span class="text-xs text-gray-500">—</span>';
@@ -3551,7 +3551,7 @@ const initializePSE = () => {
                 if (selectedProductIndex === null) return placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
                 const p = products[selectedProductIndex];
                 const productTerm = p.term ?? financeDetails.remainingTerm;
-                const effectiveApr = Number.isFinite(Number(p.aprOffer)) ? Number(p.aprOffer) : Number(p.apr);
+                const effectiveApr = getEffectiveApr(p);
                 const { calculatedMonthlyPayment: origMonthly, totalCostIfKept, settlementFigure, remainingTerm, originalRemainingTerm, originalApr } = financeDetails;
                 const origBalloon = f(getVal('original-final-balloon'));
                 const monthlyDiff = origMonthly - p.calculatedMonthlyPayment;
@@ -3612,7 +3612,7 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), aprOffer: null, acceptanceRating: null }));
+                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
                             sortProductsInPlace();
                             return;
                         }
@@ -3638,7 +3638,7 @@ const initializePSE = () => {
                     const commission = settlementFigure * (p.c / 100);
                     const monthly = calcMonthly(settlementFigure, remainingTerm, p.a, balloon);
                     const total = (monthly * remainingTerm) + balloon;
-                    return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
+                    return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, standardApr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
                 }));
                 window.appState.products = productsWithBalloons;
                 sortProductsInPlace();
@@ -3662,7 +3662,7 @@ const initializePSE = () => {
                         lenders: products.map((product) => ({
                             lenderId: getLenderIdForProduct(product),
                             lenderName: product.lender,
-                            baseApr: Number(product.apr) || null
+                            baseApr: Number(product.standardApr ?? product.apr) || null
                         }))
                     };
                     const res = await App.apiCall('POST', { action: 'getFinanceNavigatorSoftScore', payload });
@@ -4126,7 +4126,7 @@ const handleVrnLookup = async () => {
                 window.appState.financeDetails.remainingTerm = newTerm;
                 const { settlementFigure } = window.appState.financeDetails;
                 window.appState.products.forEach(p => {
-                    p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, (p.aprOffer ?? p.apr), p.calculatedBalloonPayment);
+                    p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, getEffectiveApr(p), p.calculatedBalloonPayment);
                     p.totalPayable = (p.calculatedMonthlyPayment * newTerm) + p.calculatedBalloonPayment;
                 });
                 updateResultsTable();
@@ -4138,7 +4138,7 @@ const handleVrnLookup = async () => {
                 const p = products[selectedProductIndex];
                 const sDate = new Date(getVal('agreement-start-date'));
                 const monthsPassed = (new Date().getFullYear() - sDate.getFullYear()) * 12 + (new Date().getMonth() - sDate.getMonth());
-                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: (p.aprOffer ?? p.apr), newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
+                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: getEffectiveApr(p), newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
                 if (typeof window.prefillLetterCreator === 'function') window.prefillLetterCreator();
             };
             const solveForAPR = (p, t, pmt, b) => {
@@ -5303,7 +5303,7 @@ function applyBankAccountToJigsawPayloadDeal(payloadDeal, formData) {
    ======================================================================= */
 
 const App = {
-                state: { deals: [], stages: [{ id: 'Enquiry', title: 'Enquiry'}, { id: 'Packaging', title: 'Underwriting' }, { id: 'Work In Progress', title: 'Work In Progress' }, { id: 'Ready To Deal', title: 'Ready To Deal' }, { id: 'Awaiting Payout', title: 'Awaiting Payout' }, { id: 'Completed', title: 'Completed' }, { id: 'Not Taken Up', title: 'Not Taken Up' }], parsedDeals: { unique: [], duplicates: [] }, surnameFilter: '', expertFilter: '', selectedContactIds: new Set(), currentView: 'pipeline', sortState: { key: 'receivedDate', direction: 'desc' }, resizersSetup: false },
+                state: { deals: [], stages: [{ id: 'Enquiry', title: 'Enquiry'}, { id: 'Packaging', title: 'Underwriting' }, { id: 'Work In Progress', title: 'Work In Progress' }, { id: 'Ready To Deal', title: 'Ready To Deal' }, { id: 'Awaiting Payout', title: 'Awaiting Payout' }, { id: 'Completed', title: 'Completed' }, { id: 'Not Taken Up', title: 'Not Taken Up' }], parsedDeals: { unique: [], duplicates: [] }, surnameFilter: '', expertFilter: '', selectedContactIds: new Set(), currentView: 'pipeline', sortState: { key: 'receivedDate', direction: 'desc' }, resizersSetup: false, isInitialDataLoading: false, hasCompletedInitialLoad: false },
                 lock: {
                     enabled: false, // LOCKING DISABLED (desktop/non-collab mode)
                     currentDealId: null,
@@ -6060,8 +6060,13 @@ if (dataObj && dataObj.success === false) {
                 },
 
                 async loadData() {
+                    const isInitialLoad = !this.state.hasCompletedInitialLoad;
+                    this.state.isInitialDataLoading = true;
                     showNavMessage("Loading data from server...", "info", 2000);
+                    const _ov = getEl('saveDealOverlay');
+                    if (isInitialLoad && _ov) _ov.classList.remove('hidden');
                     const _loadStartedAt = (window.performance && performance.now ? performance.now() : Date.now());
+                    try {
                     const _raw = await this.apiCall('GET');
                     // Backend may return an array directly, or wrap it in an object.
                     const data = Array.isArray(_raw) ? _raw
@@ -6172,6 +6177,16 @@ if (dataObj && dataObj.success === false) {
                     }
 
                     this.render.all();
+                    } catch (err) {
+                        console.error('Initial/refresh load failed:', err);
+                        showNavMessage('Failed to load data from server.', 'error', 7000);
+                        this.state.deals = this.state.deals || [];
+                        this.render.all();
+                    } finally {
+                        this.state.isInitialDataLoading = false;
+                        this.state.hasCompletedInitialLoad = true;
+                        if (_ov) _ov.classList.add('hidden');
+                    }
                 },
                 handlers: {
 
@@ -7574,6 +7589,10 @@ async function jigsawFetchAction(action, payload) {
                                 if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('a')) return;
 
                                 const dealId = App.utils.getDealId(deal);
+                                if (App.state && App.state.isInitialDataLoading) {
+                                    showNavMessage('Please wait - data is still loading from server.', 'info', 2000);
+                                    return;
+                                }
                                 if (dealId) {
                                     App.ui.openCustomerModalLocked(dealId);
                                 } else {
@@ -9252,7 +9271,7 @@ button[onclick*="manageStages"],
     border: 1px solid rgba(0, 66, 37, 0.15);
   }
 
-  #pse #form-card .ps-client-title {
+  #pse #form-card .ps-client-pulse { animation: psClientPulse 1.8s ease-in-out infinite; } @keyframes psClientPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0, 66, 37, 0.2); } 50% { box-shadow: 0 0 0 10px rgba(0, 66, 37, 0); } } #pse #form-card .ps-client-title {
     font-size: 0.8rem;
     font-weight: 700;
     color: #004225;

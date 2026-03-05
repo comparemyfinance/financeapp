@@ -39,7 +39,7 @@
             </div>
           </div>
           <div class="ps-client-col">
-            <div class="ps-client-placeholder">
+            <div class="ps-client-placeholder ps-client-pulse">
               <div class="ps-client-title">Client Details Selected</div>
               <div class="ps-client-grid">
                 <div class="ps-client-field">
@@ -229,7 +229,7 @@
           <h2 class="ml-4">Product Sourcing Results</h2>
         </div>
         <button
-          class="hidden ml-auto px-3 py-2 rounded-lg text-white font-semibold text-sm bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse"
+          class="hidden px-6 py-4 rounded-lg text-white font-semibold text-lg bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse"
           id="soft-score-client-btn"
           type="button"
         >
@@ -248,11 +248,13 @@
     </div>
     <div class="grid-card" id="comparison-card">
       <div class="section-header">
-        <img
-          alt="colincompare-laptop-image"
-          src="https://lh3.googleusercontent.com/d/1z1OLTlJGykDP98DAwljiEJN02u6bDLZT"
-        />
-        <h2 class="ml-4">Comparison</h2>
+        <div class="flex items-center">
+          <img
+            alt="colincompare-laptop-image"
+            src="https://lh3.googleusercontent.com/d/1z1OLTlJGykDP98DAwljiEJN02u6bDLZT"
+          />
+          <h2 class="ml-4">Comparison</h2>
+        </div>
       </div>
       <div id="comparison-container">
         <div class="placeholder-text">
@@ -1181,10 +1183,23 @@
       #pse .section-header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
+        position: relative;
         margin-bottom: 25px;
         border-bottom: 2px solid #d8e4c6;
         padding-bottom: 10px;
+      }
+      #pse #results-card .section-header > .flex,
+      #pse #comparison-card .section-header > .flex {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #pse #results-card #soft-score-client-btn {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
       }
       #pse .section-header img {
         width: 40px;
@@ -1860,7 +1875,20 @@
         border: 1px solid rgba(0, 66, 37, 0.15);
       }
 
-      #pse #form-card .ps-client-title {
+      
+      #pse #form-card .ps-client-pulse {
+        animation: psClientPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes psClientPulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(0, 66, 37, 0.2);
+        }
+        50% {
+          box-shadow: 0 0 0 10px rgba(0, 66, 37, 0);
+        }
+      }
+#pse #form-card .ps-client-title {
         font-size: 0.8rem;
         font-weight: 700;
         color: #004225;
@@ -2139,10 +2167,13 @@
           const d = (1 - Math.pow(1 + r, -t)) / r;
           return n / d;
         };
-        const getEffectiveApr = (product) =>
-          Number.isFinite(Number(product && product.aprOffer))
-            ? Number(product.aprOffer)
-            : Number(product && product.apr);
+        const getEffectiveApr = (product) => {
+          const weightedApr = Number(product && product.aprOffer);
+          if (Number.isFinite(weightedApr)) return weightedApr;
+          const standardApr = Number(product && product.standardApr);
+          if (Number.isFinite(standardApr)) return standardApr;
+          return Number(product && product.apr);
+        };
         const getSortableValue = (product, key) => {
           switch (key) {
             case "lender":
@@ -2278,8 +2309,8 @@
             .map((p, idx) => {
               const effectiveApr = getEffectiveApr(p);
               const aprSourceTag = Number.isFinite(Number(p.aprOffer))
-                ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">FN</span>'
-                : "";
+                ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">PQ</span>'
+                : '<span class="ml-1 text-[10px] text-gray-500 font-semibold">STD</span>';
               const rating = p.acceptanceRating
                 ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === "decline" ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ""}`
                 : '<span class="text-xs text-gray-500">—</span>';
@@ -2301,9 +2332,7 @@
             );
           const p = products[selectedProductIndex];
           const productTerm = p.term ?? financeDetails.remainingTerm;
-          const effectiveApr = Number.isFinite(Number(p.aprOffer))
-            ? Number(p.aprOffer)
-            : Number(p.apr);
+          const effectiveApr = getEffectiveApr(p);
           const {
             calculatedMonthlyPayment: origMonthly,
             totalCostIfKept,
@@ -2477,6 +2506,7 @@
                 lender: p.l,
                 lenderId: normalizeLenderName(p.l),
                 apr: p.a,
+                standardApr: p.a,
                 aprOffer: null,
                 acceptanceRating: null,
                 term: remainingTerm,
@@ -2519,7 +2549,7 @@
               lenders: products.map((product) => ({
                 lenderId: getLenderIdForProduct(product),
                 lenderName: product.lender,
-                baseApr: Number(product.apr) || null,
+                baseApr: Number(product.standardApr ?? product.apr) || null,
               })),
             };
             const res = await App.apiCall("POST", {
@@ -3413,7 +3443,7 @@
             p.calculatedMonthlyPayment = calcMonthly(
               settlementFigure,
               newTerm,
-              p.aprOffer ?? p.apr,
+              getEffectiveApr(p),
               p.calculatedBalloonPayment,
             );
             p.totalPayable =
@@ -3447,7 +3477,7 @@
             newLenderName: p.lender,
             newFinanceAmount: financeDetails.settlementFigure,
             newAdditionalCash: 0,
-            newApr: p.aprOffer ?? p.apr,
+            newApr: getEffectiveApr(p),
             newTerm: financeDetails.remainingTerm,
             newMonthlyPayment: p.calculatedMonthlyPayment,
             newBalloon: p.calculatedBalloonPayment,
