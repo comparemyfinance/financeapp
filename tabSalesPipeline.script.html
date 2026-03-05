@@ -1221,8 +1221,14 @@ Open the console for full details.`);
 
             // Escape potentially unsafe text for HTML (prevents layout breaks & XSS)
             escapeHtml(str) {
-              if (str === null || str === undefined) return "";
-              return String(str)
+              let safe = "";
+              try {
+                safe = String(str ?? "");
+              } catch (_err) {
+                safe = "";
+              }
+
+              return safe
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
@@ -3149,8 +3155,15 @@ Open the console for full details.`);
                     if (list) list.innerHTML = "";
                     if (box) box.classList.add("hidden");
                   };
-                  const _escape = (s) =>
-                    String(s ?? "").replace(
+                  const _escape = (s) => {
+                    let safe = "";
+                    try {
+                      safe = String(s ?? "");
+                    } catch (_err) {
+                      safe = "";
+                    }
+
+                    return safe.replace(
                       /[&<>"']/g,
                       (c) =>
                         ({
@@ -3161,6 +3174,7 @@ Open the console for full details.`);
                           "'": "&#39;",
                         })[c],
                     );
+                  };
                   function listEmptyFieldsFromPayload(payload) {
                     const misses = [];
                     const isEmpty = (v) =>
