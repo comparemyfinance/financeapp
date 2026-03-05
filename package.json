@@ -8,7 +8,8 @@
     "format": "prettier --write \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "format:check": "prettier --check \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "lint": "npm run format:check",
-    "test": "npm run sanity"
+    "test": "npm run sanity",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
