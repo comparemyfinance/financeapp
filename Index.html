@@ -3577,9 +3577,9 @@
         window.__cmfTabsInitDone = true;
         tabs[0].click();
       };
-      <?!= include('tabProductSourceDns.script'); ?>
+      <?!= include('tabProductSourceDns.script').replace(/^\s*<script[^>]*>/i, '').replace(/<\/script>\s*$/i, ''); ?>
 
-      <?!= include('tabSalesPipeline.script'); ?>
+      <?!= include('tabSalesPipeline.script').replace(/^\s*<script[^>]*>/i, '').replace(/<\/script>\s*$/i, ''); ?>
 
       /* =======================================================================
    WIRING GUARD (CAPTURE-PHASE EVENT DELEGATION)
