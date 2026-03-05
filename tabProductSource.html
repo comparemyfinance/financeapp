@@ -1196,9 +1196,17 @@
         justify-content: center;
       }
       #pse #results-card .section-header {
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+      }
+      #pse #results-card .section-header > .flex {
+        grid-column: 2;
+        justify-self: center;
       }
       #pse #results-card #soft-score-client-btn {
+        grid-column: 3;
+        justify-self: end;
         position: static;
         transform: none;
         margin-left: 16px;
@@ -2170,11 +2178,16 @@
           return n / d;
         };
         const getEffectiveApr = (product) => {
-          const weightedApr = Number(product && product.aprOffer);
-          if (Number.isFinite(weightedApr)) return weightedApr;
-          const standardApr = Number(product && product.standardApr);
-          if (Number.isFinite(standardApr)) return standardApr;
-          return Number(product && product.apr);
+          const parseAprValue = (value) => {
+            if (value === null || value === undefined || value === "") return null;
+            const num = Number(value);
+            return Number.isFinite(num) ? num : null;
+          };
+          const weightedApr = parseAprValue(product && product.aprOffer);
+          if (weightedApr !== null) return weightedApr;
+          const standardApr = parseAprValue(product && product.standardApr);
+          if (standardApr !== null) return standardApr;
+          return parseAprValue(product && product.apr) ?? 0;
         };
         const getSortableValue = (product, key) => {
           switch (key) {
