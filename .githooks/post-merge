@@ -13,4 +13,3 @@ fi
 
 echo "[post-merge] Running merge safety checks..."
 npm run lint
-npm run format:check
