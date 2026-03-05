@@ -113,7 +113,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
         #pse .grid-card { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07); animation: fadeIn 0.5s forwards; display: flex; flex-direction: column; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #pse .section-header { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 25px; border-bottom: 2px solid #D8E4C6; padding-bottom: 10px; }
-        #pse #results-card .section-header > .flex, #pse #comparison-card .section-header > .flex { display: inline-flex; align-items: center; justify-content: center; } #pse #results-card #soft-score-client-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); } #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
+        #pse #results-card .section-header > .flex, #pse #comparison-card .section-header > .flex { display: inline-flex; align-items: center; justify-content: center; } #pse #results-card .section-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; } #pse #results-card .section-header > .flex { grid-column: 2; justify-self: center; } #pse #results-card #soft-score-client-btn { grid-column: 3; justify-self: end; position: static; transform: none; margin-left: 16px; } #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
         #pse h2 { color: #004225; text-align: center; margin: 0; font-size: 1.8em; border: none; padding: 0; }
         #pse h3 { color: #004225; margin-top: 0; }
         #pse #finance-form { display: flex; flex-direction: column; flex-grow: 1; }
@@ -3460,7 +3460,7 @@ const initializePSE = () => {
                 const d = (1 - Math.pow(1 + r, -t)) / r;
                 return n / d;
             };
-            const getEffectiveApr = (product) => { const weightedApr = Number(product && product.aprOffer); if (Number.isFinite(weightedApr)) return weightedApr; const standardApr = Number(product && product.standardApr); if (Number.isFinite(standardApr)) return standardApr; return Number(product && product.apr); };
+            const getEffectiveApr = (product) => { const parseAprValue = (value) => { if (value === null || value === undefined || value === '') return null; const num = Number(value); return Number.isFinite(num) ? num : null; }; const weightedApr = parseAprValue(product && product.aprOffer); if (weightedApr !== null) return weightedApr; const standardApr = parseAprValue(product && product.standardApr); if (standardApr !== null) return standardApr; return parseAprValue(product && product.apr) ?? 0; };
             const getSortableValue = (product, key) => {
                 switch (key) {
                     case 'lender': return (product.lender || '').toLowerCase();
@@ -4416,69 +4416,64 @@ setHtml('ltr_letter-preview-content', `
 <p><strong>Re: Demands and Needs / Suitability Statement &ndash; Car Refinance Agreement</strong></p>
 
 <p>
-We do not provide independent financial advice for consumer credit or credit broking. We have provided you with information about available options so that you can make an informed decision.
-</p>
-
-<p>
-This letter records your stated demands and needs and explains why the car refinance option you have chosen appears suitable, based on the information you have given us.
+We do not provide independent financial advice for consumer credit or credit broking. We have provided information about available options so you can make an informed decision. This letter records your stated demands and needs and explains why the refinance option you have chosen appears suitable based on the information you provided.
 </p>
 
 <h3 class="section-title">1. Your Stated Demands and Needs</h3>
 
-<p>You confirmed that you require finance in relation to the following vehicle:</p>
+<p>You confirmed you require finance in relation to:</p>
 <p><strong>Vehicle:</strong> ${d.vehicle}</p>
 <p><strong>Registration:</strong> ${d.vrn}</p>
 
-<p>During our discussions, you told us that your main objectives, preferences and constraints are:</p>
+<p>During our discussions, you told us your main objectives, preferences and constraints are:</p>
 
-<p class="dns-mini"><strong>Primary objectives:</strong></p>
+<p class="dns-mini"><strong>Primary objectives</strong></p>
 <ul class="letter-bullets dns-mini">
-  <li>Reduce your monthly payments</li>
-  <li>Reduce the overall cost of borrowing where possible</li>
-  <li>Avoid significantly extending the term of your borrowing where this is a priority</li>
+  <li>Reduce monthly payments</li>
+  <li>Reduce overall cost of borrowing where possible</li>
+  <li>Avoid significantly extending the term of borrowing where this is a priority</li>
   <li>Retain the option to own the vehicle at the end of the agreement (where applicable)</li>
 </ul>
-<p><strong>Your demands and needs (summary):</strong></p>
+<p><strong>Demands and needs (summary):</strong></p>
 <p>${demandsCombined}</p>
 
-<h3 class="section-title">2. Information Provided by You</h3>
+<h3 class="section-title">2. Information You Provided</h3>
 
-<p>The suitability of this agreement is based on the information you supplied to us about your personal and financial circumstances, your vehicle and your current finance agreement.</p>
+<p>Suitability is based on the information you supplied about your personal/financial circumstances, vehicle, and current finance agreement.</p>
 
-<p><strong>Personal and financial information (summary):</strong></p>
+<p><strong>Personal and financial information (summary)</strong></p>
 <ul class="letter-bullets bullets-2col">
   <li>Employment: ${getVal('ltr_employment-summary') || '[Summary, e.g. employed / self-employed / other]'}</li>
-<li>Time in Employment: ${getVal('ltr_time-in-employment') || '[time in employment current]'}</li>
-<li>Regular Net income monthly: ${getVal('ltr_net-income-monthly') || '[net monthly income]'}</li>
-<li>Any known changes to your circumstances: None Declared</li>
+  <li>Time in employment: ${getVal('ltr_time-in-employment') || '[time in employment current]'}</li>
+  <li>Regular net income (monthly): ${getVal('ltr_net-income-monthly') || '[net monthly income]'}</li>
+  <li>Known changes to circumstances: None declared</li>
 </ul>
 
-<p><strong>Details of your current finance agreement:</strong></p>
+<p><strong>Current finance agreement</strong></p>
 <ul class="letter-bullets bullets-2col">
   <li>Current lender: ${d.currentLender}</li>
   <li>Agreement number: ${d.currentAgreementNumber}</li>
-  <li>Type of agreement: ${d.currentFinanceType}</li>
+  <li>Type: ${d.currentFinanceType}</li>
   <li>Original vehicle cash price: ${d.currentVehiclePrice}</li>
   <li>Deposit paid: ${d.currentDeposit}</li>
   <li>Original term: ${d.currentTerm}</li>
   <li>APR (fixed): ${d.currentApr}</li>
   <li>Current monthly payment: ${d.currentMonthlyPayment}</li>
-  <li>Final balloon / optional final payment (if applicable): ${d.currentBalloon}</li>
+  <li>Final balloon / optional final payment: ${d.currentBalloon}</li>
   <li>Agreement start date: ${d.currentAgreementStartDate}</li>
   <li>Payments made to date: ${d.currentPaymentsMade}</li>
-  <li>Current settlement figure (including any early repayment charges, if applicable): ${d.currentSettlementFigure}</li>
+  <li>Current settlement figure (incl. any early repayment charges, if applicable): ${d.currentSettlementFigure}</li>
   <li>Early repayment charges (if stated separately): ${d.earlyRepaymentChargesPaid}</li>
 </ul>
 
+<h3 class="section-title">3. The New Agreement You Have Chosen</h3>
 
-<h3 class="section-title">3. Details of the New Agreement You Have Chosen</h3>
-
-<p>You have chosen to proceed with a new refinance agreement on the following basis:</p>
+<p>You have chosen to proceed on the following basis:</p>
 
 <ul class="letter-bullets bullets-2col">
   ${d.newLenderName && d.newLenderName !== '[New Lender Name]' ? `<li>New lender: ${d.newLenderName}</li>` : ''}
   <li>Type of agreement: ${d.newTermType || '[HP / PCP / Other]'}</li>
-  <li>Amount of credit / amount to finance (settlement inc. any fees): ${d.newAmountToFinance}</li>
+  <li>Amount of credit / amount to finance (settlement incl. any fees): ${d.newAmountToFinance}</li>
   <li>Deposit: ${d.newDeposit}</li>
   <li>Term: ${d.newTerm}</li>
   <li>APR (fixed): ${d.newApr}</li>
@@ -4488,181 +4483,127 @@ This letter records your stated demands and needs and explains why the car refin
 </ul>
 
 <p>
-Any early repayment charges or fees incurred to settle your existing agreement have ${parseFloat((illData && illData.earlyRepaymentChargesPaid) || 0) > 0 ? 'been included in the amount financed under the new agreement where stated.' : 'been explained to you where applicable.'}
+Any early repayment charges or fees to settle your existing agreement are ${parseFloat((illData && illData.earlyRepaymentChargesPaid) || 0) > 0 ? 'included in the amount financed under the new agreement where stated.' : 'explained to you where applicable.'}
 </p>
 
-<h3 class="section-title">4. Comparison and How This Option Meets Your Demands and Needs</h3>
+<h3 class="section-title">4. Comparison and How This Meets Your Demands and Needs</h3>
 
-<p>
-Based on the illustrative figures we discussed on ${d.illustrativeDate}, the new refinance agreement compares to your current agreement as follows (all figures are approximate and for illustration only):
-</p>
+<p>Based on the illustrative figures discussed on ${d.illustrativeDate} (approximate and for illustration only):</p>
 
 <p><strong>Monthly payment</strong></p>
 <ul class="letter-bullets">
-  <li>Current agreement: ${d.currentMonthlyPayment}</li>
-  <li>New agreement: ${d.newMonthlyPayment}</li>
-  <li>Estimated change in monthly payment: ${monthlyChangeDirection && monthlyChange ? `${monthlyChangeDirection} of ${monthlyChange} per month` : '[Increase / Decrease per month]'}</li>
+  <li>Current: ${d.currentMonthlyPayment}</li>
+  <li>New: ${d.newMonthlyPayment}</li>
+  <li>Estimated change: ${monthlyChangeDirection && monthlyChange ? `${monthlyChangeDirection} of ${monthlyChange} per month` : '[Increase / Decrease] of [Amount] per month'}</li>
 </ul>
 
 <p><strong>Total amount payable over the full term</strong></p>
 <ul class="letter-bullets">
-  <li>Under your current agreement: ${totalCurrent}</li>
-  <li>Under the new agreement: ${totalNew}</li>
-  <li>Estimated difference in total amount payable: ${totalDiff ? totalDiff : '[Increase / Decrease]'}</li>
+  <li>Current agreement: ${d.currentTotalPayable}</li>
+  <li>New agreement: ${d.newTotalPayable}</li>
+  <li>Estimated difference: ${totalDiff || '[Difference amount]'}</li>
 </ul>
 
 <p><strong>Term and indebtedness</strong></p>
 <ul class="letter-bullets">
-  <li>Remaining term on current agreement: ${d.currentRemainingTerm || '[Number] months'}</li>
-  <li>Term of new agreement: ${d.newTerm}</li>
-  <li>Overall effect on the length of time you are in debt: ${termEffect || '[Shorter / Similar / Longer]'}</li>
+  <li>Remaining term on current agreement: ${d.currentRemainingTerm}</li>
+  <li>New term: ${d.newTerm}</li>
+  <li>Overall effect on length of time in debt: ${termEffect || '[Longer / Shorter / Same]'}</li>
 </ul>
 
 <p><strong>Early repayment charges on current agreement</strong></p>
 <ul class="letter-bullets">
-  <li>Early repayment charges to settle your current agreement: ${d.earlyRepaymentChargesPaid}</li>
-  <li>Treatment in new agreement: ${parseFloat((illData && illData.earlyRepaymentChargesPaid) || 0) > 0 ? 'Included within the new finance amount.' : '[Included within the new finance amount / Paid separately by you]'}</li>
+  <li>Early repayment charges to settle: ${d.earlyRepaymentChargesPaid}</li>
+  <li>Treatment in new agreement: ${parseFloat((illData && illData.earlyRepaymentChargesPaid) || 0) > 0 ? 'Included within the new finance amount' : 'Explained where applicable'}</li>
 </ul>
 
-<p>
-You confirmed that you are comfortable with the balance between monthly payment, total cost and term described above, and that this reflects your priorities.
-</p>
+<p>You confirmed you are comfortable with the balance between monthly payment, total cost and term described above, and that this reflects your priorities.</p>
 
 <h3 class="section-title">5. Key Risks, Features and Alternatives Considered</h3>
-
-<p>It is important that you understand the key risks and features of this type of product and the alternatives that were discussed.</p>
-
 <p><strong>Key risks and features</strong></p>
 <ul class="letter-bullets">
   <li>The agreement is secured on the vehicle. If you do not keep up with repayments, the lender may take legal action and the vehicle may be repossessed.</li>
   <li>Missing or late payments may negatively affect your credit rating and make it harder or more expensive to obtain credit in the future.</li>
-  <li>Refinancing may increase the total amount payable and/or extend the period over which you are in debt, unless the comparison above shows a reduction.</li>
-  <li>If your agreement includes a final balloon / optional final payment, you must pay this amount (or refinance it, or part-exchange the vehicle) at the end of the term if you wish to keep the vehicle.</li>
-  <li>If your agreement has mileage limits or condition requirements, you may incur additional charges at the end of the term if you exceed the agreed mileage or if the vehicle is not in an acceptable condition.</li>
-  <li>Early settlement of the new agreement may result in charges or rebates in accordance with the lender&rsquo;s terms and conditions.</li>
+  <li>Refinancing may increase the total amount payable and/or extend the period over which you are in debt.</li>
+  <li>If there is a final balloon/optional final payment, you must pay it (or refinance it, or part-exchange the vehicle) at the end of the term if you wish to keep the vehicle.</li>
+  <li>If mileage limits or condition requirements apply, you may incur additional charges at the end of the term if you exceed mileage or the vehicle is not in acceptable condition.</li>
+  <li>Early settlement of the new agreement may result in charges or rebates in accordance with the lender’s terms and conditions.</li>
 </ul>
 
 <p><strong>Alternatives discussed</strong></p>
-<p>We made you aware that you did not have to refinance and that you could:</p>
+<p>You were made aware that you did not have to refinance and you could:</p>
 <ul class="letter-bullets">
-  <li>remain in your existing agreement and continue making your current payments;</li>
+  <li>remain in your existing agreement and continue making current payments;</li>
   <li>settle your existing agreement using your own funds (if available);</li>
-  <li>change the vehicle (for example, by part-exchange), where appropriate; or</li>
-  <li>consider other forms of credit that may be available to you elsewhere.</li>
+  <li>change the vehicle (e.g., part-exchange), where appropriate; or</li>
+  <li>consider other forms of credit available elsewhere.</li>
 </ul>
-<p>
-You confirmed that, having considered these alternatives, you wish to proceed with the new refinance agreement described in this letter.
-</p>
+<p>You confirmed that, having considered these alternatives, you wish to proceed with the new refinance agreement described above.</p>
 
 <h3 class="section-title">6. Our Status and Commission Disclosure</h3>
-
 <p><strong>Our status</strong></p>
-<p>We do not provide independent financial advice and we will not tell you whether you should enter into this agreement. We provide information to help you make your own choice. If you are unsure whether this type of finance is suitable for you, you may wish to seek independent financial advice.</p>
-<p>We work with a broad panel of lenders.  ${d.coTrading} acts as a credit broker, not a lender.</p>
+<p>Compare My Finance acts as a credit broker, not a lender. We provide information to help you make your own choice and will not tell you whether you should enter into this agreement. If you are unsure whether this type of finance is suitable for you, you may wish to seek independent financial advice. We work with a broad panel of lenders.</p>
 
 <p><strong>Commission disclosure</strong></p>
-<p>If you enter into the new agreement, we will receive a commission from the lender for arranging it.
-Our estimated commission on this agreement is ${d.commission}. The actual commission amount we receive is available on request before you sign the finance agreement.
-Any commission we receive is included within the figures quoted and does not increase the amount you pay under the agreement.
-The commission is set by the lender and is not part of a Discretionary Commission Arrangement (DCA). It has not influenced the lender or product presented to you.</p>
+<p>If you enter into the new agreement, we will receive commission from the lender for arranging it. Our estimated commission is ${d.commission}. The actual commission amount is available on request before you sign the finance agreement. Any commission received is included within the figures quoted and does not increase the amount you pay under the agreement. The commission is set by the lender, is not part of a Discretionary Commission Arrangement (DCA), and has not influenced the lender or product presented to you.</p>
 
-<div class="dns-mini">
 <h3 class="section-title">7. Vehicle Condition Declaration</h3>
 
 <p>By proceeding, you confirm that:</p>
 <ul class="letter-bullets">
   <li>the vehicle is free from any known faults (other than those declared to us and, where applicable, to the lender);</li>
-  <li>it has been properly maintained in line with the manufacturer&rsquo;s recommendations (where applicable); and</li>
+  <li>it has been properly maintained in line with the manufacturer’s recommendations (where applicable); and</li>
   <li>to the best of your knowledge, it is in good and safe working order at the point of entering into this refinance agreement.</li>
 </ul>
-<p>You also confirm that you have received, read and understood our Refinance Customer Terms of Business, and you agree to be bound by those terms.</p>
 
+<p>You also confirm you have received, read and understood our Refinance Customer Terms of Business and agree to be bound by those terms.</p>
 
-</div>
+<h3 class="section-title">8. Important Information About Refinancing and Settlement Authority</h3>
 
-<div class="dns-mini">
-<h3 class="section-title">8A. Important Information About Refinancing</h3>
+<p>This new agreement is a refinance used to settle your existing car finance. It is a separate agreement (not a change to your current one). We will follow your instructions to arrange settlement with your current lender once you have agreed the new agreement.</p>
 
-<p>
-This new agreement is a refinance used to settle your existing car finance. It is a separate agreement (not a change to your current one).
-We will follow your instructions to arrange settlement with your current lender once you have agreed the new agreement.
-</p>
-
+<p><strong>Important points</strong></p>
 <ul class="letter-bullets">
-  <li><strong>Settlement figure:</strong> the settlement amount can change between an estimate and the confirmed figure provided by your current lender. If the settlement figure changes, the figures shown may change.</li>
-  <li><strong>Fees and charges:</strong> your existing agreement may include early settlement fees and/or other charges. These may be payable and can affect the overall cost.</li>
-  <li><strong>Negative equity:</strong> if you owe more than the vehicle’s value, the shortfall may be carried into the new agreement, increasing the amount you borrow and the total you repay.</li>
-  <li><strong>Term and total cost:</strong> reducing the monthly payment can involve extending the term. A longer term may mean you pay more overall.</li>
-  <li><strong>Missed payments:</strong> missed or late payments can lead to arrears, additional charges, a negative impact on your credit file and (where relevant) the risk of the vehicle being repossessed.</li>
+  <li>Settlement figure: the settlement amount can change between an estimate and the confirmed figure provided by your current lender. If it changes, the figures shown may change.</li>
+  <li>Fees and charges: your existing agreement may include early settlement fees and/or other charges which can affect overall cost.</li>
+  <li>Negative equity: if you owe more than the vehicle’s value, the shortfall may be carried into the new agreement, increasing the amount you borrow and total you repay.</li>
+  <li>Term and total cost: reducing the monthly payment can involve extending the term; a longer term may mean you pay more overall.</li>
+  <li>Legal rights: rights about vehicle quality are usually against the selling dealer/trader and depend on when the vehicle was supplied. Refinancing does not restart or extend those time limits. Complaints about the original sale and any “connected lender” rights are generally linked to the original purchase finance, not this refinance agreement.</li>
 </ul>
 
-<p>
-Your legal rights about the quality of the vehicle are usually against the selling dealer/trader and depend on when the vehicle was supplied.
-Refinancing does not restart or extend those time limits.
-If you have a complaint about the original sale, any “connected lender” rights that may apply to the original purchase are generally linked to the original purchase finance, not this refinance agreement.
-</p>
+<p>We are not the seller of the vehicle. The lender provides the finance. This refinance is not a re-sale of the vehicle.</p>
 
-<p>
-We act as a credit broker and will help coordinate settlement as instructed by you. The lender you choose provides the finance, and we are not the seller of the vehicle. This refinance is not a re-sale of the vehicle.
-</p>
+<p><strong>Settlement authority &amp; limited role</strong></p>
+<p>To complete the refinance, the existing agreement normally needs to be settled. By signing/confirming this letter, you authorise us to act on your behalf solely for settlement coordination.</p>
 
-
-
-<div class="dns-mini">
-<div class="dns-mini">
-<h3 class="section-title">8B. Settlement Authority &amp; Limited Role</h3>
-
-<p>
-To complete the refinance, the existing agreement normally needs to be settled. By signing/confirming this letter, you authorise us to act on your behalf solely for the settlement step described below.
-</p>
-
+<p>You authorise Compare My Finance (and where relevant the Dealer for settlement administration) to:</p>
 <ul class="letter-bullets">
-  <li>We may request a settlement figure (and updated figures if needed) from your current lender using your details and the vehicle registration.</li>
-  <li>You instruct us to use the refinance proceeds (or the new lender’s payment instructions) to pass the settlement amount to your current lender to clear the existing agreement.</li>
-  <li>Our role is limited to coordinating this pass-through settlement. We do not own the vehicle, we do not re-sell it to you, and we are not a party to the new credit agreement between you and the new lender.</li>
-  <li>If the settlement amount changes or there is any shortfall, this remains your responsibility unless the new lender confirms otherwise.</li>
+  <li>request settlement figures (and updated figures if needed) from your current lender using your details and vehicle registration; and</li>
+  <li>arrange payment of the settlement amount to your current lender using refinance proceeds / the new lender’s payment instructions to clear the existing agreement.</li>
 </ul>
 
-<p>
+<p>You understand and agree that:</p>
+<ul class="letter-bullets">
+  <li>our role (and the Dealer’s role, where involved) is limited to settlement coordination/administration; we do not own the vehicle, do not re-sell it to you, and are not a party to the new credit agreement between you and the new lender;</li>
+  <li>the new lender will register a new finance/charge on the vehicle;</li>
+  <li>if the settlement amount changes or there is any shortfall, this remains your responsibility unless the new lender confirms otherwise;</li>
+  <li>settlement figures can change and settlement may be subject to early settlement charges;</li>
+  <li>if settlement increases between quote and payment, completion may be delayed until any shortfall is covered; and</li>
+  <li>the Dealer will not charge you a fee for settlement administration and will not retain any surplus of refinance funds.</li>
+</ul>
 
-<h4 class="section-subtitle">Settlement authority</h4>
-<p class="small-print">
-This section explains how settlement may be handled.
-</p>
-
-<p class="small-print">
-I confirm I am refinancing my existing vehicle finance and that this process is not a sale or re-sale of the vehicle. I authorise the Dealer to liaise with my current finance provider to obtain settlement figures and to clear the existing finance/charge on the vehicle using funds made available for this purpose.
-</p>
-<p class="small-print">
-I understand the new lender will register a new finance/charge on the vehicle and may release refinance funds to the credit broker (Compare My Finance). The credit broker may then release those funds to the Dealer solely so the Dealer can settle my existing finance/charge (and any related settlement amount) with my current finance provider. Compare My Finance is not the lender and does not provide the finance.
-</p>
-<p class="small-print">
-I understand the Dealer is not providing finance and does not decide whether I am offered finance or the terms of any finance. The Dealer’s role is limited to settlement administration as authorised by me. The Dealer will not charge me a fee for this settlement administration and will not retain any surplus of the refinance funds.
-</p>
-<p class="small-print">
-If there is any difference between the settlement figure paid and the amount received, the credit broker and/or I will be responsible for resolving any shortfall or arranging any refund as appropriate. I understand that settling my existing finance may be subject to early settlement charges and that settlement figures can change. If the settlement figure increases between quote and payment, I authorise the Dealer to notify the credit broker promptly and I understand completion may be delayed until the shortfall is covered.
-</p>
-
-<strong>Settlement authority:</strong> I/We authorise Compare My Finance to obtain settlement figures and to arrange payment of the settlement to my/our existing lender as part of the refinance, and I/We understand their role is limited to settlement coordination.
-</p>
-
-
-</div>
-
-</div>
-
-</div>
+<p><strong>Settlement authority (confirmation):</strong><br>
+I/We authorise Compare My Finance to obtain settlement figures and to arrange payment of settlement to my/our existing lender as part of the refinance, and I/We understand their role is limited to settlement coordination.</p>
 
 <h3 class="section-title">9. Your Confirmation</h3>
 
 <p>By signing below, you confirm that:</p>
 <ul class="letter-bullets">
-  <li>The information you have provided about your circumstances is true, accurate and complete to the best of your knowledge.</li>
-  <li>The demands and needs described in section 1 accurately reflect what you are looking to achieve from this finance agreement.</li>
-  <li>You have received and understood the lender&rsquo;s Pre-Contract Information and Adequate Explanation documents.</li>
-  <li>You understand the key features, risks and alternatives of this product as explained above.</li>
-  <li>You are satisfied that the agreement you have chosen meets your demands and needs at this time.</li>
-  <li>You understand that failing to keep up with repayments can have serious consequences, including damage to your credit file and potential repossession of the vehicle.</li>
+  <li>the information you provided about your circumstances is true, accurate and complete to the best of your knowledge;</li>
+  <li>the demands and needs in section 1 accurately reflect what you are looking to achieve;</li>
+  <li>you have received and understood the lender’s Pre-Contract Information and Adequate Explanation documents;</li>
+  <li>you understand the key features, risks and alternatives explained above; and</li>
+  <li>you are satisfied that the agreement you have chosen meets your demands and needs at this time.</li>
 </ul>
 
 <p>Please read this letter carefully and contact us immediately if anything is unclear, incorrect or does not reflect your understanding, or if your circumstances change.</p>
@@ -10752,7 +10693,7 @@ function summaryLine(app){
 </script>
 <!-- GLOBAL: Loading overlay (Colin) used during async operations across all tabs. Triggered by App.ui.showLoading/hideLoading (search in JS). Keep overlay ID stable. -->
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="saveDealOverlay">
-<img alt="Loading..." class="colin-spinner w-24 h-24" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
+<img alt="Loading..." class="colin-spinner w-16 h-16" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
 </div>
 </body>
 </html>
