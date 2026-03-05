@@ -1221,8 +1221,14 @@ Open the console for full details.`);
 
             // Escape potentially unsafe text for HTML (prevents layout breaks & XSS)
             escapeHtml(str) {
-              if (str === null || str === undefined) return "";
-              return String(str)
+              let safe = "";
+              try {
+                safe = str === null || str === undefined ? "" : String(str);
+              } catch (_err) {
+                safe = "";
+              }
+
+              return safe
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
@@ -1230,8 +1236,9 @@ Open the console for full details.`);
                 .replace(/'/g, "&#039;");
             },
 
-            applyApiAutofillFields(formData, opts = {}) {
+            applyApiAutofillFields(formData, opts) {
               const fd = formData || {};
+              opts = opts || {};
               const updateDom = !!opts.updateDom;
 
               // Consent Terms represents FairProcessingNoticeConfirmed - always true
@@ -3149,8 +3156,15 @@ Open the console for full details.`);
                     if (list) list.innerHTML = "";
                     if (box) box.classList.add("hidden");
                   };
-                  const _escape = (s) =>
-                    String(s ?? "").replace(
+                  const _escape = (s) => {
+                    let safe = "";
+                    try {
+                      safe = s === null || s === undefined ? "" : String(s);
+                    } catch (_err) {
+                      safe = "";
+                    }
+
+                    return safe.replace(
                       /[&<>"']/g,
                       (c) =>
                         ({
@@ -3161,6 +3175,7 @@ Open the console for full details.`);
                           "'": "&#39;",
                         })[c],
                     );
+                  };
                   function listEmptyFieldsFromPayload(payload) {
                     const misses = [];
                     const isEmpty = (v) =>
