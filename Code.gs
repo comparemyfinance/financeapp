@@ -328,13 +328,14 @@ function mergeInto_(existingObj, patchObj) {
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
+
 function doGet(e) {
   const params = (e && e.parameter) ? e.parameter : {};
   const wantsApiJson = (params.api === '1' || params.format === 'json');
 
   // GET /exec -> serve the CRM UI (Index.html)
   if (!wantsApiJson) {
-    const t = HtmlService.createTemplateFromFile('index');
+    const t = HtmlService.createTemplateFromFile('Index');
     t.serviceUrl = ScriptApp.getService().getUrl();
     return t.evaluate()
       .setTitle('CMF Refi Orchestrator')
