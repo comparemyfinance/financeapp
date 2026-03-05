@@ -4,13 +4,26 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 15
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -18,11 +31,91 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Format code with Prettier
-        run: npx prettier --write .
+      # CI should VERIFY formatting, not rewrite it.
+      - name: Prettier format check
+        run: npx prettier --check .
 
-      - name: Lint / format check
+      - name: Lint
         run: npm run lint
 
-      - name: Sanity tests
+      # Catches the exact class of error you hit: "missing ) after argument list"
+      # in Apps Script HTML/script templates (e.g., *.html, *.script.html).
+      - name: Syntax check embedded JS in HTML templates
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          // Simple glob without extra deps
+          function walk(dir, out = []) {
+            for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (ent.name === 'node_modules' || ent.name === '.git' || ent.name === 'dist' || ent.name === 'build') continue;
+              const p = path.join(dir, ent.name);
+              if (ent.isDirectory()) walk(p, out);
+              else out.push(p);
+            }
+            return out;
+          }
+
+          const root = process.cwd();
+          const files = walk(root).filter(f =>
+            f.endsWith('.html') || f.endsWith('.script.html') || f.endsWith('.gs') || f.endsWith('.js')
+          );
+
+          // Extract <script> blocks (best-effort). For Apps Script templated HTML,
+          // you often have raw JS in script tags; this validates syntax early.
+          function extractScriptBlocks(html) {
+            const blocks = [];
+            const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+            let m;
+            while ((m = re.exec(html))) blocks.push(m[1]);
+            return blocks;
+          }
+
+          const failures = [];
+
+          for (const file of files) {
+            const rel = path.relative(root, file);
+            const text = fs.readFileSync(file, 'utf8');
+
+            try {
+              if (file.endsWith('.html') || file.endsWith('.script.html')) {
+                const blocks = extractScriptBlocks(text);
+
+                // Also check inline JS-like sections even if no <script> tags exist (common in *.script.html)
+                const candidates = blocks.length ? blocks : [text];
+
+                for (let i = 0; i < candidates.length; i++) {
+                  const code = candidates[i];
+
+                  // Strip Apps Script templating markers very conservatively
+                  const cleaned = code
+                    .replace(/<\?!=?[\s\S]*?\?>/g, ' ')   // <? ?>, <?= ?>, <?!= ?>
+                    .replace(/^\uFEFF/, '');              // BOM
+
+                  // Validate syntax (browser-ish). new Function throws on parse errors.
+                  // This will catch "missing )" / missing braces / unterminated strings, etc.
+                  new Function(cleaned);
+                }
+              } else if (file.endsWith('.js') || file.endsWith('.gs')) {
+                // For plain JS/GS, just syntax-parse the file.
+                const cleaned = text.replace(/^\uFEFF/, '');
+                new Function(cleaned);
+              }
+            } catch (e) {
+              failures.push({ file: rel, error: String(e && e.message ? e.message : e) });
+            }
+          }
+
+          if (failures.length) {
+            console.error('\nSyntax check failures (JS parse):');
+            for (const f of failures) console.error(`- ${f.file}: ${f.error}`);
+            process.exit(1);
+          } else {
+            console.log('Embedded JS / template syntax check: OK');
+          }
+          NODE
+
+      - name: Tests
         run: npm test
