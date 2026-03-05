@@ -2725,7 +2725,6 @@
         border-color: rgba(17, 24, 39, 0.14) !important;
       }
 
-      <?!= include('stylesClientFiles'); ?>
     </style>
 
     <script>
@@ -2819,8 +2818,6 @@
         height: 100%;
         width: 100%;
       }
-      <?!= include('stylesPse'); ?>
-      <?!= include('stylesSalesPipeline'); ?>
       .scrollbar-thin::-webkit-scrollbar {
         width: 5px;
       }
@@ -3384,11 +3381,11 @@
         </nav>
       </div>
       <main class="content-area flex-1">
-        <?!= include('tabProductSourceDns'); ?> <?!=
-        include('tabSalesPipeline'); ?> <?!= include('tabTwilioFlex'); ?> <?!=
-        include('tabComparisonCalculator'); ?> <?!=
-        include('tabDocumentUpload'); ?> <?!= include('tabClientFilesView'); ?>
-        <?!= include('tabWhatsAppMessenger'); ?>
+        <?!= include('tabProductSource'); ?> <?!=
+        include('tabSalesPipeline'); ?> <?!= include('tabTwilio'); ?> <?!=
+        include('tabComparisonCalc'); ?> <?!=
+        include('tabDocumentUpload'); ?> <?!= include('tabClientFiles'); ?>
+        <?!= include('tabWhatsApp'); ?>
       </main>
     </div>
     <script>
@@ -3577,10 +3574,6 @@
         window.__cmfTabsInitDone = true;
         tabs[0].click();
       };
-      <?!= includeScriptBody('tabProductSourceDns.script'); ?>
-
-      <?!= includeScriptBody('tabSalesPipeline.script'); ?>
-
       /* =======================================================================
    WIRING GUARD (CAPTURE-PHASE EVENT DELEGATION)
    -----------------------------------------------------------------------
@@ -4401,7 +4394,219 @@
         });
       });
     </script>
-    <?!= include('tabRuntimeBoot.script'); ?>
+    <script>
+      /* Fallback tab initialiser (runs even if module script fails). */
+      (function () {
+        // If the main tab initialiser ran, do nothing.
+        if (window.__cmfTabsInitDone) return;
+
+        function $all(sel, root) {
+          return Array.prototype.slice.call(
+            (root || document).querySelectorAll(sel),
+          );
+        }
+
+        /* =======================================================================
+   TAB: DOCUMENT UPLOADS
+   -----------------------------------------------------------------------
+   - Loads an iframe / upload experience for customer documents.
+   Common failure mode:
+     - Tab switch wiring missing => panel never shown => appears blank.
+   Protection:
+     - Delegated tab wiring explicitly calls loadCustomerUploadIframe()
+       when Document Uploads tab activates.
+   ======================================================================= */
+
+        function loadCustomerUploadIframe() {
+          try {
+            var ifr = document.getElementById("customer-upload-iframe");
+            if (!ifr) return;
+            var base = (ifr.getAttribute("data-base-src") || "").trim();
+            if (!base) return;
+            // Avoid double ? issues
+            var payload = window.__cmfDocUploadPayload || null;
+            var sep = base.indexOf("?") === -1 ? "?" : "&";
+            var next = base + sep + "mode=crm&embed=1";
+            if (payload) {
+              next +=
+                "&surname=" +
+                encodeURIComponent(payload.surname || "") +
+                "&postcode=" +
+                encodeURIComponent(payload.postcode || "");
+            }
+            next += "&cb=" + Date.now();
+            // Only set when first load OR when currently blank/about:blank
+            if (!ifr.dataset.loaded || !ifr.src || ifr.src === "about:blank") {
+              ifr.src = next;
+              ifr.dataset.loaded = "1";
+            }
+          } catch (e) {}
+        }
+
+        window.loadCustomerUploadIframe = loadCustomerUploadIframe;
+        function ensureLazyIframes(panel) {
+          if (!panel || !panel.id) return;
+
+          // Customer upload iframe (optional lazy loader)
+          if (panel.id === "document-upload") {
+            loadCustomerUploadIframe();
+          }
+
+          // WhatsApp messenger iframe (lazy loads srcdoc)
+          if (panel.id === "whatsapp-messenger") {
+            var wIfr = document.getElementById("whatsapp-messenger-iframe");
+            var wTpl = document.getElementById("whatsapp-messenger-srcdoc");
+            if (wIfr && wTpl && !wIfr.dataset.loaded) {
+              wIfr.srcdoc = wTpl.innerHTML;
+              wIfr.dataset.loaded = "1";
+            }
+          }
+        }
+
+        function reloadWhatsAppMessenger(resetState) {
+          try {
+            if (resetState) {
+              localStorage.removeItem("whatsappPinned");
+              localStorage.removeItem("whatsappSettings");
+            }
+          } catch (e) {}
+
+          var wIfr = document.getElementById("whatsapp-messenger-iframe");
+          var wTpl = document.getElementById("whatsapp-messenger-srcdoc");
+          if (wIfr && wTpl) {
+            try {
+              delete wIfr.dataset.loaded;
+            } catch (e) {
+              wIfr.dataset.loaded = "";
+            }
+            wIfr.srcdoc = wTpl.innerHTML;
+            wIfr.dataset.loaded = "1";
+          }
+        }
+
+        // WhatsApp toolbar buttons
+        (function initWhatsAppToolbar() {
+          var reloadBtn = document.getElementById("whatsapp-reload-btn");
+          if (reloadBtn && !reloadBtn.dataset.bound) {
+            reloadBtn.addEventListener("click", function () {
+              reloadWhatsAppMessenger(false);
+            });
+            reloadBtn.dataset.bound = "1";
+          }
+          var resetBtn = document.getElementById("whatsapp-reset-btn");
+          if (resetBtn && !resetBtn.dataset.bound) {
+            resetBtn.addEventListener("click", function () {
+              reloadWhatsAppMessenger(true);
+            });
+            resetBtn.dataset.bound = "1";
+          }
+
+          function cmfCopy(text) {
+            try {
+              if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+              }
+            } catch (e) {}
+            return new Promise(function (resolve, reject) {
+              try {
+                var ta = document.createElement("textarea");
+                ta.value = text;
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                var ok = document.execCommand("copy");
+                document.body.removeChild(ta);
+                ok ? resolve() : reject(new Error("copy failed"));
+              } catch (err) {
+                reject(err);
+              }
+            });
+          }
+        })();
+
+        function showTab(tabEl) {
+          var tabs = $all(".tab-link");
+          var panels = $all(".tab-content");
+
+          tabs.forEach(function (t) {
+            t.classList.remove("active-tab");
+          });
+          panels.forEach(function (p) {
+            p.style.display = "none";
+          });
+
+          tabEl.classList.add("active-tab");
+          var id = tabEl.getAttribute("data-tab");
+          if (!id) return;
+
+          var panel = document.getElementById(id);
+          if (!panel) return;
+
+          // Match the main tab logic: sales pipeline needs flex.
+          if (panel.id === "sales-pipeline-crm") {
+            panel.style.display = "flex";
+            panel.style.flexDirection = "column";
+          } else {
+            panel.style.display = "block";
+          }
+
+          ensureLazyIframes(panel);
+
+          // Refresh Sales Pipeline layout when the panel becomes visible (fixes init-while-hidden issues).
+          if (panel.id === "sales-pipeline-crm") {
+            try {
+              if (
+                window.App &&
+                App.render &&
+                typeof App.render.all === "function"
+              ) {
+                requestAnimationFrame(function () {
+                  try {
+                    App.render.all();
+                  } catch (e) {}
+                });
+              }
+              if (window.App && App.state) {
+                window.App.state.resizersSetup = false;
+              }
+            } catch (e) {}
+          }
+        }
+
+        function init() {
+          // If the main init completed between load + now, bail.
+          if (window.__cmfTabsInitDone) return;
+
+          var tabs = $all(".tab-link");
+          if (!tabs.length) return;
+
+          tabs.forEach(function (t) {
+            // Prevent double-binding if this fallback runs more than once.
+            if (t.dataset && t.dataset.fallbackBound === "1") return;
+            if (t.dataset) t.dataset.fallbackBound = "1";
+
+            t.addEventListener("click", function (e) {
+              e.preventDefault();
+              showTab(t);
+            });
+          });
+
+          // Prefer the one already marked active, otherwise first
+          var active =
+            document.querySelector(".tab-link.active-tab") || tabs[0];
+          showTab(active);
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+
     <!-- APPLICATION MODAL: Notes section uses a strict 3-row layout for predictable height + scroll behavior. If adding rows, also adjust modal scroll constraints. -->
     <script id="cmf-notes-strict-rows">
       (function () {

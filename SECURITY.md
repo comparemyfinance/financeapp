@@ -4,7 +4,7 @@
 
 This repository is a Google Apps Script CRM web app with:
 
-- Frontend UI in `Index.html` served by Apps Script `doGet`.
+- Frontend UI in `index.html` served by Apps Script `doGet`.
 - Backend API/router in `Code.gs` and authentication helpers in `Auth.js`.
 - Deployment via GitHub Actions and `clasp`.
 
