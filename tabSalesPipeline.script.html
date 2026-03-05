@@ -1236,7 +1236,7 @@ Open the console for full details.`);
                 .replace(/'/g, "&#039;");
             },
 
-            applyApiAutofillFields(formData, opts = {}) {
+            applyApiAutofillFields: function (formData, opts = {}) {
               const fd = formData || {};
               const updateDom = !!opts.updateDom;
 
@@ -1300,7 +1300,7 @@ Open the console for full details.`);
               return fd;
             },
 
-            validateApiApplicationData(formData) {
+            validateApiApplicationData: function (formData) {
               const fd = formData || {};
               // Gender must be derivable from Title
               const g = fd.gender || this.deriveGenderFromTitle(fd.title);
