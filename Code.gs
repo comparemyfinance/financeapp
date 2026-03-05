@@ -329,6 +329,13 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+function includeScriptBody(filename) {
+  const content = include(filename);
+  return content
+    .replace(/^\s*<script[^>]*>/i, '')
+    .replace(/<\/script>\s*$/i, '');
+}
+
 function doGet(e) {
   const params = (e && e.parameter) ? e.parameter : {};
   const wantsApiJson = (params.api === '1' || params.format === 'json');
