@@ -330,10 +330,7 @@ function include(filename) {
 }
 
 function includeScriptBody(filename) {
-  const content = include(filename);
-  return content
-    .replace(/^\s*<script[^>]*>/i, '')
-    .replace(/<\/script>\s*$/i, '');
+  return HtmlService.createTemplateFromFile(filename).getRawContent();
 }
 
 function doGet(e) {
