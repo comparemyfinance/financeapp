@@ -4,13 +4,14 @@
   "version": "1.0.0",
   "description": "Tooling for formatting and CI checks",
   "scripts": {
-    "sanity": "test -f Code.gs && test -f index.html && test -f appsscript.json",
+    "sanity": "test -f Code.gs && test -f Index.html && test -f appsscript.json",
     "format": "prettier --write \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "format:check": "prettier --check \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "validate:syntax": "node scripts/validate-syntax.mjs",
     "lint": "npm run format:check && npm run validate:syntax",
     "test": "npm run sanity && npm run validate:syntax",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check:merge-conflicts": "node scripts/check-merge-conflicts.mjs"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
