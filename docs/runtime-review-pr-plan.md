@@ -5,7 +5,7 @@ Scope: Apps Script runtime (`.gs`), frontend JS/HTML/CSS.
 
 ## Syntax and parse checks run
 
-- `npx prettier --check Auth.js Code.gs Lenderapi.gs Index.html CSS.html`
+- `npx prettier --check Auth.js Code.gs Lenderapi.gs index.html`
 - `node --check Auth.js`
 - `cp Code.gs /tmp/Code.gs.js && node --check /tmp/Code.gs.js`
 - `cp Lenderapi.gs /tmp/Lenderapi.gs.js && node --check /tmp/Lenderapi.gs.js`

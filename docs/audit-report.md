@@ -9,7 +9,7 @@ Scope: repository-level static audit; no runtime behavior changes.
 
 - **Backend/API (Apps Script):** `Code.gs` routes actions from `doPost` and `handleWebClientRequest` through `routeAction_`, then reads/writes Google Sheets and calls external APIs.
 - **Auth module:** `Auth.js` implements plaintext user/password validation and cache-backed tokens.
-- **Frontend UI:** `Index.html` calls backend via `google.script.run.handleWebClientRequest(...)`, stores auth token in browser storage, renders CRM UI.
+- **Frontend UI:** `index.html` calls backend via `google.script.run.handleWebClientRequest(...)`, stores auth token in browser storage, renders CRM UI.
 - **Config/Deployment:** `appsscript.json` defines runtime/webapp exposure; GitHub Actions deploy with `clasp`.
 
 ### Data Stores
@@ -23,7 +23,7 @@ Scope: repository-level static audit; no runtime behavior changes.
 
 ### Flow A — UI bootstrap and session gate
 
-1. `doGet` serves `Index.html` for non-API requests.
+1. `doGet` serves `index.html` for non-API requests.
 2. Frontend checks `localStorage` token (`CMF_AUTH_TOKEN`) and calls `authStatus`.
 3. If valid, UI initializes; otherwise login modal remains.
 
@@ -107,7 +107,7 @@ Scope: repository-level static audit; no runtime behavior changes.
 - Error payload includes stack: `Code.gs` routeAction\_ catch block. (Code.gs:514-520)
 - Hardcoded Jigsaw password helper: `Code.gs` setup properties. (Code.gs:911-919)
 - Plaintext auth users/passwords: `Auth.js`. (Auth.js:1-11, 18-27)
-- Frontend token in localStorage: `Index.html` auth bootstrap/login/logout. (Index.html:8900-8914, 8949-8953)
-- Dynamic error HTML interpolation: `Index.html`. (Index.html:7988)
+- Frontend token in localStorage: `index.html` auth bootstrap/login/logout. (index.html:8900-8914, 8949-8953)
+- Dynamic error HTML interpolation: `index.html`. (index.html:7988)
 - Anonymous webapp exposure: `appsscript.json`. (appsscript.json:14-16)
 - Workflow action/tool versions: `.github/workflows/deploy.yml` and `.github/workflows/ci.yml`. (deploy.yml:14-20, ci.yml:11)

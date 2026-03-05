@@ -59,7 +59,7 @@ For auto-formatting before commit:
 npm run format
 ```
 
-`npm test` includes the original sanity checks (`Code.gs`, `Index.html`, `appsscript.json`).
+`npm test` includes the original sanity checks (`Code.gs`, `index.html`, `appsscript.json`).
 
 ## Optional local post-merge hook safeguard
 
