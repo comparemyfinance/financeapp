@@ -2135,6 +2135,7 @@
           { l: "Lendable", a: 29.8, c: 4 },
           { l: "Startline Finance", a: 24.3, c: 4 },
           { l: "Tandem", a: 22.25, c: 4 },
+          { l: "FINCLUSION", a: 8.9, c: 4, h: true },
           { l: "Billing Finance", a: 35.4, c: 1.3 },
         ];
         const f = (v) => parseFloat(v) || 0;
@@ -3460,6 +3461,7 @@
           window.appState.financeDetails.remainingTerm = newTerm;
           const { settlementFigure } = window.appState.financeDetails;
           window.appState.products.forEach((p) => {
+            p.term = newTerm;
             p.calculatedMonthlyPayment = calcMonthly(
               settlementFigure,
               newTerm,
@@ -4382,5 +4384,4 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
       };
 
       // (deduped duplicate prefillLetterCreator block)
-
 
