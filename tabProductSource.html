@@ -2135,6 +2135,7 @@
           { l: "Lendable", a: 29.8, c: 4 },
           { l: "Startline Finance", a: 24.3, c: 4 },
           { l: "Tandem", a: 22.25, c: 4 },
+          { l: "FINCLUSION", a: 8.9, c: 4, h: true },
           { l: "Billing Finance", a: 35.4, c: 1.3 },
         ];
         const f = (v) => parseFloat(v) || 0;
@@ -2535,6 +2536,10 @@
           window.appState.products = productsWithBalloons;
           sortProductsInPlace();
         };
+        const toggleProductSourceOverlay = (isVisible) => {
+          const overlay = getEl("productSourceOverlay");
+          if (overlay) overlay.classList.toggle("hidden", !isVisible);
+        };
         const runSoftScoreClient = async () => {
           const products = window.appState.products || [];
           if (!products.length)
@@ -2547,6 +2552,7 @@
             btn.disabled = true;
             btn.classList.add("opacity-60", "cursor-not-allowed");
           }
+          toggleProductSourceOverlay(true);
           try {
             let token = "";
             try {
@@ -2612,6 +2618,7 @@
             console.error("Soft-score request failed", err);
             showToast("Unable to fetch soft-score offers.", "error");
           } finally {
+            toggleProductSourceOverlay(false);
             if (btn) {
               btn.disabled = false;
               btn.classList.remove("opacity-60", "cursor-not-allowed");
@@ -2620,9 +2627,8 @@
         };
         const handleFormSubmit = async (e) => {
           e.preventDefault();
-          // Show global loading spinner (reuse Save Deal overlay)
-          const __ov = getEl("saveDealOverlay");
-          if (__ov) __ov.classList.remove("hidden");
+          // Show Product Source loading overlay while finding new products
+          toggleProductSourceOverlay(true);
           try {
             const monthly = f(getVal("monthly-payment-display")),
               remTerm = i(getVal("remaining-term-display")),
@@ -2656,7 +2662,7 @@
             getEl("demands-and-needs-section").style.display = "block";
             getEl("results-card").scrollIntoView({ behavior: "smooth" });
           } finally {
-            if (__ov) __ov.classList.add("hidden");
+            toggleProductSourceOverlay(false);
           }
         };
         const handleFinanceTypeChange = () => {
@@ -3455,6 +3461,7 @@
           window.appState.financeDetails.remainingTerm = newTerm;
           const { settlementFigure } = window.appState.financeDetails;
           window.appState.products.forEach((p) => {
+            p.term = newTerm;
             p.calculatedMonthlyPayment = calcMonthly(
               settlementFigure,
               newTerm,
@@ -4377,5 +4384,4 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
       };
 
       // (deduped duplicate prefillLetterCreator block)
-
 
