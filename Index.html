@@ -3643,6 +3643,10 @@ const initializePSE = () => {
                 window.appState.products = productsWithBalloons;
                 sortProductsInPlace();
             };
+            const toggleProductSourceOverlay = (isVisible) => {
+                const overlay = getEl('productSourceOverlay');
+                if (overlay) overlay.classList.toggle('hidden', !isVisible);
+            };
             const runSoftScoreClient = async () => {
                 const products = window.appState.products || [];
                 if (!products.length) return showToast('Find products before requesting soft-score.', 'error');
@@ -3651,6 +3655,7 @@ const initializePSE = () => {
                     btn.disabled = true;
                     btn.classList.add('opacity-60', 'cursor-not-allowed');
                 }
+                toggleProductSourceOverlay(true);
                 try {
                     let token = '';
                     try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch (e) {}
@@ -3701,6 +3706,7 @@ const initializePSE = () => {
                     console.error('Soft-score request failed', err);
                     showToast('Unable to fetch soft-score offers.', 'error');
                 } finally {
+                    toggleProductSourceOverlay(false);
                     if (btn) {
                         btn.disabled = false;
                         btn.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -3709,9 +3715,8 @@ const initializePSE = () => {
             };
             const handleFormSubmit = async (e) => {
                 e.preventDefault();
-                // Show global loading spinner (reuse Save Deal overlay)
-                const __ov = getEl('saveDealOverlay');
-                if (__ov) __ov.classList.remove('hidden');
+                // Show Product Source loading overlay while finding new products
+                toggleProductSourceOverlay(true);
                 try {
                 const monthly = f(getVal('monthly-payment-display')), remTerm = i(getVal('remaining-term-display')), outBalance = f(getVal('outstanding-balance-display')), oApr = f(getVal('original-apr'));
                 if ([monthly, remTerm, outBalance, oApr].some(isNaN)) return showToast("Please ensure all original agreement details are filled correctly.", "error");
@@ -3725,7 +3730,7 @@ const initializePSE = () => {
                 getEl('demands-and-needs-section').style.display = 'block';
                 getEl('results-card').scrollIntoView({ behavior: 'smooth' });
                 } finally {
-                  if (__ov) __ov.classList.add('hidden');
+                  toggleProductSourceOverlay(false);
                 }
             };
             const handleFinanceTypeChange = () => {
@@ -7875,7 +7880,7 @@ const isDealReady = ['docID','docV5C','docSettlement'].every(f => d[f] === true 
         const postcode = d.currentPostcode || d.postcode || d.postCode || '';
         const currentApr = (d.currentApr ?? d.current_apr ?? '').toString();
         const vrn = d.vrn || '';
-        const agreement = ((d.id ?? '') !== '' ? String(d.id) : '') || d.agreementNumber || '';
+        const referer = ((d.referer ?? '') !== '' ? String(d.referer) : '') || ((d.referrer ?? '') !== '' ? String(d.referrer) : '') || '';
         const rawDob = d.dob || d.dateOfBirth || '';
 
         const toYMD = (val) => {
@@ -7975,7 +7980,7 @@ const isDealReady = ['docID','docV5C','docSettlement'].every(f => d[f] === true 
                 ${App.state.stages.map(s => `<option value="${esc(s.id)}" ${d.dealStage === s.id ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}
               </select>
             </div>
-            <div class="text-right text-[12px] font-mono text-gray-600">${esc(agreement)}</div>
+            <div class="text-right text-[12px] font-mono text-gray-600">${esc(referer)}</div>
           </div>
         </div>`;
     },
@@ -10693,7 +10698,21 @@ function summaryLine(app){
 </script>
 <!-- GLOBAL: Loading overlay (Colin) used during async operations across all tabs. Triggered by App.ui.showLoading/hideLoading (search in JS). Keep overlay ID stable. -->
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="saveDealOverlay">
-<img alt="Loading..." class="colin-spinner w-32 h-32" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
+<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:5rem;height:5rem;object-fit:contain"/>
 </div>
+<div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="productSourceOverlay">
+<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:5rem;height:5rem;object-fit:contain"/>
+</div>
+<script>
+(function ensureSingleSaveOverlay(){
+  var overlayIds = ['saveDealOverlay', 'productSourceOverlay'];
+  for (var j = 0; j < overlayIds.length; j += 1) {
+    var overlays = document.querySelectorAll('#' + overlayIds[j]);
+    if (overlays.length > 1) {
+      for (var i = 1; i < overlays.length; i += 1) overlays[i].remove();
+    }
+  }
+})();
+</script>
 </body>
 </html>
