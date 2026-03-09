@@ -10693,8 +10693,15 @@ function summaryLine(app){
 </script>
 <!-- GLOBAL: Loading overlay (Colin) used during async operations across all tabs. Triggered by App.ui.showLoading/hideLoading (search in JS). Keep overlay ID stable. -->
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="saveDealOverlay">
-<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
-<img alt="Loading..." class="colin-spinner" style="width:5.5rem;height:5.5rem" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
+<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:5rem;height:5rem;object-fit:contain"/>
 </div>
+<script>
+(function ensureSingleSaveOverlay(){
+  var overlays = document.querySelectorAll('#saveDealOverlay');
+  if (overlays.length > 1) {
+    for (var i = 1; i < overlays.length; i += 1) overlays[i].remove();
+  }
+})();
+</script>
 </body>
 </html>
