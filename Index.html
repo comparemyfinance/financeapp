@@ -3432,7 +3432,7 @@ const initializePSE = () => {
             const GOOGLE_SCRIPT_URL = CONFIG.ENDPOINTS.PSE;
             window.illustratorResultsData = {};
             window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' } };
-            const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
+            const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "FINCLUSION", a: 8.9, c: 4, h: true }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
             const f = (v) => parseFloat(v) || 0;
             const i = (v) => parseInt(v, 10) || 0;
             const toFixed2 = (n) => n.toFixed(2);
@@ -3550,7 +3550,7 @@ const initializePSE = () => {
                 const { selectedProductIndex, financeDetails, products } = window.appState;
                 if (selectedProductIndex === null) return placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
                 const p = products[selectedProductIndex];
-                const productTerm = p.term ?? financeDetails.remainingTerm;
+                const productTerm = Math.max(1, i(p.term ?? financeDetails.remainingTerm));
                 const effectiveApr = getEffectiveApr(p);
                 const { calculatedMonthlyPayment: origMonthly, totalCostIfKept, settlementFigure, remainingTerm, originalRemainingTerm, originalApr } = financeDetails;
                 const origBalloon = f(getVal('original-final-balloon'));
@@ -3612,7 +3612,14 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
+                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
+                            const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
+                            const missing = lenderData.filter((l) => !seen.has(normalizeLenderName(l.l))).map((l) => {
+                                const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                                const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
+                                return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
+                            });
+                            window.appState.products = serverProducts.concat(missing);
                             sortProductsInPlace();
                             return;
                         }
@@ -3643,6 +3650,10 @@ const initializePSE = () => {
                 window.appState.products = productsWithBalloons;
                 sortProductsInPlace();
             };
+            const toggleProductSourceOverlay = (isVisible) => {
+                const overlay = getEl('productSourceOverlay');
+                if (overlay) overlay.classList.toggle('hidden', !isVisible);
+            };
             const runSoftScoreClient = async () => {
                 const products = window.appState.products || [];
                 if (!products.length) return showToast('Find products before requesting soft-score.', 'error');
@@ -3651,6 +3662,7 @@ const initializePSE = () => {
                     btn.disabled = true;
                     btn.classList.add('opacity-60', 'cursor-not-allowed');
                 }
+                toggleProductSourceOverlay(true);
                 try {
                     let token = '';
                     try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch (e) {}
@@ -3701,6 +3713,7 @@ const initializePSE = () => {
                     console.error('Soft-score request failed', err);
                     showToast('Unable to fetch soft-score offers.', 'error');
                 } finally {
+                    toggleProductSourceOverlay(false);
                     if (btn) {
                         btn.disabled = false;
                         btn.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -3709,9 +3722,8 @@ const initializePSE = () => {
             };
             const handleFormSubmit = async (e) => {
                 e.preventDefault();
-                // Show global loading spinner (reuse Save Deal overlay)
-                const __ov = getEl('saveDealOverlay');
-                if (__ov) __ov.classList.remove('hidden');
+                // Show Product Source loading overlay while finding new products
+                toggleProductSourceOverlay(true);
                 try {
                 const monthly = f(getVal('monthly-payment-display')), remTerm = i(getVal('remaining-term-display')), outBalance = f(getVal('outstanding-balance-display')), oApr = f(getVal('original-apr'));
                 if ([monthly, remTerm, outBalance, oApr].some(isNaN)) return showToast("Please ensure all original agreement details are filled correctly.", "error");
@@ -3725,7 +3737,7 @@ const initializePSE = () => {
                 getEl('demands-and-needs-section').style.display = 'block';
                 getEl('results-card').scrollIntoView({ behavior: 'smooth' });
                 } finally {
-                  if (__ov) __ov.classList.add('hidden');
+                  toggleProductSourceOverlay(false);
                 }
             };
             const handleFinanceTypeChange = () => {
@@ -4121,11 +4133,14 @@ const handleVrnLookup = async () => {
             };
             const adjustTerm = (change) => {
                 if (!window.appState.financeDetails || window.appState.selectedProductIndex === null) return;
-                const newTerm = window.appState.financeDetails.remainingTerm + change;
+                const { settlementFigure, remainingTerm } = window.appState.financeDetails;
+                const selected = window.appState.products[window.appState.selectedProductIndex];
+                const baseTerm = i((selected && selected.term) ?? remainingTerm);
+                const newTerm = baseTerm + change;
                 if (newTerm < 1) return;
                 window.appState.financeDetails.remainingTerm = newTerm;
-                const { settlementFigure } = window.appState.financeDetails;
                 window.appState.products.forEach(p => {
+                    p.term = newTerm;
                     p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, getEffectiveApr(p), p.calculatedBalloonPayment);
                     p.totalPayable = (p.calculatedMonthlyPayment * newTerm) + p.calculatedBalloonPayment;
                 });
@@ -4276,7 +4291,7 @@ const handleVrnLookup = async () => {
                           bridgeDataToLetterCreator();
                       }
                   });
-                  on(getEl('comparison-container'), 'click', e => { if (e.target.id === 'term-plus-btn') adjustTerm(1); else if (e.target.id === 'term-minus-btn') adjustTerm(-1); });
+                  on(getEl('comparison-container'), 'click', e => { const btn = e.target.closest('#term-plus-btn, #term-minus-btn'); if (!btn) return; if (btn.id === 'term-plus-btn') adjustTerm(1); else if (btn.id === 'term-minus-btn') adjustTerm(-1); });
                   $$('#pse .original-input').forEach(input => {
                       on(input, 'input', (e) => {
                           if (e.target.id === 'original-apr' || e.target.id === 'original-final-balloon') return;
@@ -7875,7 +7890,7 @@ const isDealReady = ['docID','docV5C','docSettlement'].every(f => d[f] === true 
         const postcode = d.currentPostcode || d.postcode || d.postCode || '';
         const currentApr = (d.currentApr ?? d.current_apr ?? '').toString();
         const vrn = d.vrn || '';
-        const agreement = ((d.id ?? '') !== '' ? String(d.id) : '') || d.agreementNumber || '';
+        const referer = ((d.referer ?? '') !== '' ? String(d.referer) : '') || ((d.referrer ?? '') !== '' ? String(d.referrer) : '') || '';
         const rawDob = d.dob || d.dateOfBirth || '';
 
         const toYMD = (val) => {
@@ -7975,7 +7990,7 @@ const isDealReady = ['docID','docV5C','docSettlement'].every(f => d[f] === true 
                 ${App.state.stages.map(s => `<option value="${esc(s.id)}" ${d.dealStage === s.id ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}
               </select>
             </div>
-            <div class="text-right text-[12px] font-mono text-gray-600">${esc(agreement)}</div>
+            <div class="text-right text-[12px] font-mono text-gray-600">${esc(referer)}</div>
           </div>
         </div>`;
     },
@@ -10693,7 +10708,21 @@ function summaryLine(app){
 </script>
 <!-- GLOBAL: Loading overlay (Colin) used during async operations across all tabs. Triggered by App.ui.showLoading/hideLoading (search in JS). Keep overlay ID stable. -->
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="saveDealOverlay">
-<img alt="Loading..." class="colin-spinner w-32 h-32" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx"/>
+<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:8rem;height:8rem;object-fit:contain"/>
 </div>
+<div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="productSourceOverlay">
+<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:8rem;height:8rem;object-fit:contain"/>
+</div>
+<script>
+(function ensureSingleSaveOverlay(){
+  var overlayIds = ['saveDealOverlay', 'productSourceOverlay'];
+  for (var j = 0; j < overlayIds.length; j += 1) {
+    var overlays = document.querySelectorAll('#' + overlayIds[j]);
+    if (overlays.length > 1) {
+      for (var i = 1; i < overlays.length; i += 1) overlays[i].remove();
+    }
+  }
+})();
+</script>
 </body>
 </html>
