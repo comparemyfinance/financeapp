@@ -2347,7 +2347,7 @@
               "Select a product from the results table above to see a detailed comparison.",
             );
           const p = products[selectedProductIndex];
-          const productTerm = p.term ?? financeDetails.remainingTerm;
+          const productTerm = Math.max(1, i(p.term ?? financeDetails.remainingTerm));
           const effectiveApr = getEffectiveApr(p);
           const {
             calculatedMonthlyPayment: origMonthly,
@@ -2467,7 +2467,7 @@
                 Array.isArray(res.products) &&
                 res.products.length
               ) {
-                window.appState.products = res.products
+                const serverProducts = res.products
                   .slice()
                   .map((p) => ({
                     ...p,
@@ -2475,6 +2475,27 @@
                     aprOffer: null,
                     acceptanceRating: null,
                   }));
+                const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
+                const missing = lenderData
+                  .filter((l) => !seen.has(normalizeLenderName(l.l)))
+                  .map((l) => {
+                    const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                    const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
+                    return {
+                      lender: l.l,
+                      lenderId: normalizeLenderName(l.l),
+                      apr: l.a,
+                      standardApr: l.a,
+                      aprOffer: null,
+                      acceptanceRating: null,
+                      term: remainingTerm,
+                      calculatedMonthlyPayment: monthly,
+                      calculatedBalloonPayment: balloon,
+                      calculatedCommission: settlementFigure * (l.c / 100),
+                      totalPayable: monthly * remainingTerm + balloon,
+                    };
+                  });
+                window.appState.products = serverProducts.concat(missing);
                 sortProductsInPlace();
                 return;
               }
@@ -3456,10 +3477,12 @@
             window.appState.selectedProductIndex === null
           )
             return;
-          const newTerm = window.appState.financeDetails.remainingTerm + change;
+          const { settlementFigure, remainingTerm } = window.appState.financeDetails;
+          const selected = window.appState.products[window.appState.selectedProductIndex];
+          const baseTerm = i((selected && selected.term) ?? remainingTerm);
+          const newTerm = baseTerm + change;
           if (newTerm < 1) return;
           window.appState.financeDetails.remainingTerm = newTerm;
-          const { settlementFigure } = window.appState.financeDetails;
           window.appState.products.forEach((p) => {
             p.term = newTerm;
             p.calculatedMonthlyPayment = calcMonthly(
@@ -3684,8 +3707,10 @@
           }
         });
         on(getEl("comparison-container"), "click", (e) => {
-          if (e.target.id === "term-plus-btn") adjustTerm(1);
-          else if (e.target.id === "term-minus-btn") adjustTerm(-1);
+          const btn = e.target.closest("#term-plus-btn, #term-minus-btn");
+          if (!btn) return;
+          if (btn.id === "term-plus-btn") adjustTerm(1);
+          else if (btn.id === "term-minus-btn") adjustTerm(-1);
         });
         $$("#pse .original-input").forEach((input) => {
           on(input, "input", (e) => {

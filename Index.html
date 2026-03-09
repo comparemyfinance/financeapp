@@ -3550,7 +3550,7 @@ const initializePSE = () => {
                 const { selectedProductIndex, financeDetails, products } = window.appState;
                 if (selectedProductIndex === null) return placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
                 const p = products[selectedProductIndex];
-                const productTerm = p.term ?? financeDetails.remainingTerm;
+                const productTerm = Math.max(1, i(p.term ?? financeDetails.remainingTerm));
                 const effectiveApr = getEffectiveApr(p);
                 const { calculatedMonthlyPayment: origMonthly, totalCostIfKept, settlementFigure, remainingTerm, originalRemainingTerm, originalApr } = financeDetails;
                 const origBalloon = f(getVal('original-final-balloon'));
@@ -3612,7 +3612,14 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            window.appState.products = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
+                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
+                            const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
+                            const missing = lenderData.filter((l) => !seen.has(normalizeLenderName(l.l))).map((l) => {
+                                const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                                const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
+                                return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
+                            });
+                            window.appState.products = serverProducts.concat(missing);
                             sortProductsInPlace();
                             return;
                         }
@@ -4126,10 +4133,12 @@ const handleVrnLookup = async () => {
             };
             const adjustTerm = (change) => {
                 if (!window.appState.financeDetails || window.appState.selectedProductIndex === null) return;
-                const newTerm = window.appState.financeDetails.remainingTerm + change;
+                const { settlementFigure, remainingTerm } = window.appState.financeDetails;
+                const selected = window.appState.products[window.appState.selectedProductIndex];
+                const baseTerm = i((selected && selected.term) ?? remainingTerm);
+                const newTerm = baseTerm + change;
                 if (newTerm < 1) return;
                 window.appState.financeDetails.remainingTerm = newTerm;
-                const { settlementFigure } = window.appState.financeDetails;
                 window.appState.products.forEach(p => {
                     p.term = newTerm;
                     p.calculatedMonthlyPayment = calcMonthly(settlementFigure, newTerm, getEffectiveApr(p), p.calculatedBalloonPayment);
@@ -4282,7 +4291,7 @@ const handleVrnLookup = async () => {
                           bridgeDataToLetterCreator();
                       }
                   });
-                  on(getEl('comparison-container'), 'click', e => { if (e.target.id === 'term-plus-btn') adjustTerm(1); else if (e.target.id === 'term-minus-btn') adjustTerm(-1); });
+                  on(getEl('comparison-container'), 'click', e => { const btn = e.target.closest('#term-plus-btn, #term-minus-btn'); if (!btn) return; if (btn.id === 'term-plus-btn') adjustTerm(1); else if (btn.id === 'term-minus-btn') adjustTerm(-1); });
                   $$('#pse .original-input').forEach(input => {
                       on(input, 'input', (e) => {
                           if (e.target.id === 'original-apr' || e.target.id === 'original-final-balloon') return;
@@ -10699,12 +10708,10 @@ function summaryLine(app){
 </script>
 <!-- GLOBAL: Loading overlay (Colin) used during async operations across all tabs. Triggered by App.ui.showLoading/hideLoading (search in JS). Keep overlay ID stable. -->
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="saveDealOverlay">
-<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:5rem;height:5rem;object-fit:contain"/>
+<img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:8rem;height:8rem;object-fit:contain"/>
 </div>
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="productSourceOverlay">
-<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:5.75rem;height:5.75rem;object-fit:contain"/>
-<div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="productSourceOverlay">
-<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:5rem;height:5rem;object-fit:contain"/>
+<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:8rem;height:8rem;object-fit:contain"/>
 </div>
 <script>
 (function ensureSingleSaveOverlay(){
