@@ -6229,9 +6229,9 @@ Open the console for full details.`);
                 ""
               ).toString();
               const vrn = d.vrn || "";
-              const agreement =
-                ((d.id ?? "") !== "" ? String(d.id) : "") ||
-                d.agreementNumber ||
+              const referer =
+                ((d.referer ?? "") !== "" ? String(d.referer) : "") ||
+                ((d.referrer ?? "") !== "" ? String(d.referrer) : "") ||
                 "";
               const rawDob = d.dob || d.dateOfBirth || "";
 
@@ -6343,7 +6343,7 @@ Open the console for full details.`);
                 ${App.state.stages.map((s) => `<option value="${esc(s.id)}" ${d.dealStage === s.id ? "selected" : ""}>${esc(s.title)}</option>`).join("")}
               </select>
             </div>
-            <div class="text-right text-[12px] font-mono text-gray-600">${esc(agreement)}</div>
+            <div class="text-right text-[12px] font-mono text-gray-600">${esc(referer)}</div>
           </div>
         </div>`;
             },
@@ -7881,5 +7881,4 @@ Open the console for full details.`);
             } catch (e) {}
           }
         };
-
 
