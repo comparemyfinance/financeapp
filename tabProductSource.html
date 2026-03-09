@@ -2535,6 +2535,10 @@
           window.appState.products = productsWithBalloons;
           sortProductsInPlace();
         };
+        const toggleProductSourceOverlay = (isVisible) => {
+          const overlay = getEl("productSourceOverlay");
+          if (overlay) overlay.classList.toggle("hidden", !isVisible);
+        };
         const runSoftScoreClient = async () => {
           const products = window.appState.products || [];
           if (!products.length)
@@ -2547,6 +2551,7 @@
             btn.disabled = true;
             btn.classList.add("opacity-60", "cursor-not-allowed");
           }
+          toggleProductSourceOverlay(true);
           try {
             let token = "";
             try {
@@ -2612,6 +2617,7 @@
             console.error("Soft-score request failed", err);
             showToast("Unable to fetch soft-score offers.", "error");
           } finally {
+            toggleProductSourceOverlay(false);
             if (btn) {
               btn.disabled = false;
               btn.classList.remove("opacity-60", "cursor-not-allowed");
@@ -2620,9 +2626,8 @@
         };
         const handleFormSubmit = async (e) => {
           e.preventDefault();
-          // Show global loading spinner (reuse Save Deal overlay)
-          const __ov = getEl("saveDealOverlay");
-          if (__ov) __ov.classList.remove("hidden");
+          // Show Product Source loading overlay while finding new products
+          toggleProductSourceOverlay(true);
           try {
             const monthly = f(getVal("monthly-payment-display")),
               remTerm = i(getVal("remaining-term-display")),
@@ -2656,7 +2661,7 @@
             getEl("demands-and-needs-section").style.display = "block";
             getEl("results-card").scrollIntoView({ behavior: "smooth" });
           } finally {
-            if (__ov) __ov.classList.add("hidden");
+            toggleProductSourceOverlay(false);
           }
         };
         const handleFinanceTypeChange = () => {
