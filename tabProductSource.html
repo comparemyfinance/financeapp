@@ -2135,6 +2135,7 @@
           { l: "Lendable", a: 29.8, c: 4 },
           { l: "Startline Finance", a: 24.3, c: 4 },
           { l: "Tandem", a: 22.25, c: 4 },
+          { l: "FINCLUSION", a: 8.9, c: 4, h: true },
           { l: "Billing Finance", a: 35.4, c: 1.3 },
         ];
         const f = (v) => parseFloat(v) || 0;
@@ -2346,7 +2347,7 @@
               "Select a product from the results table above to see a detailed comparison.",
             );
           const p = products[selectedProductIndex];
-          const productTerm = p.term ?? financeDetails.remainingTerm;
+          const productTerm = Math.max(1, i(p.term ?? financeDetails.remainingTerm));
           const effectiveApr = getEffectiveApr(p);
           const {
             calculatedMonthlyPayment: origMonthly,
@@ -2466,7 +2467,7 @@
                 Array.isArray(res.products) &&
                 res.products.length
               ) {
-                window.appState.products = res.products
+                const serverProducts = res.products
                   .slice()
                   .map((p) => ({
                     ...p,
@@ -2474,6 +2475,27 @@
                     aprOffer: null,
                     acceptanceRating: null,
                   }));
+                const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
+                const missing = lenderData
+                  .filter((l) => !seen.has(normalizeLenderName(l.l)))
+                  .map((l) => {
+                    const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                    const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
+                    return {
+                      lender: l.l,
+                      lenderId: normalizeLenderName(l.l),
+                      apr: l.a,
+                      standardApr: l.a,
+                      aprOffer: null,
+                      acceptanceRating: null,
+                      term: remainingTerm,
+                      calculatedMonthlyPayment: monthly,
+                      calculatedBalloonPayment: balloon,
+                      calculatedCommission: settlementFigure * (l.c / 100),
+                      totalPayable: monthly * remainingTerm + balloon,
+                    };
+                  });
+                window.appState.products = serverProducts.concat(missing);
                 sortProductsInPlace();
                 return;
               }
@@ -2535,6 +2557,10 @@
           window.appState.products = productsWithBalloons;
           sortProductsInPlace();
         };
+        const toggleProductSourceOverlay = (isVisible) => {
+          const overlay = getEl("productSourceOverlay");
+          if (overlay) overlay.classList.toggle("hidden", !isVisible);
+        };
         const runSoftScoreClient = async () => {
           const products = window.appState.products || [];
           if (!products.length)
@@ -2547,6 +2573,7 @@
             btn.disabled = true;
             btn.classList.add("opacity-60", "cursor-not-allowed");
           }
+          toggleProductSourceOverlay(true);
           try {
             let token = "";
             try {
@@ -2612,6 +2639,7 @@
             console.error("Soft-score request failed", err);
             showToast("Unable to fetch soft-score offers.", "error");
           } finally {
+            toggleProductSourceOverlay(false);
             if (btn) {
               btn.disabled = false;
               btn.classList.remove("opacity-60", "cursor-not-allowed");
@@ -2620,9 +2648,8 @@
         };
         const handleFormSubmit = async (e) => {
           e.preventDefault();
-          // Show global loading spinner (reuse Save Deal overlay)
-          const __ov = getEl("saveDealOverlay");
-          if (__ov) __ov.classList.remove("hidden");
+          // Show Product Source loading overlay while finding new products
+          toggleProductSourceOverlay(true);
           try {
             const monthly = f(getVal("monthly-payment-display")),
               remTerm = i(getVal("remaining-term-display")),
@@ -2656,7 +2683,7 @@
             getEl("demands-and-needs-section").style.display = "block";
             getEl("results-card").scrollIntoView({ behavior: "smooth" });
           } finally {
-            if (__ov) __ov.classList.add("hidden");
+            toggleProductSourceOverlay(false);
           }
         };
         const handleFinanceTypeChange = () => {
@@ -3450,11 +3477,14 @@
             window.appState.selectedProductIndex === null
           )
             return;
-          const newTerm = window.appState.financeDetails.remainingTerm + change;
+          const { settlementFigure, remainingTerm } = window.appState.financeDetails;
+          const selected = window.appState.products[window.appState.selectedProductIndex];
+          const baseTerm = i((selected && selected.term) ?? remainingTerm);
+          const newTerm = baseTerm + change;
           if (newTerm < 1) return;
           window.appState.financeDetails.remainingTerm = newTerm;
-          const { settlementFigure } = window.appState.financeDetails;
           window.appState.products.forEach((p) => {
+            p.term = newTerm;
             p.calculatedMonthlyPayment = calcMonthly(
               settlementFigure,
               newTerm,
@@ -3677,8 +3707,10 @@
           }
         });
         on(getEl("comparison-container"), "click", (e) => {
-          if (e.target.id === "term-plus-btn") adjustTerm(1);
-          else if (e.target.id === "term-minus-btn") adjustTerm(-1);
+          const btn = e.target.closest("#term-plus-btn, #term-minus-btn");
+          if (!btn) return;
+          if (btn.id === "term-plus-btn") adjustTerm(1);
+          else if (btn.id === "term-minus-btn") adjustTerm(-1);
         });
         $$("#pse .original-input").forEach((input) => {
           on(input, "input", (e) => {
@@ -4377,5 +4409,4 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
       };
 
       // (deduped duplicate prefillLetterCreator block)
-
 
