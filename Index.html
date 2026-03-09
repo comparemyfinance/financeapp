@@ -3540,7 +3540,13 @@ const initializePSE = () => {
                     const effectiveApr = getEffectiveApr(p);
                     const aprSourceTag = Number.isFinite(Number(p.aprOffer)) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">PQ</span>' : '<span class="ml-1 text-[10px] text-gray-500 font-semibold">STD</span>';
                     const rating = p.acceptanceRating
-                        ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === 'decline' ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ''}`
+                        ? (() => {
+                            const ratingLabel = (p.acceptanceRating.label || 'Unknown').trim();
+                            const ratingScore = Number.isFinite(Number(p.acceptanceRating.score)) ? Number(p.acceptanceRating.score).toFixed(0) : '0';
+                            const lowerLabel = ratingLabel.toLowerCase();
+                            const showApply = (lowerLabel.includes('medium') || lowerLabel.includes('high')) && p.acceptanceRating.decision !== 'decline';
+                            return `<div class="inline-flex items-center gap-1"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${ratingLabel} - ${ratingScore}%</span>${showApply ? '<button type="button" class="ml-1 rounded bg-green-600 text-white text-xs font-semibold px-2 py-0.5 hover:bg-green-700">Apply</button>' : ''}</div>`;
+                          })()
                         : '<span class="text-xs text-gray-500">—</span>';
                     return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
                 }).join('');
@@ -10711,7 +10717,7 @@ function summaryLine(app){
 <img alt="Loading..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/126qJMUWUzhzmUItRi9Zt1JFQDZ5TVgxx" style="width:8rem;height:8rem;object-fit:contain"/>
 </div>
 <div aria-hidden="true" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-[9999] cursor-wait" id="productSourceOverlay">
-<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:8rem;height:8rem;object-fit:contain"/>
+<img alt="Loading Product Source..." class="colin-spinner h-20 w-20" src="https://lh3.googleusercontent.com/d/1wCbJ4SvWTZFG4ssM5ZYGP8djDFhXqhOS" style="width:12rem;height:12rem;object-fit:contain"/>
 </div>
 <script>
 (function ensureSingleSaveOverlay(){
