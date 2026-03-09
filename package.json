@@ -10,7 +10,8 @@
     "validate:syntax": "node scripts/validate-syntax.mjs",
     "lint": "npm run format:check && npm run validate:syntax",
     "test": "npm run sanity && npm run validate:syntax",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check:merge-conflicts": "node scripts/check-merge-conflicts.mjs"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
