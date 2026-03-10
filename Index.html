@@ -3630,11 +3630,7 @@ const initializePSE = () => {
                                 const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
                                 return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
                             });
-<<<<<<< codex/update-sales-pipeline-vrn-to-referer-data-xkaawp
                             window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
-=======
-                            window.appState.products = serverProducts.concat(missing);
->>>>>>> main
                             sortProductsInPlace();
                             return;
                         }
