@@ -2135,6 +2135,7 @@
           { l: "Lendable", a: 29.8, c: 4 },
           { l: "Startline Finance", a: 24.3, c: 4 },
           { l: "Tandem", a: 22.25, c: 4 },
+          { l: "FINCLUSION", a: 8.9, c: 4, h: true },
           { l: "Billing Finance", a: 35.4, c: 1.3 },
         ];
         const f = (v) => parseFloat(v) || 0;
@@ -2252,6 +2253,18 @@
             });
         };
 
+        const dedupeProductsByLender = (products) => {
+          const seen = new Set();
+          return (products || []).filter((product) => {
+            const key = getLenderIdForProduct(product);
+            if (!key || !seen.has(key)) {
+              if (key) seen.add(key);
+              return true;
+            }
+            return false;
+          });
+        };
+
         const resetPseProductSourceState = () => {
           try {
             if (window.appState) {
@@ -2327,7 +2340,18 @@
                 ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">PQ</span>'
                 : '<span class="ml-1 text-[10px] text-gray-500 font-semibold">STD</span>';
               const rating = p.acceptanceRating
-                ? `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${p.acceptanceRating.label}</span> <span class="text-xs text-gray-700 ml-1">${p.acceptanceRating.score}%</span>${p.acceptanceRating.decision === "decline" ? '<span class="ml-2 text-xs font-semibold text-red-700">Do not apply</span>' : ""}`
+                ? (() => {
+                    const ratingLabel = (p.acceptanceRating.label || "Unknown").trim();
+                    const ratingScore = Number.isFinite(Number(p.acceptanceRating.score))
+                      ? Number(p.acceptanceRating.score).toFixed(0)
+                      : "0";
+                    const lowerLabel = ratingLabel.toLowerCase();
+                    const showApply =
+                      (lowerLabel.includes("medium") ||
+                        lowerLabel.includes("high")) &&
+                      p.acceptanceRating.decision !== "decline";
+                    return `<div class="inline-flex items-center gap-1"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${ratingLabel} - ${ratingScore}%</span>${showApply ? `<button type="button" data-product-index="${idx}" class="lender-apply-btn ml-1 rounded bg-green-600 text-white text-xs font-semibold px-2 py-0.5 hover:bg-green-700">Apply</button>` : ""}</div>`;
+                  })()
                 : '<span class="text-xs text-gray-500">—</span>';
               return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? "selected-row" : ""}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
             })
@@ -2346,7 +2370,7 @@
               "Select a product from the results table above to see a detailed comparison.",
             );
           const p = products[selectedProductIndex];
-          const productTerm = p.term ?? financeDetails.remainingTerm;
+          const productTerm = Math.max(1, i(p.term ?? financeDetails.remainingTerm));
           const effectiveApr = getEffectiveApr(p);
           const {
             calculatedMonthlyPayment: origMonthly,
@@ -2466,7 +2490,7 @@
                 Array.isArray(res.products) &&
                 res.products.length
               ) {
-                window.appState.products = res.products
+                const serverProducts = res.products
                   .slice()
                   .map((p) => ({
                     ...p,
@@ -2474,6 +2498,27 @@
                     aprOffer: null,
                     acceptanceRating: null,
                   }));
+                const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
+                const missing = lenderData
+                  .filter((l) => !seen.has(normalizeLenderName(l.l)))
+                  .map((l) => {
+                    const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                    const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
+                    return {
+                      lender: l.l,
+                      lenderId: normalizeLenderName(l.l),
+                      apr: l.a,
+                      standardApr: l.a,
+                      aprOffer: null,
+                      acceptanceRating: null,
+                      term: remainingTerm,
+                      calculatedMonthlyPayment: monthly,
+                      calculatedBalloonPayment: balloon,
+                      calculatedCommission: settlementFigure * (l.c / 100),
+                      totalPayable: monthly * remainingTerm + balloon,
+                    };
+                  });
+                window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
                 sortProductsInPlace();
                 return;
               }
@@ -2532,9 +2577,59 @@
               };
             }),
           );
-          window.appState.products = productsWithBalloons;
+          window.appState.products = dedupeProductsByLender(productsWithBalloons);
           sortProductsInPlace();
         };
+        const toggleProductSourceOverlay = (isVisible) => {
+          const overlay = getEl("productSourceOverlay");
+          if (overlay) overlay.classList.toggle("hidden", !isVisible);
+        };
+        const ensureLenderAppModal = () => {
+          let modal = getEl("lenderAppModal");
+          if (modal) return modal;
+          const html = `<div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-[60] p-4" id="lenderAppModal"><div class="bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col"><div class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40"><img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/><h2 class="text-xl font-bold truncate pr-28 min-w-0" id="lenderAppTitle">Lender Application</h2><div class="absolute right-4 top-4 flex items-center gap-2 z-50"><button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button"><span>Close</span><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span></button></div></div><div class="p-6 space-y-6 modal-content modal-body-scroll"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Lender</div><div class="font-semibold" id="lenderAppLender">—</div></div></div><div class="bg-white border rounded-lg"><div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div><pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto max-h-[45vh] bg-gray-50">Loading…</pre></div></div><div class="flex items-center justify-end p-4 border-t gap-2"><button type="button" id="lenderAppSaveBtn" class="bg-[#004225] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#00331e]">Save Draft</button></div></div></div>`;
+          document.body.insertAdjacentHTML("beforeend", html);
+          modal = getEl("lenderAppModal");
+          const closeBtn = getEl("closeLenderAppModal");
+          if (closeBtn) on(closeBtn, "click", () => modal.classList.add("hidden"));
+          on(modal, "click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+          const saveBtn = getEl("lenderAppSaveBtn");
+          if (saveBtn) on(saveBtn, "click", () => showToast("Lender app draft saved (placeholder).", "success"));
+          return modal;
+        };
+        const getLenderLogoUrl = (lenderName) => {
+          const key = normalizeLenderName(lenderName);
+          if (key.includes("finclusion")) return "https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle";
+          return "https://lh3.googleusercontent.com/d/1zESgE9OpS1KcJapsFvvwcVyr2Ogykz2j";
+        };
+        const openLenderAppModal = async (productIndex) => {
+          const p = (window.appState.products || [])[productIndex];
+          if (!p) return;
+          const modal = ensureLenderAppModal();
+          const lender = p.lender || "Lender";
+          setTxt("lenderAppTitle", `Lender Application — ${lender}`);
+          setTxt("lenderAppLender", lender);
+          setTxt("lenderAppVrn", (getVal("vrn") || "—").toString().trim() || "—");
+          const fullName = [getVal("ps_client_firstName"), getVal("ps_client_lastName")].filter(Boolean).join(" ").trim();
+          setTxt("lenderAppClientName", fullName || "—");
+          const logo = getEl("lenderAppLogo");
+          if (logo) logo.src = getLenderLogoUrl(lender);
+          modal.classList.remove("hidden");
+          const pre = getEl("lenderAppPayloadJson");
+          if (pre) pre.textContent = "Loading active client payload…";
+          const vrn = (getVal("vrn") || "").toString().trim();
+          if (!vrn || typeof window.fetchVrnPayloadFromSheet !== "function") {
+            if (pre) pre.textContent = JSON.stringify({ message: "VRN/payload helper unavailable", vrn }, null, 2);
+            return;
+          }
+          try {
+            const payloadJson = await window.fetchVrnPayloadFromSheet(vrn);
+            if (pre) pre.textContent = JSON.stringify(payloadJson, null, 2);
+          } catch (err) {
+            if (pre) pre.textContent = JSON.stringify({ error: String(err && err.message ? err.message : err) }, null, 2);
+          }
+        };
+
         const runSoftScoreClient = async () => {
           const products = window.appState.products || [];
           if (!products.length)
@@ -2547,6 +2642,7 @@
             btn.disabled = true;
             btn.classList.add("opacity-60", "cursor-not-allowed");
           }
+          toggleProductSourceOverlay(true);
           try {
             let token = "";
             try {
@@ -2612,6 +2708,7 @@
             console.error("Soft-score request failed", err);
             showToast("Unable to fetch soft-score offers.", "error");
           } finally {
+            toggleProductSourceOverlay(false);
             if (btn) {
               btn.disabled = false;
               btn.classList.remove("opacity-60", "cursor-not-allowed");
@@ -2620,9 +2717,8 @@
         };
         const handleFormSubmit = async (e) => {
           e.preventDefault();
-          // Show global loading spinner (reuse Save Deal overlay)
-          const __ov = getEl("saveDealOverlay");
-          if (__ov) __ov.classList.remove("hidden");
+          // Show Product Source loading overlay while finding new products
+          toggleProductSourceOverlay(true);
           try {
             const monthly = f(getVal("monthly-payment-display")),
               remTerm = i(getVal("remaining-term-display")),
@@ -2656,7 +2752,7 @@
             getEl("demands-and-needs-section").style.display = "block";
             getEl("results-card").scrollIntoView({ behavior: "smooth" });
           } finally {
-            if (__ov) __ov.classList.add("hidden");
+            toggleProductSourceOverlay(false);
           }
         };
         const handleFinanceTypeChange = () => {
@@ -3450,11 +3546,14 @@
             window.appState.selectedProductIndex === null
           )
             return;
-          const newTerm = window.appState.financeDetails.remainingTerm + change;
+          const { settlementFigure, remainingTerm } = window.appState.financeDetails;
+          const selected = window.appState.products[window.appState.selectedProductIndex];
+          const baseTerm = i((selected && selected.term) ?? remainingTerm);
+          const newTerm = baseTerm + change;
           if (newTerm < 1) return;
           window.appState.financeDetails.remainingTerm = newTerm;
-          const { settlementFigure } = window.appState.financeDetails;
           window.appState.products.forEach((p) => {
+            p.term = newTerm;
             p.calculatedMonthlyPayment = calcMonthly(
               settlementFigure,
               newTerm,
@@ -3654,6 +3753,13 @@
           runSoftScoreClient();
         });
         on(getEl("results-container"), "click", (e) => {
+          const applyBtn = e.target.closest(".lender-apply-btn");
+          if (applyBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            openLenderAppModal(i(applyBtn.dataset.productIndex));
+            return;
+          }
           const sortHeader = e.target.closest("th[data-results-sort]");
           if (sortHeader) {
             setResultsSort(sortHeader.dataset.resultsSort);
@@ -3677,8 +3783,10 @@
           }
         });
         on(getEl("comparison-container"), "click", (e) => {
-          if (e.target.id === "term-plus-btn") adjustTerm(1);
-          else if (e.target.id === "term-minus-btn") adjustTerm(-1);
+          const btn = e.target.closest("#term-plus-btn, #term-minus-btn");
+          if (!btn) return;
+          if (btn.id === "term-plus-btn") adjustTerm(1);
+          else if (btn.id === "term-minus-btn") adjustTerm(-1);
         });
         $$("#pse .original-input").forEach((input) => {
           on(input, "input", (e) => {
@@ -4377,5 +4485,4 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
       };
 
       // (deduped duplicate prefillLetterCreator block)
-
 
