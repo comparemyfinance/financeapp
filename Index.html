@@ -3481,6 +3481,18 @@ const initializePSE = () => {
                 });
             };
             
+            const dedupeProductsByLender = (products) => {
+                const seen = new Set();
+                return (products || []).filter((product) => {
+                    const key = getLenderIdForProduct(product);
+                    if (!key || !seen.has(key)) {
+                        if (key) seen.add(key);
+                        return true;
+                    }
+                    return false;
+                });
+            };
+            
             const resetPseProductSourceState = () => {
                                   try {
                                       if (window.appState) {
@@ -3618,7 +3630,11 @@ const initializePSE = () => {
                                 const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
                                 return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
                             });
+<<<<<<< codex/update-sales-pipeline-vrn-to-referer-data-xkaawp
+                            window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
+=======
                             window.appState.products = serverProducts.concat(missing);
+>>>>>>> main
                             sortProductsInPlace();
                             return;
                         }
@@ -3646,7 +3662,7 @@ const initializePSE = () => {
                     const total = (monthly * remainingTerm) + balloon;
                     return { lender: p.l, lenderId: normalizeLenderName(p.l), apr: p.a, standardApr: p.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: commission, totalPayable: total };
                 }));
-                window.appState.products = productsWithBalloons;
+                window.appState.products = dedupeProductsByLender(productsWithBalloons);
                 sortProductsInPlace();
             };
             const toggleProductSourceOverlay = (isVisible) => {

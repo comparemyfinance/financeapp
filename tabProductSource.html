@@ -2253,6 +2253,18 @@
             });
         };
 
+        const dedupeProductsByLender = (products) => {
+          const seen = new Set();
+          return (products || []).filter((product) => {
+            const key = getLenderIdForProduct(product);
+            if (!key || !seen.has(key)) {
+              if (key) seen.add(key);
+              return true;
+            }
+            return false;
+          });
+        };
+
         const resetPseProductSourceState = () => {
           try {
             if (window.appState) {
@@ -2506,7 +2518,7 @@
                       totalPayable: monthly * remainingTerm + balloon,
                     };
                   });
-                window.appState.products = serverProducts.concat(missing);
+                window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
                 sortProductsInPlace();
                 return;
               }
@@ -2565,7 +2577,7 @@
               };
             }),
           );
-          window.appState.products = productsWithBalloons;
+          window.appState.products = dedupeProductsByLender(productsWithBalloons);
           sortProductsInPlace();
         };
         const toggleProductSourceOverlay = (isVisible) => {
