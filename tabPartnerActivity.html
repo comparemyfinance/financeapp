@@ -1,11 +1,10 @@
-<div class="tab-content p-4 sm:p-6 lg:p-8" id="partner-activity" style="display:none; height: 100%;">
+<div class="tab-content p-4 sm:p-6 lg:p-8" id="partner-activity" style="display:none; height: 100%; background-color: var(--pale-green);">
   <div class="max-w-7xl mx-auto space-y-5">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <h2 class="text-2xl font-bold text-gray-800">Partner Activity</h2>
-      <p class="text-sm text-gray-600 mt-1">Leaderboard by total VRN searches and finance company data quality.</p>
+    <div class="rounded-xl shadow-sm border p-5" style="background-color: #ffffff; border-color: #d9e9d9;">
+      <h2 class="text-2xl font-bold" style="color: var(--british-racing-green);">Partner Activity</h2>
     </div>
 
-    <div id="partner-activity-status" class="text-sm text-gray-500">Loading partner activity…</div>
+    <div id="partner-activity-status" class="text-sm" style="color: #4b5563;">Loading partner activity…</div>
     <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
   </div>
 </div>
@@ -24,14 +23,27 @@
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  const rankTheme = (index, item) => {
-    if ((item.invalidFinancePct || 0) > 50) {
-      return { card: 'border-red-500 bg-red-50', badge: 'bg-red-600 text-white', label: 'Red Flag' };
+  const ragTheme = (validPct) => {
+    if (validPct > 66) {
+      return { cardBg: '#ecfdf3', ragPill: 'bg-green-600 text-white', ragLabel: 'Green' };
     }
-    if (index === 0) return { card: 'border-yellow-500 bg-yellow-50', badge: 'bg-yellow-600 text-white', label: 'Gold' };
-    if (index === 1) return { card: 'border-gray-400 bg-gray-100', badge: 'bg-gray-600 text-white', label: 'Silver' };
-    if (index === 2) return { card: 'border-amber-700 bg-amber-50', badge: 'bg-amber-700 text-white', label: 'Bronze' };
-    return { card: 'border-green-500 bg-green-50', badge: 'bg-green-600 text-white', label: 'Active' };
+    if (validPct >= 50) {
+      return { cardBg: '#fffbeb', ragPill: 'bg-amber-500 text-white', ragLabel: 'Amber' };
+    }
+    return { cardBg: '#fef2f2', ragPill: 'bg-red-600 text-white', ragLabel: 'Red' };
+  };
+
+  const rankTheme = (index) => {
+    if (index === 0) {
+      return { outline: '#eab308', rankLabel: '1st', trophy: '🏆', trophyText: 'text-yellow-600', ring: '0 0 0 2px #eab308 inset' };
+    }
+    if (index === 1) {
+      return { outline: '#9ca3af', rankLabel: '2nd', trophy: '🏆', trophyText: 'text-gray-500', ring: '0 0 0 2px #9ca3af inset' };
+    }
+    if (index === 2) {
+      return { outline: '#b45309', rankLabel: '3rd', trophy: '🏆', trophyText: 'text-amber-700', ring: '0 0 0 2px #b45309 inset' };
+    }
+    return { outline: '#16a34a', rankLabel: '', trophy: '', trophyText: '', ring: '0 0 0 1px #d1d5db inset' };
   };
 
   const render = (rows) => {
@@ -40,27 +52,33 @@
     if (!status || !grid) return;
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      status.className = 'text-sm text-gray-500';
+      status.className = 'text-sm';
+      status.style.color = '#4b5563';
       status.textContent = 'No partner activity found in VRNdata.';
       grid.innerHTML = '';
       return;
     }
 
-    status.className = 'text-sm text-gray-600';
+    status.className = 'text-sm';
+    status.style.color = '#374151';
     status.textContent = `Showing ${rows.length} referer cards, sorted by total VRN searches.`;
 
     grid.innerHTML = rows.map((item, index) => {
-      const theme = rankTheme(index, item);
-      const pct = Number(item.validFinancePct || 0).toFixed(1);
+      const validPct = Number(item.validFinancePct || 0);
+      const rag = ragTheme(validPct);
+      const rank = rankTheme(index);
       return `
-        <article class="border-l-4 rounded-xl shadow-sm p-4 border ${theme.card}">
+        <article class="rounded-xl shadow-sm p-4 border-l-4" style="background:${rag.cardBg}; border-left-color:${rank.outline}; box-shadow:${rank.ring};">
           <div class="flex items-start justify-between gap-2">
-            <h3 class="text-lg font-semibold text-gray-900">${esc(item.referer || 'Unknown Referer')}</h3>
-            <span class="text-xs font-semibold px-2 py-1 rounded-full ${theme.badge}">${esc(theme.label)}</span>
+            <div>
+              <h3 class="text-lg font-semibold" style="color:var(--british-racing-green);">${esc(item.referer || 'Unknown Referer')}</h3>
+              ${rank.rankLabel ? `<div class="text-xs font-semibold mt-1" style="color:${rank.outline};">${rank.rankLabel} ${rank.trophy}</div>` : ''}
+            </div>
+            <span class="text-xs font-semibold px-2 py-1 rounded-full ${rag.ragPill}">RAG: ${rag.ragLabel}</span>
           </div>
-          <dl class="mt-4 grid grid-cols-1 gap-2 text-sm text-gray-700">
+          <dl class="mt-4 grid grid-cols-1 gap-2 text-sm" style="color:#374151;">
             <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${Number(item.totalSearches || 0)}</dd></div>
-            <div class="flex justify-between"><dt>Valid finance_company</dt><dd class="font-semibold">${pct}%</dd></div>
+            <div class="flex justify-between"><dt>Valid finance_company</dt><dd class="font-semibold">${validPct.toFixed(1)}%</dd></div>
             <div class="flex justify-between"><dt>Valid rows</dt><dd>${Number(item.validFinanceCount || 0)}</dd></div>
             <div class="flex justify-between"><dt>Invalid rows</dt><dd>${Number(item.invalidFinanceCount || 0)}</dd></div>
           </dl>
@@ -78,7 +96,8 @@
 
       const status = statusEl();
       if (status) {
-        status.className = 'text-sm text-gray-500';
+        status.className = 'text-sm';
+        status.style.color = '#4b5563';
         status.textContent = 'Loading partner activity…';
       }
 
@@ -93,7 +112,10 @@
         const grid = gridEl();
         if (grid) grid.innerHTML = '';
         if (status) {
-          status.className = 'text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg';
+          status.className = 'text-sm border px-3 py-2 rounded-lg';
+          status.style.color = '#b91c1c';
+          status.style.backgroundColor = '#fef2f2';
+          status.style.borderColor = '#fecaca';
           status.textContent = `Unable to load Partner Activity: ${err && err.message ? err.message : String(err)}`;
         }
       } finally {
