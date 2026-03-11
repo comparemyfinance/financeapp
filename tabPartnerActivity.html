@@ -1,0 +1,105 @@
+<div class="tab-content p-4 sm:p-6 lg:p-8" id="partner-activity" style="display:none; height: 100%;">
+  <div class="max-w-7xl mx-auto space-y-5">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+      <h2 class="text-2xl font-bold text-gray-800">Partner Activity</h2>
+      <p class="text-sm text-gray-600 mt-1">Leaderboard by total VRN searches and finance company data quality.</p>
+    </div>
+
+    <div id="partner-activity-status" class="text-sm text-gray-500">Loading partner activity…</div>
+    <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+</div>
+
+<script>
+(function initPartnerActivityTab(){
+  if (window.PartnerActivityTab) return;
+
+  const statusEl = () => document.getElementById('partner-activity-status');
+  const gridEl = () => document.getElementById('partner-activity-grid');
+
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const rankTheme = (index, item) => {
+    if ((item.invalidFinancePct || 0) > 50) {
+      return { card: 'border-red-500 bg-red-50', badge: 'bg-red-600 text-white', label: 'Red Flag' };
+    }
+    if (index === 0) return { card: 'border-yellow-500 bg-yellow-50', badge: 'bg-yellow-600 text-white', label: 'Gold' };
+    if (index === 1) return { card: 'border-gray-400 bg-gray-100', badge: 'bg-gray-600 text-white', label: 'Silver' };
+    if (index === 2) return { card: 'border-amber-700 bg-amber-50', badge: 'bg-amber-700 text-white', label: 'Bronze' };
+    return { card: 'border-green-500 bg-green-50', badge: 'bg-green-600 text-white', label: 'Active' };
+  };
+
+  const render = (rows) => {
+    const status = statusEl();
+    const grid = gridEl();
+    if (!status || !grid) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      status.className = 'text-sm text-gray-500';
+      status.textContent = 'No partner activity found in VRNdata.';
+      grid.innerHTML = '';
+      return;
+    }
+
+    status.className = 'text-sm text-gray-600';
+    status.textContent = `Showing ${rows.length} referer cards, sorted by total VRN searches.`;
+
+    grid.innerHTML = rows.map((item, index) => {
+      const theme = rankTheme(index, item);
+      const pct = Number(item.validFinancePct || 0).toFixed(1);
+      return `
+        <article class="border-l-4 rounded-xl shadow-sm p-4 border ${theme.card}">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="text-lg font-semibold text-gray-900">${esc(item.referer || 'Unknown Referer')}</h3>
+            <span class="text-xs font-semibold px-2 py-1 rounded-full ${theme.badge}">${esc(theme.label)}</span>
+          </div>
+          <dl class="mt-4 grid grid-cols-1 gap-2 text-sm text-gray-700">
+            <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${Number(item.totalSearches || 0)}</dd></div>
+            <div class="flex justify-between"><dt>Valid finance_company</dt><dd class="font-semibold">${pct}%</dd></div>
+            <div class="flex justify-between"><dt>Valid rows</dt><dd>${Number(item.validFinanceCount || 0)}</dd></div>
+            <div class="flex justify-between"><dt>Invalid rows</dt><dd>${Number(item.invalidFinanceCount || 0)}</dd></div>
+          </dl>
+        </article>
+      `;
+    }).join('');
+  };
+
+  window.PartnerActivityTab = {
+    loaded: false,
+    loading: false,
+    async load(force = false) {
+      if (this.loading) return;
+      if (this.loaded && !force) return;
+
+      const status = statusEl();
+      if (status) {
+        status.className = 'text-sm text-gray-500';
+        status.textContent = 'Loading partner activity…';
+      }
+
+      try {
+        this.loading = true;
+        if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
+        const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        render(rows);
+        this.loaded = true;
+      } catch (err) {
+        const grid = gridEl();
+        if (grid) grid.innerHTML = '';
+        if (status) {
+          status.className = 'text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg';
+          status.textContent = `Unable to load Partner Activity: ${err && err.message ? err.message : String(err)}`;
+        }
+      } finally {
+        this.loading = false;
+      }
+    }
+  };
+})();
+</script>
