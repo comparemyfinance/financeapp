@@ -918,6 +918,25 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   else initLoginWatermark();
 })();
 </script>
+<style id="ux-press-and-twilio-polish">
+  #loginBtn, #logoutBtn, #appRoot button, .tab-link, #twilio-flex button, #client-files-view button {
+    transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  }
+  #loginBtn:active, #logoutBtn:active, #appRoot button:active, .tab-link:active, #twilio-flex button:active, #client-files-view button:active {
+    transform: translateY(1px) scale(0.98);
+    filter: brightness(0.97);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
+  }
+
+  #twilio-flex { background: linear-gradient(180deg,#f7faf9 0%,#eef4f2 100%); }
+  #twilio-flex .border { border-color: #e5ece9 !important; }
+  #twilio-flex .shadow, #twilio-flex .shadow-sm { box-shadow: 0 6px 20px rgba(3, 41, 28, 0.06) !important; }
+  #twilio-flex aside .w-14 button { border-color:#e5ece9 !important; background:#fff !important; }
+  #twilio-flex aside .w-14 button:hover { background:#f0f7f3 !important; transform: translateY(-1px); }
+  #twilio-flex .cursor-pointer:hover { background-color:#f4faf7 !important; }
+  #twilio-flex .rounded-2xl.border { border-color:#dbe7e2 !important; }
+</style>
+
 </head>
 <body>
 <!-- LLM EDITING GUIDE:
@@ -979,6 +998,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <li class="mb-4"><a class="tab-link" data-tab="document-upload" href="#">Document Upload</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="client-files-view" href="#" onclick="App.ui.switchTab('client-files-view'); setTimeout(() =&gt; { if(window.App &amp;&amp; App.handlers &amp;&amp; App.handlers.runFolderSearch) App.handlers.runFolderSearch(\'\'); }, 200); return false;">Client Files</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="comparison-calculator" href="#">Comparison Calculator</a></li>
+<li class="mb-4"><a class="tab-link" data-tab="partner-activity" href="#">Partner Activity</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="whatsapp-messenger" href="#">WhatsApp Messenger</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="twilio-flex" href="#">Twilio Flex</a></li>
 </ul>
@@ -1247,10 +1267,10 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50" id="duplicateModal"><div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 text-gray-800 flex flex-col max-h-[90vh]"><h2 class="text-xl font-bold mb-2">Duplicate Check</h2><p class="text-gray-600 mb-4">Found <span id="duplicateCount"></span> duplicates based on VRN. Do you want to skip them and import the unique contacts?</p><div class="flex-1 overflow-y-auto border rounded-lg p-2 modal-body-scroll"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">VRN</th><th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th></tr></thead><tbody class="bg-white divide-y divide-gray-200" id="duplicateList"></tbody></table></div><div class="flex justify-end space-x-3 mt-6"><button class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors" id="cancelDuplicate">Cancel</button><button class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-opacity" id="importAllBtn">Import All</button><button class="bg-[var(--gold-orange)] text-white font-semibold py-2 px-4 rounded-lg hover:opacity-90 transition-opacity" id="confirmDuplicate">Skip &amp; Import</button></div></div></div>
 </div>
 <div class="tab-content p-4 sm:p-6 lg:p-8" id="twilio-flex" style="display:none;">
-<div class="max-w-[1700px] mx-auto">
+<div class="max-w-[1700px] mx-auto twilio-live-shell">
 <div class="rounded-2xl overflow-hidden border border-gray-200 shadow bg-white">
 <!-- TAB: Twilio Flex (placeholder). UI skeleton only (no backend wiring). If you connect Twilio later, implement handlers without breaking existing tab switching. -->
-<div class="px-4 py-3 flex items-center justify-between text-white" style="background:#0b0b3b;">
+<div class="px-4 py-3 flex items-center justify-between text-white" style="background:linear-gradient(90deg,#004225 0%, #0f766e 100%);">
 <div class="flex items-center gap-3">
 <div class="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
 <svg aria-hidden="true" fill="none" height="18" viewbox="0 0 24 24" width="18">
@@ -2709,6 +2729,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </div>
+<?!= include('tabPartnerActivity'); ?>
 <div class="tab-content" id="whatsapp-messenger" style="display:none; height: 100%;">
 <div class="w-full h-full flex flex-col">
 <div class="bg-white rounded-2xl shadow p-0 border border-gray-200 h-full overflow-hidden">
@@ -3400,6 +3421,10 @@ const ensurePercent = (v) => {
                         try { if (typeof window.loadCustomerUploadIframe === 'function') window.loadCustomerUploadIframe(); } catch(e){}
                     }
 
+                    if (activeContent.id === 'partner-activity') {
+                        try { if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') window.PartnerActivityTab.load(); } catch(e){}
+                    }
+
                     if (activeContent.id === 'whatsapp-messenger') {
                         const ifr = document.getElementById('whatsapp-messenger-iframe');
                         const tpl = document.getElementById('whatsapp-messenger-srcdoc');
@@ -3482,15 +3507,19 @@ const initializePSE = () => {
             };
             
             const dedupeProductsByLender = (products) => {
-                const seen = new Set();
-                return (products || []).filter((product) => {
-                    const key = getLenderIdForProduct(product);
-                    if (!key || !seen.has(key)) {
-                        if (key) seen.add(key);
-                        return true;
+                const grouped = new Map();
+                (products || []).forEach((product, index) => {
+                    const key = getLenderIdForProduct(product) || `__row_${index}`;
+                    const existing = grouped.get(key);
+                    if (!existing) {
+                        grouped.set(key, product);
+                        return;
                     }
-                    return false;
+                    const existingPriority = existing && existing.mode === 'live' ? 2 : 1;
+                    const nextPriority = product && product.mode === 'live' ? 2 : 1;
+                    if (nextPriority >= existingPriority) grouped.set(key, product);
                 });
+                return Array.from(grouped.values());
             };
             
             const resetPseProductSourceState = () => {
@@ -3611,8 +3640,8 @@ const initializePSE = () => {
                 const { settlementFigure, remainingTerm } = window.appState.financeDetails;
                 const origLoan = getLoanAmount();
 
-                // Pattern B-lite: prefer server-side placeholder quotes (same lender list/defaults as UI),
-                // while keeping UI formulae available as a fallback.
+                // Placeholder bridge: use server batch quotes as the canonical lender source.
+                // Keep local formula fallback for outage resilience only.
                 try {
                     if (window.App && typeof App.apiCall === 'function') {
                         let token = '';
@@ -3623,14 +3652,8 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
-                            const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
-                            const missing = lenderData.filter((l) => !seen.has(normalizeLenderName(l.l))).map((l) => {
-                                const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
-                                const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
-                                return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
-                            });
-                            window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
+                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), lenderKey: p.lenderKey || getLenderIdForProduct(p), standardApr: Number(p.standardApr ?? p.apr) || 0, aprOffer: null, acceptanceRating: null, mode: p.mode || res.mode || 'placeholder', source: p.source || 'server_placeholder' }));
+                            window.appState.products = dedupeProductsByLender(serverProducts);
                             sortProductsInPlace();
                             return;
                         }
@@ -3640,7 +3663,7 @@ const initializePSE = () => {
                     }
                 } catch (e) {
                     // swallow and fall back to local calc
-                    console.warn('Server placeholder lender quotes failed; falling back to UI calc.', e);
+                    console.warn('Server placeholder lender quotes failed; using local emergency fallback.', e);
                 }
 
                 // Fallback: local UI calculation (preserves current behaviour)
@@ -7364,6 +7387,8 @@ async function jigsawFetchAction(action, payload) {
                                 let html = `<div class="p-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Client Folders</div>`;
 
                                 res.folders.forEach(folder => {
+                                    const updatedDate = new Date(folder.updated);
+                                    const isRecent = !isNaN(updatedDate.getTime()) && ((Date.now() - updatedDate.getTime()) <= (3 * 24 * 60 * 60 * 1000));
                                     html += `
                                     <div onclick="App.handlers.openClientFolder('${esc(folder.id)}')" 
                                          class="cursor-pointer p-3 bg-white border-b border-gray-100 hover:bg-green-50 hover:pl-4 transition-all flex items-center gap-3 group">
@@ -7379,9 +7404,12 @@ async function jigsawFetchAction(action, payload) {
                                                 <circle cx="15" cy="17" r="1" />
                                             </svg>
                                         </div>
-                                        <div>
-                                            <div class="text-sm font-bold text-gray-700 group-hover:text-green-800">${esc(folder.name)}</div>
-                                            <div class="text-[10px] text-gray-400">Updated: ${new Date(folder.updated).toLocaleDateString()}</div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center justify-between gap-2">
+                                              <div class="text-sm font-bold text-gray-700 group-hover:text-green-800 truncate">${esc(folder.name)}</div>
+                                              ${isRecent ? '<span class="text-[10px] font-bold uppercase tracking-wide text-white bg-green-500 px-2 py-0.5 rounded-full animate-pulse">NEW</span>' : ''}
+                                            </div>
+                                            <div class="text-[10px] text-gray-400">Updated: ${updatedDate.toLocaleDateString()}</div>
                                         </div>
                                     </div>`;
                                 });
@@ -7873,8 +7901,11 @@ col.querySelector('.deal-list').appendChild(cardEl);
                     <div class="bg-yellow-100 p-2 rounded-lg group-hover:bg-yellow-200">
                         <svg class="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 0 012-2h5l2 2h5a2 0 012 2v6a2 0 01-2 2H4a2 0 01-2-2V6z"/></svg>
                     </div>
-                    <div>
-                        <div class="text-sm font-bold text-gray-700 group-hover:text-green-800">${esc(folder.name)}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="text-sm font-bold text-gray-700 group-hover:text-green-800 truncate">${esc(folder.name)}</div>
+                          ${(() => { const d = new Date(folder.updated); return (!isNaN(d.getTime()) && ((Date.now() - d.getTime()) <= (3 * 24 * 60 * 60 * 1000))) ? '<span class="text-[10px] font-bold uppercase tracking-wide text-white bg-green-500 px-2 py-0.5 rounded-full animate-pulse">NEW</span>' : ''; })()}
+                        </div>
                         <div class="text-[10px] text-gray-400">Updated: ${new Date(folder.updated).toLocaleDateString()}</div>
                     </div>
                 </div>`;
@@ -8825,6 +8856,15 @@ getFormData(
                 } catch(e){}
               }
 
+              function resetForFreshPipelineLoad(){
+                try {
+                  if (window.App && App.state) {
+                    App.state.hasCompletedInitialLoad = false;
+                    App.state.isInitialDataLoading = false;
+                  }
+                } catch(e){}
+              }
+
 
               // Global hook used by apiCall() when server returns AUTH_REQUIRED
               window.__cmfHandleAuthRequired = function(resp){
@@ -8892,6 +8932,7 @@ getFormData(
                     await doLogin(u,p);
                     try { activateSalesPipeline(); } catch(e){}
                     // Now boot the app
+                    resetForFreshPipelineLoad();
                     if (typeof App.init === 'function') App.init();
                   } catch(e) {
                     showLogin(e.message || String(e));
@@ -8924,6 +8965,7 @@ getFormData(
               (async function(){
                 const ok = await checkSession();
                 if (ok) { try { activateSalesPipeline(); } catch(e){} }
+                if (ok) resetForFreshPipelineLoad();
                 if (ok && typeof App.init === 'function') App.init();
               })();
             })();
@@ -8992,6 +9034,10 @@ getFormData(
 
                 if (targetId === 'document-upload') {
                     try { if (typeof window.loadCustomerUploadIframe === 'function') window.loadCustomerUploadIframe(); } catch(e){}
+                }
+
+                if (targetId === 'partner-activity') {
+                    try { if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') window.PartnerActivityTab.load(); } catch(e){}
                 }
 
                 if (targetId === 'whatsapp-messenger') {
@@ -9949,6 +9995,14 @@ function loadCustomerUploadIframe(){
     // Customer upload iframe (optional lazy loader)
     if (panel.id === 'document-upload') {
       loadCustomerUploadIframe();
+    }
+
+    if (panel.id === 'partner-activity') {
+      try {
+        if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') {
+          window.PartnerActivityTab.load();
+        }
+      } catch (e) {}
     }
 
     // WhatsApp messenger iframe (lazy loads srcdoc)
