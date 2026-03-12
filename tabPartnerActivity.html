@@ -4,6 +4,7 @@
       <h2 class="text-2xl font-bold" style="color: var(--british-racing-green);">Partner Activity</h2>
     </div>
 
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
     <div id="partner-activity-lock" class="rounded-xl shadow-sm border p-5" style="background-color:#ffffff; border-color:#d9e9d9;">
       <h3 class="text-lg font-semibold" style="color:var(--british-racing-green);">Restricted Access</h3>
       <p class="text-sm mt-1" style="color:#4b5563;">Enter password to view Partner Activity cards.</p>
@@ -16,6 +17,10 @@
 
     <div id="partner-activity-status" class="text-sm hidden" style="color: #4b5563;">Loading partner activity…</div>
     <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
+=======
+    <div id="partner-activity-status" class="text-sm" style="color: #4b5563;">Loading partner activity…</div>
+    <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+>>>>>>> main
   </div>
 </div>
 
@@ -30,10 +35,13 @@
 
   const statusEl = () => document.getElementById('partner-activity-status');
   const gridEl = () => document.getElementById('partner-activity-grid');
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
   const lockPanelEl = () => document.getElementById('partner-activity-lock');
   const lockFormEl = () => document.getElementById('partner-activity-lock-form');
   const lockInputEl = () => document.getElementById('partner-activity-password');
   const lockErrorEl = () => document.getElementById('partner-activity-lock-error');
+=======
+>>>>>>> main
 
   const esc = (v) => String(v == null ? '' : v)
     .replace(/&/g, '&amp;')
@@ -138,6 +146,7 @@
     try { sessionStorage.setItem(ACCESS_SESSION_KEY, '1'); } catch (_) {}
   };
 
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
   const showLockedView = (keepError = false) => {
     const lock = lockPanelEl();
     const status = statusEl();
@@ -189,6 +198,28 @@
     });
 
     form.dataset.bound = '1';
+=======
+  const requestAccess = () => {
+    if (isUnlocked()) return true;
+
+    const entered = window.prompt('Partner Activity access password required', '');
+    if (entered === ACCESS_PASSWORD) {
+      setUnlocked();
+      return true;
+    }
+
+    const status = statusEl();
+    const grid = gridEl();
+    if (grid) grid.innerHTML = '';
+    if (status) {
+      status.className = 'text-sm border px-3 py-2 rounded-lg';
+      status.style.color = '#7c2d12';
+      status.style.backgroundColor = '#fff7ed';
+      status.style.borderColor = '#fed7aa';
+      status.textContent = 'Partner Activity is locked. Enter the correct password to view this tab.';
+    }
+    return false;
+>>>>>>> main
   };
 
   const getThirtyDayRunRate = (referer, totalSearches, cache) => {
@@ -261,6 +292,7 @@
       if (this.loading) return;
       if (this.loaded && !force) return;
 
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
       initUnlockForm();
 
       if (!requestAccess()) {
@@ -268,16 +300,25 @@
         return;
       }
 
+=======
+>>>>>>> main
       const status = statusEl();
       if (status) {
         status.className = 'text-sm';
         status.style.color = '#4b5563';
         status.textContent = 'Loading partner activity…';
       }
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
       showUnlockedView();
 
       try {
         this.loading = true;
+=======
+
+      try {
+        this.loading = true;
+        if (!requestAccess()) return;
+>>>>>>> main
         if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
         const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
         const rows = Array.isArray(response?.data) ? response.data : [];
@@ -285,7 +326,10 @@
         render(rows, cache);
         this.loaded = true;
       } catch (err) {
+<<<<<<< codex/add-partner-activity-tab-in-crm-bwnf7y
         showUnlockedView();
+=======
+>>>>>>> main
         const grid = gridEl();
         if (grid) grid.innerHTML = '';
         if (status) {
