@@ -2,6 +2,12 @@
   <div class="max-w-7xl mx-auto space-y-5">
     <div class="rounded-xl shadow-sm border p-5" style="background-color: #ffffff; border-color: #d9e9d9;">
       <h2 class="text-2xl font-bold" style="color: var(--british-racing-green);">Partner Activity</h2>
+      <div id="partner-activity-sort-pills" class="mt-4 flex flex-wrap gap-2 hidden">
+        <button type="button" class="partner-sort-pill px-3 py-1.5 rounded-full text-xs font-semibold border" data-sort="totalVrn">Total VRN</button>
+        <button type="button" class="partner-sort-pill px-3 py-1.5 rounded-full text-xs font-semibold border" data-sort="liveFinance">Live Finance %</button>
+        <button type="button" class="partner-sort-pill px-3 py-1.5 rounded-full text-xs font-semibold border" data-sort="runRate">30-day Rolling</button>
+        <button type="button" class="partner-sort-pill px-3 py-1.5 rounded-full text-xs font-semibold border" data-sort="rag">RAG</button>
+      </div>
     </div>
 
     <div id="partner-activity-lock" class="rounded-xl shadow-sm border p-5" style="background-color:#ffffff; border-color:#d9e9d9;">
@@ -34,6 +40,11 @@
   const lockFormEl = () => document.getElementById('partner-activity-lock-form');
   const lockInputEl = () => document.getElementById('partner-activity-password');
   const lockErrorEl = () => document.getElementById('partner-activity-lock-error');
+  const sortPillsWrapEl = () => document.getElementById('partner-activity-sort-pills');
+
+  const state = {
+    sortMode: 'totalVrn'
+  };
 
   const esc = (v) => String(v == null ? '' : v)
     .replace(/&/g, '&amp;')
@@ -146,6 +157,8 @@
     if (lock) lock.classList.remove('hidden');
     if (status) status.classList.add('hidden');
     if (grid) { grid.classList.add('hidden'); grid.innerHTML = ''; }
+    const pills = sortPillsWrapEl();
+    if (pills) pills.classList.add('hidden');
     if (err && !keepError) err.classList.add('hidden');
   };
 
@@ -156,6 +169,8 @@
     if (lock) lock.classList.add('hidden');
     if (status) status.classList.remove('hidden');
     if (grid) grid.classList.remove('hidden');
+    const pills = sortPillsWrapEl();
+    if (pills) pills.classList.remove('hidden');
   };
 
   const requestAccess = () => isUnlocked();
@@ -191,6 +206,94 @@
     form.dataset.bound = '1';
   };
 
+  const getOrdinal = (n) => {
+    const num = Number(n) || 0;
+    const mod100 = num % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${num}th`;
+    const mod10 = num % 10;
+    if (mod10 === 1) return `${num}st`;
+    if (mod10 === 2) return `${num}nd`;
+    if (mod10 === 3) return `${num}rd`;
+    return `${num}th`;
+  };
+
+  const getRagTier = (validPct) => {
+    const pct = toNum(validPct, 0);
+    if (pct > 66) return 0;   // Green best
+    if (pct >= 50) return 1;  // Amber
+    return 2;                 // Red
+  };
+
+  const sortRows = (rows, cache) => {
+    const list = Array.isArray(rows) ? [...rows] : [];
+    const mode = state.sortMode || 'totalVrn';
+
+    list.sort((a, b) => {
+      const aTotal = toNum(a.totalSearches, 0);
+      const bTotal = toNum(b.totalSearches, 0);
+      const aPct = toNum(a.validFinancePct, 0);
+      const bPct = toNum(b.validFinancePct, 0);
+      const aRate = getThirtyDayRunRate(a.referer, aTotal, cache);
+      const bRate = getThirtyDayRunRate(b.referer, bTotal, cache);
+
+      if (mode === 'liveFinance') {
+        if (bPct !== aPct) return bPct - aPct;
+        if (bTotal !== aTotal) return bTotal - aTotal;
+        return String(a.referer || '').localeCompare(String(b.referer || ''));
+      }
+
+      if (mode === 'runRate') {
+        if (bRate !== aRate) return bRate - aRate;
+        if (bTotal !== aTotal) return bTotal - aTotal;
+        return String(a.referer || '').localeCompare(String(b.referer || ''));
+      }
+
+      if (mode === 'rag') {
+        const aTier = getRagTier(aPct);
+        const bTier = getRagTier(bPct);
+        if (aTier !== bTier) return aTier - bTier;
+        if (bTotal !== aTotal) return bTotal - aTotal;
+        return String(a.referer || '').localeCompare(String(b.referer || ''));
+      }
+
+      // default totalVrn
+      if (bTotal !== aTotal) return bTotal - aTotal;
+      return String(a.referer || '').localeCompare(String(b.referer || ''));
+    });
+
+    return list;
+  };
+
+  const updateSortPillsUI = () => {
+    const wrap = sortPillsWrapEl();
+    if (!wrap) return;
+    const pills = wrap.querySelectorAll('.partner-sort-pill');
+    pills.forEach((pill) => {
+      const active = pill.getAttribute('data-sort') === state.sortMode;
+      pill.style.backgroundColor = active ? '#004225' : '#ffffff';
+      pill.style.color = active ? '#ffffff' : '#374151';
+      pill.style.borderColor = active ? '#004225' : '#d1d5db';
+    });
+  };
+
+  const initSortPills = () => {
+    const wrap = sortPillsWrapEl();
+    if (!wrap || wrap.dataset.bound === '1') return;
+    wrap.classList.remove('hidden');
+    wrap.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.partner-sort-pill');
+      if (!btn) return;
+      const mode = btn.getAttribute('data-sort') || 'totalVrn';
+      state.sortMode = mode;
+      updateSortPillsUI();
+      if (window.PartnerActivityTab) {
+        try { await window.PartnerActivityTab.load(true); } catch (_) {}
+      }
+    });
+    wrap.dataset.bound = '1';
+    updateSortPillsUI();
+  };
+
   const getThirtyDayRunRate = (referer, totalSearches, cache) => {
     const key = String(referer || 'Unknown Referer').trim() || 'Unknown Referer';
     const nowTs = Date.now();
@@ -224,9 +327,11 @@
 
     status.className = 'text-sm';
     status.style.color = '#374151';
-    status.textContent = `Showing ${rows.length} referer cards, sorted by total VRN searches.`;
+    status.textContent = `Showing ${rows.length} referer cards.`;
 
-    grid.innerHTML = rows.map((item, index) => {
+    const sortedRows = sortRows(rows, cache);
+
+    grid.innerHTML = sortedRows.map((item, index) => {
       const validPct = toNum(item.validFinancePct, 0);
       const rag = ragTheme(validPct);
       const rank = rankTheme(index);
@@ -239,9 +344,12 @@
           <div class="flex items-start justify-between gap-2">
             <div class="flex items-center gap-2 min-w-0">
               <h3 class="text-lg font-semibold truncate" style="color:var(--british-racing-green);">${esc(item.referer || 'Unknown Referer')}</h3>
-              ${rank.rankLabel ? `<span class="text-lg leading-none" style="color:${rank.outline};" title="${rank.rankLabel}">${rank.trophy}</span>` : ''}
+              ${index < 3 ? `<span class="text-lg font-semibold leading-none" style="color:${rank.outline};" title="${rank.rankLabel}">${rank.rankLabel} ${rank.trophy}</span>` : ''}
             </div>
-            <span class="text-xs font-semibold px-2 py-1 rounded-full" style="background-color:${rag.pillBg}; color:${rag.pillText};">${rag.ragLabel}</span>
+            <div class="flex items-center gap-2">
+              ${index >= 3 ? `<span class="text-xs font-semibold px-2 py-1 rounded-full border" style="color:#374151; border-color:#d1d5db; background-color:#fff;">${getOrdinal(index + 1)}</span>` : ''}
+              <span class="text-xs font-semibold px-2 py-1 rounded-full" style="background-color:${rag.pillBg}; color:${rag.pillText};">${rag.ragLabel}</span>
+            </div>
           </div>
           <dl class="mt-4 grid grid-cols-1 gap-2 text-sm" style="color:#374151;">
             <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${totalSearches}</dd></div>
@@ -262,6 +370,11 @@
       if (this.loaded && !force) return;
 
       initUnlockForm();
+      initSortPills();
+      if (!this.loaded && !force) {
+        state.sortMode = 'totalVrn';
+      }
+      updateSortPillsUI();
 
       if (!requestAccess()) {
         showLockedView();
