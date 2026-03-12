@@ -13,6 +13,9 @@
 (function initPartnerActivityTab(){
   if (window.PartnerActivityTab) return;
 
+  const CACHE_KEY = 'CMF_PARTNER_ACTIVITY_CACHE_V1';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
   const statusEl = () => document.getElementById('partner-activity-status');
   const gridEl = () => document.getElementById('partner-activity-grid');
 
@@ -23,30 +26,91 @@
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+  const toNum = (v, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
   const ragTheme = (validPct) => {
-    if (validPct > 66) {
-      return { cardBg: '#ecfdf3', ragPill: 'bg-green-600 text-white', ragLabel: 'Green' };
-    }
-    if (validPct >= 50) {
-      return { cardBg: '#fffbeb', ragPill: 'bg-amber-500 text-white', ragLabel: 'Amber' };
-    }
+    if (validPct > 66) return { cardBg: '#ecfdf3', ragPill: 'bg-green-600 text-white', ragLabel: 'Green' };
+    if (validPct >= 50 && validPct <= 66) return { cardBg: '#fffbeb', ragPill: 'bg-amber-500 text-white', ragLabel: 'Amber' };
     return { cardBg: '#fef2f2', ragPill: 'bg-red-600 text-white', ragLabel: 'Red' };
   };
 
   const rankTheme = (index) => {
-    if (index === 0) {
-      return { outline: '#eab308', rankLabel: '1st', trophy: '🏆', trophyText: 'text-yellow-600', ring: '0 0 0 2px #eab308 inset' };
-    }
-    if (index === 1) {
-      return { outline: '#9ca3af', rankLabel: '2nd', trophy: '🏆', trophyText: 'text-gray-500', ring: '0 0 0 2px #9ca3af inset' };
-    }
-    if (index === 2) {
-      return { outline: '#b45309', rankLabel: '3rd', trophy: '🏆', trophyText: 'text-amber-700', ring: '0 0 0 2px #b45309 inset' };
-    }
-    return { outline: '#16a34a', rankLabel: '', trophy: '', trophyText: '', ring: '0 0 0 1px #d1d5db inset' };
+    if (index === 0) return { outline: '#eab308', rankLabel: '1st', trophy: '🏆', ring: '0 0 0 2px #eab308 inset' };
+    if (index === 1) return { outline: '#9ca3af', rankLabel: '2nd', trophy: '🏆', ring: '0 0 0 2px #9ca3af inset' };
+    if (index === 2) return { outline: '#b45309', rankLabel: '3rd', trophy: '🏆', ring: '0 0 0 2px #b45309 inset' };
+    return { outline: '#16a34a', rankLabel: '', trophy: '', ring: '0 0 0 1px #d1d5db inset' };
   };
 
-  const render = (rows) => {
+  const loadCache = () => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : { snapshots: {} };
+      if (!parsed || typeof parsed !== 'object' || !parsed.snapshots) return { snapshots: {} };
+      return parsed;
+    } catch (_) {
+      return { snapshots: {} };
+    }
+  };
+
+  const saveCache = (cache) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (_) {}
+  };
+
+  const normalizeSnapshots = (list, nowTs) => {
+    return (Array.isArray(list) ? list : [])
+      .filter(s => s && Number.isFinite(Number(s.ts)) && Number.isFinite(Number(s.total)))
+      .map(s => ({ ts: Number(s.ts), total: toNum(s.total, 0) }))
+      .filter(s => (nowTs - s.ts) <= (30 * DAY_MS))
+      .sort((a, b) => a.ts - b.ts);
+  };
+
+  const updateRollingCache = (rows) => {
+    const nowTs = Date.now();
+    const cache = loadCache();
+    if (!cache.snapshots || typeof cache.snapshots !== 'object') cache.snapshots = {};
+
+    rows.forEach((item) => {
+      const key = String(item.referer || 'Unknown Referer').trim() || 'Unknown Referer';
+      const total = toNum(item.totalSearches, 0);
+      const current = normalizeSnapshots(cache.snapshots[key], nowTs);
+      const last = current[current.length - 1];
+      if (!last || last.total !== total || (nowTs - last.ts) > (12 * 60 * 60 * 1000)) {
+        current.push({ ts: nowTs, total });
+      }
+      cache.snapshots[key] = normalizeSnapshots(current, nowTs);
+    });
+
+    Object.keys(cache.snapshots).forEach((k) => {
+      cache.snapshots[k] = normalizeSnapshots(cache.snapshots[k], nowTs);
+      if (!cache.snapshots[k].length) delete cache.snapshots[k];
+    });
+
+    saveCache(cache);
+    return cache;
+  };
+
+  const getThirtyDayRunRate = (referer, totalSearches, cache) => {
+    const key = String(referer || 'Unknown Referer').trim() || 'Unknown Referer';
+    const nowTs = Date.now();
+    const snaps = normalizeSnapshots(cache?.snapshots?.[key], nowTs);
+    if (!snaps.length) return 0;
+
+    const earliest = snaps[0];
+    const latest = snaps[snaps.length - 1];
+    const elapsedDays = Math.max(1, (latest.ts - earliest.ts) / DAY_MS);
+    const delta = Math.max(0, toNum(latest.total, 0) - toNum(earliest.total, 0));
+
+    if (snaps.length > 1 && elapsedDays > 0) {
+      return delta / elapsedDays;
+    }
+
+    return Math.max(0, toNum(totalSearches, 0) / 30);
+  };
+
+  const render = (rows, cache) => {
     const status = statusEl();
     const grid = gridEl();
     if (!status || !grid) return;
@@ -64,9 +128,13 @@
     status.textContent = `Showing ${rows.length} referer cards, sorted by total VRN searches.`;
 
     grid.innerHTML = rows.map((item, index) => {
-      const validPct = Number(item.validFinancePct || 0);
+      const validPct = toNum(item.validFinancePct, 0);
       const rag = ragTheme(validPct);
       const rank = rankTheme(index);
+      const totalSearches = toNum(item.totalSearches, 0);
+      const invalidTotal = toNum(item.invalidFinanceCount, 0);
+      const runRate = getThirtyDayRunRate(item.referer, totalSearches, cache);
+
       return `
         <article class="rounded-xl shadow-sm p-4 border-l-4" style="background:${rag.cardBg}; border-left-color:${rank.outline}; box-shadow:${rank.ring};">
           <div class="flex items-start justify-between gap-2">
@@ -74,13 +142,13 @@
               <h3 class="text-lg font-semibold" style="color:var(--british-racing-green);">${esc(item.referer || 'Unknown Referer')}</h3>
               ${rank.rankLabel ? `<div class="text-xs font-semibold mt-1" style="color:${rank.outline};">${rank.rankLabel} ${rank.trophy}</div>` : ''}
             </div>
-            <span class="text-xs font-semibold px-2 py-1 rounded-full ${rag.ragPill}">RAG: ${rag.ragLabel}</span>
+            <span class="text-xs font-semibold px-2 py-1 rounded-full ${rag.ragPill}">${rag.ragLabel}</span>
           </div>
           <dl class="mt-4 grid grid-cols-1 gap-2 text-sm" style="color:#374151;">
-            <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${Number(item.totalSearches || 0)}</dd></div>
-            <div class="flex justify-between"><dt>Valid finance_company</dt><dd class="font-semibold">${validPct.toFixed(1)}%</dd></div>
-            <div class="flex justify-between"><dt>Valid rows</dt><dd>${Number(item.validFinanceCount || 0)}</dd></div>
-            <div class="flex justify-between"><dt>Invalid rows</dt><dd>${Number(item.invalidFinanceCount || 0)}</dd></div>
+            <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${totalSearches}</dd></div>
+            <div class="flex justify-between"><dt>30-day rolling run rate</dt><dd class="font-semibold">${runRate.toFixed(2)} / day</dd></div>
+            <div class="flex justify-between"><dt>Live Finance</dt><dd class="font-semibold">${validPct.toFixed(1)}%</dd></div>
+            <div class="flex justify-between"><dt>No Finance Search Total</dt><dd>${invalidTotal}</dd></div>
           </dl>
         </article>
       `;
@@ -106,7 +174,8 @@
         if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
         const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
         const rows = Array.isArray(response?.data) ? response.data : [];
-        render(rows);
+        const cache = updateRollingCache(rows);
+        render(rows, cache);
         this.loaded = true;
       } catch (err) {
         const grid = gridEl();
