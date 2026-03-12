@@ -15,6 +15,8 @@
 
   const CACHE_KEY = 'CMF_PARTNER_ACTIVITY_CACHE_V1';
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const ACCESS_PASSWORD = 'CMF2626';
+  const ACCESS_SESSION_KEY = 'CMF_PARTNER_ACTIVITY_UNLOCKED';
 
   const statusEl = () => document.getElementById('partner-activity-status');
   const gridEl = () => document.getElementById('partner-activity-grid');
@@ -114,6 +116,36 @@
     return cache;
   };
 
+  const isUnlocked = () => {
+    try { return sessionStorage.getItem(ACCESS_SESSION_KEY) === '1'; } catch (_) { return false; }
+  };
+
+  const setUnlocked = () => {
+    try { sessionStorage.setItem(ACCESS_SESSION_KEY, '1'); } catch (_) {}
+  };
+
+  const requestAccess = () => {
+    if (isUnlocked()) return true;
+
+    const entered = window.prompt('Partner Activity access password required', '');
+    if (entered === ACCESS_PASSWORD) {
+      setUnlocked();
+      return true;
+    }
+
+    const status = statusEl();
+    const grid = gridEl();
+    if (grid) grid.innerHTML = '';
+    if (status) {
+      status.className = 'text-sm border px-3 py-2 rounded-lg';
+      status.style.color = '#7c2d12';
+      status.style.backgroundColor = '#fff7ed';
+      status.style.borderColor = '#fed7aa';
+      status.textContent = 'Partner Activity is locked. Enter the correct password to view this tab.';
+    }
+    return false;
+  };
+
   const getThirtyDayRunRate = (referer, totalSearches, cache) => {
     const key = String(referer || 'Unknown Referer').trim() || 'Unknown Referer';
     const nowTs = Date.now();
@@ -193,6 +225,7 @@
 
       try {
         this.loading = true;
+        if (!requestAccess()) return;
         if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
         const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
         const rows = Array.isArray(response?.data) ? response.data : [];
