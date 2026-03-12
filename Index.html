@@ -979,6 +979,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <li class="mb-4"><a class="tab-link" data-tab="document-upload" href="#">Document Upload</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="client-files-view" href="#" onclick="App.ui.switchTab('client-files-view'); setTimeout(() =&gt; { if(window.App &amp;&amp; App.handlers &amp;&amp; App.handlers.runFolderSearch) App.handlers.runFolderSearch(\'\'); }, 200); return false;">Client Files</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="comparison-calculator" href="#">Comparison Calculator</a></li>
+<li class="mb-4"><a class="tab-link" data-tab="partner-activity" href="#">Partner Activity</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="whatsapp-messenger" href="#">WhatsApp Messenger</a></li>
 <li class="mb-4"><a class="tab-link" data-tab="twilio-flex" href="#">Twilio Flex</a></li>
 </ul>
@@ -2709,6 +2710,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </div>
+<?!= include('tabPartnerActivity'); ?>
 <div class="tab-content" id="whatsapp-messenger" style="display:none; height: 100%;">
 <div class="w-full h-full flex flex-col">
 <div class="bg-white rounded-2xl shadow p-0 border border-gray-200 h-full overflow-hidden">
@@ -3398,6 +3400,10 @@ const ensurePercent = (v) => {
 
                     if (activeContent.id === 'document-upload') {
                         try { if (typeof window.loadCustomerUploadIframe === 'function') window.loadCustomerUploadIframe(); } catch(e){}
+                    }
+
+                    if (activeContent.id === 'partner-activity') {
+                        try { if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') window.PartnerActivityTab.load(); } catch(e){}
                     }
 
                     if (activeContent.id === 'whatsapp-messenger') {
@@ -8825,6 +8831,15 @@ getFormData(
                 } catch(e){}
               }
 
+              function resetForFreshPipelineLoad(){
+                try {
+                  if (window.App && App.state) {
+                    App.state.hasCompletedInitialLoad = false;
+                    App.state.isInitialDataLoading = false;
+                  }
+                } catch(e){}
+              }
+
 
               // Global hook used by apiCall() when server returns AUTH_REQUIRED
               window.__cmfHandleAuthRequired = function(resp){
@@ -8892,6 +8907,7 @@ getFormData(
                     await doLogin(u,p);
                     try { activateSalesPipeline(); } catch(e){}
                     // Now boot the app
+                    resetForFreshPipelineLoad();
                     if (typeof App.init === 'function') App.init();
                   } catch(e) {
                     showLogin(e.message || String(e));
@@ -8924,6 +8940,7 @@ getFormData(
               (async function(){
                 const ok = await checkSession();
                 if (ok) { try { activateSalesPipeline(); } catch(e){} }
+                if (ok) resetForFreshPipelineLoad();
                 if (ok && typeof App.init === 'function') App.init();
               })();
             })();
@@ -8992,6 +9009,10 @@ getFormData(
 
                 if (targetId === 'document-upload') {
                     try { if (typeof window.loadCustomerUploadIframe === 'function') window.loadCustomerUploadIframe(); } catch(e){}
+                }
+
+                if (targetId === 'partner-activity') {
+                    try { if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') window.PartnerActivityTab.load(); } catch(e){}
                 }
 
                 if (targetId === 'whatsapp-messenger') {
@@ -9949,6 +9970,14 @@ function loadCustomerUploadIframe(){
     // Customer upload iframe (optional lazy loader)
     if (panel.id === 'document-upload') {
       loadCustomerUploadIframe();
+    }
+
+    if (panel.id === 'partner-activity') {
+      try {
+        if (window.PartnerActivityTab && typeof window.PartnerActivityTab.load === 'function') {
+          window.PartnerActivityTab.load();
+        }
+      } catch (e) {}
     }
 
     // WhatsApp messenger iframe (lazy loads srcdoc)

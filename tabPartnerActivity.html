@@ -1,0 +1,304 @@
+<div class="tab-content p-4 sm:p-6 lg:p-8" id="partner-activity" style="display:none; height: 100%; background-color: var(--pale-green);">
+  <div class="max-w-7xl mx-auto space-y-5">
+    <div class="rounded-xl shadow-sm border p-5" style="background-color: #ffffff; border-color: #d9e9d9;">
+      <h2 class="text-2xl font-bold" style="color: var(--british-racing-green);">Partner Activity</h2>
+    </div>
+
+    <div id="partner-activity-lock" class="rounded-xl shadow-sm border p-5" style="background-color:#ffffff; border-color:#d9e9d9;">
+      <h3 class="text-lg font-semibold" style="color:var(--british-racing-green);">Restricted Access</h3>
+      <p class="text-sm mt-1" style="color:#4b5563;">Enter password to view Partner Activity cards.</p>
+      <form id="partner-activity-lock-form" class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center" autocomplete="on">
+        <input id="partner-activity-password" type="password" class="w-full sm:max-w-xs px-3 py-2 border rounded-lg" style="border-color:#d1d5db;" placeholder="Enter password" autocomplete="new-password" />
+        <button id="partner-activity-unlock-btn" type="submit" class="px-4 py-2 rounded-lg text-white font-semibold" style="background-color:#004225;">Unlock</button>
+      </form>
+      <div id="partner-activity-lock-error" class="text-sm mt-2 hidden" style="color:#b91c1c;">Incorrect password. Please try again (CMF internal access).</div>
+    </div>
+
+    <div id="partner-activity-status" class="text-sm hidden" style="color: #4b5563;">Loading partner activity…</div>
+    <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
+  </div>
+</div>
+
+<script>
+(function initPartnerActivityTab(){
+  if (window.PartnerActivityTab) return;
+
+  const CACHE_KEY = 'CMF_PARTNER_ACTIVITY_CACHE_V1';
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const ACCESS_PASSWORD = 'CMF2626';
+  const ACCESS_SESSION_KEY = 'CMF_PARTNER_ACTIVITY_UNLOCKED';
+
+  const statusEl = () => document.getElementById('partner-activity-status');
+  const gridEl = () => document.getElementById('partner-activity-grid');
+  const lockPanelEl = () => document.getElementById('partner-activity-lock');
+  const lockFormEl = () => document.getElementById('partner-activity-lock-form');
+  const lockInputEl = () => document.getElementById('partner-activity-password');
+  const lockErrorEl = () => document.getElementById('partner-activity-lock-error');
+
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const toNum = (v, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const ragTheme = (validPct) => {
+    if (validPct > 66) {
+      return {
+        cardBg: '#ecfdf3',
+        cardBorder: '#bbf7d0',
+        pillBg: '#16a34a',
+        pillText: '#ffffff',
+        ragLabel: 'Green'
+      };
+    }
+    if (validPct >= 50 && validPct <= 66) {
+      return {
+        cardBg: '#fffbeb',
+        cardBorder: '#fde68a',
+        pillBg: '#f59e0b',
+        pillText: '#ffffff',
+        ragLabel: 'Amber'
+      };
+    }
+    return {
+      cardBg: '#fee2e2',
+      cardBorder: '#fca5a5',
+      pillBg: '#dc2626',
+      pillText: '#ffffff',
+      ragLabel: 'Red'
+    };
+  };
+
+  const rankTheme = (index) => {
+    if (index === 0) return { outline: '#eab308', rankLabel: '1st', trophy: '🏆', ring: '0 0 0 2px #eab308 inset' };
+    if (index === 1) return { outline: '#9ca3af', rankLabel: '2nd', trophy: '🏆', ring: '0 0 0 2px #9ca3af inset' };
+    if (index === 2) return { outline: '#b45309', rankLabel: '3rd', trophy: '🏆', ring: '0 0 0 2px #b45309 inset' };
+    return { outline: '#16a34a', rankLabel: '', trophy: '', ring: '0 0 0 1px #d1d5db inset' };
+  };
+
+  const loadCache = () => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : { snapshots: {} };
+      if (!parsed || typeof parsed !== 'object' || !parsed.snapshots) return { snapshots: {} };
+      return parsed;
+    } catch (_) {
+      return { snapshots: {} };
+    }
+  };
+
+  const saveCache = (cache) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (_) {}
+  };
+
+  const normalizeSnapshots = (list, nowTs) => {
+    return (Array.isArray(list) ? list : [])
+      .filter(s => s && Number.isFinite(Number(s.ts)) && Number.isFinite(Number(s.total)))
+      .map(s => ({ ts: Number(s.ts), total: toNum(s.total, 0) }))
+      .filter(s => (nowTs - s.ts) <= (30 * DAY_MS))
+      .sort((a, b) => a.ts - b.ts);
+  };
+
+  const updateRollingCache = (rows) => {
+    const nowTs = Date.now();
+    const cache = loadCache();
+    if (!cache.snapshots || typeof cache.snapshots !== 'object') cache.snapshots = {};
+
+    rows.forEach((item) => {
+      const key = String(item.referer || 'Unknown Referer').trim() || 'Unknown Referer';
+      const total = toNum(item.totalSearches, 0);
+      const current = normalizeSnapshots(cache.snapshots[key], nowTs);
+      const last = current[current.length - 1];
+      if (!last || last.total !== total || (nowTs - last.ts) > (12 * 60 * 60 * 1000)) {
+        current.push({ ts: nowTs, total });
+      }
+      cache.snapshots[key] = normalizeSnapshots(current, nowTs);
+    });
+
+    Object.keys(cache.snapshots).forEach((k) => {
+      cache.snapshots[k] = normalizeSnapshots(cache.snapshots[k], nowTs);
+      if (!cache.snapshots[k].length) delete cache.snapshots[k];
+    });
+
+    saveCache(cache);
+    return cache;
+  };
+
+  const isUnlocked = () => {
+    try { return sessionStorage.getItem(ACCESS_SESSION_KEY) === '1'; } catch (_) { return false; }
+  };
+
+  const setUnlocked = () => {
+    try { sessionStorage.setItem(ACCESS_SESSION_KEY, '1'); } catch (_) {}
+  };
+
+  const showLockedView = (keepError = false) => {
+    const lock = lockPanelEl();
+    const status = statusEl();
+    const grid = gridEl();
+    const err = lockErrorEl();
+    if (lock) lock.classList.remove('hidden');
+    if (status) status.classList.add('hidden');
+    if (grid) { grid.classList.add('hidden'); grid.innerHTML = ''; }
+    if (err && !keepError) err.classList.add('hidden');
+  };
+
+  const showUnlockedView = () => {
+    const lock = lockPanelEl();
+    const status = statusEl();
+    const grid = gridEl();
+    if (lock) lock.classList.add('hidden');
+    if (status) status.classList.remove('hidden');
+    if (grid) grid.classList.remove('hidden');
+  };
+
+  const requestAccess = () => isUnlocked();
+
+  const attemptUnlock = (password) => {
+    if (password === ACCESS_PASSWORD) {
+      setUnlocked();
+      showUnlockedView();
+      const err = lockErrorEl();
+      if (err) err.classList.add('hidden');
+      return true;
+    }
+    const err = lockErrorEl();
+    if (err) err.classList.remove('hidden');
+    showLockedView(true);
+    return false;
+  };
+
+  const initUnlockForm = () => {
+    const form = lockFormEl();
+    const input = lockInputEl();
+    if (!form || form.dataset.bound === '1') return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pwd = input ? String(input.value || '').trim() : '';
+      const ok = attemptUnlock(pwd);
+      if (!ok) return;
+      if (input) input.value = '';
+      try { await window.PartnerActivityTab.load(true); } catch (_) {}
+    });
+
+    form.dataset.bound = '1';
+  };
+
+  const getThirtyDayRunRate = (referer, totalSearches, cache) => {
+    const key = String(referer || 'Unknown Referer').trim() || 'Unknown Referer';
+    const nowTs = Date.now();
+    const snaps = normalizeSnapshots(cache?.snapshots?.[key], nowTs);
+    if (!snaps.length) return 0;
+
+    const earliest = snaps[0];
+    const latest = snaps[snaps.length - 1];
+    const elapsedDays = Math.max(1, (latest.ts - earliest.ts) / DAY_MS);
+    const delta = Math.max(0, toNum(latest.total, 0) - toNum(earliest.total, 0));
+
+    if (snaps.length > 1 && elapsedDays > 0) {
+      return delta / elapsedDays;
+    }
+
+    return Math.max(0, toNum(totalSearches, 0) / 30);
+  };
+
+  const render = (rows, cache) => {
+    const status = statusEl();
+    const grid = gridEl();
+    if (!status || !grid) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      status.className = 'text-sm';
+      status.style.color = '#4b5563';
+      status.textContent = 'No partner activity found in VRNdata.';
+      grid.innerHTML = '';
+      return;
+    }
+
+    status.className = 'text-sm';
+    status.style.color = '#374151';
+    status.textContent = `Showing ${rows.length} referer cards, sorted by total VRN searches.`;
+
+    grid.innerHTML = rows.map((item, index) => {
+      const validPct = toNum(item.validFinancePct, 0);
+      const rag = ragTheme(validPct);
+      const rank = rankTheme(index);
+      const totalSearches = toNum(item.totalSearches, 0);
+      const invalidTotal = toNum(item.invalidFinanceCount, 0);
+      const runRate = getThirtyDayRunRate(item.referer, totalSearches, cache);
+
+      return `
+        <article class="rounded-xl shadow-sm p-4 border-l-4" style="background-color:${rag.cardBg} !important; border:1px solid ${rag.cardBorder}; border-left:4px solid ${rank.outline}; box-shadow:${rank.ring};">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <h3 class="text-lg font-semibold truncate" style="color:var(--british-racing-green);">${esc(item.referer || 'Unknown Referer')}</h3>
+              ${rank.rankLabel ? `<span class="text-lg leading-none" style="color:${rank.outline};" title="${rank.rankLabel}">${rank.trophy}</span>` : ''}
+            </div>
+            <span class="text-xs font-semibold px-2 py-1 rounded-full" style="background-color:${rag.pillBg}; color:${rag.pillText};">${rag.ragLabel}</span>
+          </div>
+          <dl class="mt-4 grid grid-cols-1 gap-2 text-sm" style="color:#374151;">
+            <div class="flex justify-between"><dt>Total VRN searches</dt><dd class="font-semibold">${totalSearches}</dd></div>
+            <div class="flex justify-between"><dt>30-day rolling run rate</dt><dd class="font-semibold">${runRate.toFixed(2)} / day</dd></div>
+            <div class="flex justify-between"><dt>Live Finance</dt><dd class="font-semibold">${validPct.toFixed(1)}%</dd></div>
+            <div class="flex justify-between"><dt>No Finance Search Total</dt><dd>${invalidTotal}</dd></div>
+          </dl>
+        </article>
+      `;
+    }).join('');
+  };
+
+  window.PartnerActivityTab = {
+    loaded: false,
+    loading: false,
+    async load(force = false) {
+      if (this.loading) return;
+      if (this.loaded && !force) return;
+
+      initUnlockForm();
+
+      if (!requestAccess()) {
+        showLockedView();
+        return;
+      }
+
+      const status = statusEl();
+      if (status) {
+        status.className = 'text-sm';
+        status.style.color = '#4b5563';
+        status.textContent = 'Loading partner activity…';
+      }
+      showUnlockedView();
+
+      try {
+        this.loading = true;
+        if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
+        const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        const cache = updateRollingCache(rows);
+        render(rows, cache);
+        this.loaded = true;
+      } catch (err) {
+        showUnlockedView();
+        const grid = gridEl();
+        if (grid) grid.innerHTML = '';
+        if (status) {
+          status.className = 'text-sm border px-3 py-2 rounded-lg';
+          status.style.color = '#b91c1c';
+          status.style.backgroundColor = '#fef2f2';
+          status.style.borderColor = '#fecaca';
+          status.textContent = `Unable to load Partner Activity: ${err && err.message ? err.message : String(err)}`;
+        }
+      } finally {
+        this.loading = false;
+      }
+    }
+  };
+})();
+</script>
