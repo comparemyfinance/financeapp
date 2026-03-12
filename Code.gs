@@ -93,6 +93,7 @@ IMPORTANT INSTALL NOTE:
 // === Spreadsheet backing store (Deals) ===
 const SPREADSHEET_ID = '1V5X_1MIk3VToNTFY7UkEaEs8bkOju7eybjTCkVuFji0';
 const SHEET_NAME     = 'Deals';
+const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
 
 // === Runtime toggles (when serving UI from the same Apps Script project) ===
 // If you are running the CRM UI from HtmlService in this same project, you generally do NOT
@@ -425,6 +426,10 @@ function routeAction_(action, payload, fullRequest) {
       return getFinanceNavigatorSoftScore(payload || {});
     }
 
+    if (action === 'getPartnerActivitySummary') {
+      return safeObj_(() => getPartnerActivitySummary_());
+    }
+
     // Cache-based locks
     if (action === 'acquireLock' || action === 'releaseLock' || action === 'heartbeatLock') {
       if (!ENABLE_CACHE_LOCKS) return { success: true, disabled: true };
@@ -521,6 +526,91 @@ function routeAction_(action, payload, fullRequest) {
       action: action
     };
   }
+}
+
+function getPartnerActivitySummary_() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(PARTNER_ACTIVITY_SHEET_NAME);
+  if (!sheet) {
+    throw new Error('Sheet "' + PARTNER_ACTIVITY_SHEET_NAME + '" not found.');
+  }
+
+  const values = sheet.getDataRange().getValues();
+  if (!values || values.length <= 1) {
+    return { success: true, data: [] };
+  }
+
+  const headers = values[0].map(h => String(h || '').trim());
+  const headerLookup = headers.map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+  const findHeaderIndex = candidates => {
+    for (var i = 0; i < headerLookup.length; i++) {
+      if (candidates.indexOf(headerLookup[i]) !== -1) return i;
+    }
+    return -1;
+  };
+
+  const refererIdx = findHeaderIndex(['referer', 'referrer', 'referalpartner', 'referralpartner', 'partner']);
+  const financeCompanyIdx = findHeaderIndex(['financecompany', 'finance_company', 'finco']);
+
+  if (refererIdx < 0) {
+    throw new Error('Column for referer/referrer not found in "' + PARTNER_ACTIVITY_SHEET_NAME + '".');
+  }
+  if (financeCompanyIdx < 0) {
+    throw new Error('Column for finance_company not found in "' + PARTNER_ACTIVITY_SHEET_NAME + '".');
+  }
+
+  const totalsByReferer = {};
+
+  for (var r = 1; r < values.length; r++) {
+    const row = values[r] || [];
+    const refererRaw = row[refererIdx];
+    const referer = String(refererRaw || '').trim() || 'Unknown Referer';
+    const financeCompany = row[financeCompanyIdx];
+
+    if (!totalsByReferer[referer]) {
+      totalsByReferer[referer] = {
+        referer: referer,
+        totalSearches: 0,
+        validFinanceCount: 0,
+        invalidFinanceCount: 0,
+        validFinancePct: 0,
+        invalidFinancePct: 0
+      };
+    }
+
+    const item = totalsByReferer[referer];
+    item.totalSearches += 1;
+
+    if (isValidFinanceCompany_(financeCompany)) {
+      item.validFinanceCount += 1;
+    } else {
+      item.invalidFinanceCount += 1;
+    }
+  }
+
+  const data = Object.keys(totalsByReferer).map((key) => {
+    const item = totalsByReferer[key];
+    const total = item.totalSearches || 0;
+    const validPct = total > 0 ? (item.validFinanceCount / total) * 100 : 0;
+    const invalidPct = total > 0 ? (item.invalidFinanceCount / total) * 100 : 0;
+    item.validFinancePct = Number(validPct.toFixed(1));
+    item.invalidFinancePct = Number(invalidPct.toFixed(1));
+    return item;
+  }).sort((a, b) => {
+    if (b.totalSearches !== a.totalSearches) return b.totalSearches - a.totalSearches;
+    return a.referer.localeCompare(b.referer);
+  });
+
+  return { success: true, data: data };
+}
+
+function isValidFinanceCompany_(value) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) return false;
+  const normalized = text.toLowerCase();
+  if (['n/a', 'na', '-', '--', 'none', 'null', 'undefined', 'unknown'].indexOf(normalized) !== -1) return false;
+  return true;
 }
 
 
