@@ -3,21 +3,22 @@
     <div class="rounded-xl shadow-sm border p-5" style="background-color: #ffffff; border-color: #d9e9d9;">
       <h2 class="text-2xl font-bold" style="color: var(--british-racing-green);">Partner Activity</h2>
     </div>
+
     <div id="partner-activity-lock" class="rounded-xl shadow-sm border p-5" style="background-color:#ffffff; border-color:#d9e9d9;">
       <h3 class="text-lg font-semibold" style="color:var(--british-racing-green);">Restricted Access</h3>
       <p class="text-sm mt-1" style="color:#4b5563;">Enter password to view Partner Activity cards.</p>
-      <form id="partner-activity-lock-form" class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center" autocomplete="off">
-        <input id="partner-activity-password" type="password" class="w-full sm:max-w-xs px-3 py-2 border rounded-lg" style="border-color:#d1d5db;" placeholder="Enter password" />
+      <form id="partner-activity-lock-form" class="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center" autocomplete="on">
+        <input id="partner-activity-password" type="password" class="w-full sm:max-w-xs px-3 py-2 border rounded-lg" style="border-color:#d1d5db;" placeholder="Enter password" autocomplete="new-password" />
         <button id="partner-activity-unlock-btn" type="submit" class="px-4 py-2 rounded-lg text-white font-semibold" style="background-color:#004225;">Unlock</button>
       </form>
-      <div id="partner-activity-lock-error" class="text-sm mt-2 hidden" style="color:#b91c1c;">Incorrect password. Please try again.</div>
+      <div id="partner-activity-lock-error" class="text-sm mt-2 hidden" style="color:#b91c1c;">Incorrect password. Please try again (CMF internal access).</div>
     </div>
+
     <div id="partner-activity-status" class="text-sm hidden" style="color: #4b5563;">Loading partner activity…</div>
     <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden"></div>
-    <div id="partner-activity-status" class="text-sm" style="color: #4b5563;">Loading partner activity…</div>
-    <div id="partner-activity-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
   </div>
 </div>
+
 <script>
 (function initPartnerActivityTab(){
   if (window.PartnerActivityTab) return;
@@ -26,12 +27,14 @@
   const DAY_MS = 24 * 60 * 60 * 1000;
   const ACCESS_PASSWORD = 'CMF2626';
   const ACCESS_SESSION_KEY = 'CMF_PARTNER_ACTIVITY_UNLOCKED';
+
   const statusEl = () => document.getElementById('partner-activity-status');
   const gridEl = () => document.getElementById('partner-activity-grid');
   const lockPanelEl = () => document.getElementById('partner-activity-lock');
   const lockFormEl = () => document.getElementById('partner-activity-lock-form');
   const lockInputEl = () => document.getElementById('partner-activity-password');
   const lockErrorEl = () => document.getElementById('partner-activity-lock-error');
+
   const esc = (v) => String(v == null ? '' : v)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -134,6 +137,7 @@
   const setUnlocked = () => {
     try { sessionStorage.setItem(ACCESS_SESSION_KEY, '1'); } catch (_) {}
   };
+
   const showLockedView = (keepError = false) => {
     const lock = lockPanelEl();
     const status = statusEl();
@@ -177,7 +181,7 @@
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const pwd = input ? String(input.value || '') : '';
+      const pwd = input ? String(input.value || '').trim() : '';
       const ok = attemptUnlock(pwd);
       if (!ok) return;
       if (input) input.value = '';
@@ -185,26 +189,6 @@
     });
 
     form.dataset.bound = '1';
-  const requestAccess = () => {
-    if (isUnlocked()) return true;
-
-    const entered = window.prompt('Partner Activity access password required', '');
-    if (entered === ACCESS_PASSWORD) {
-      setUnlocked();
-      return true;
-    }
-
-    const status = statusEl();
-    const grid = gridEl();
-    if (grid) grid.innerHTML = '';
-    if (status) {
-      status.className = 'text-sm border px-3 py-2 rounded-lg';
-      status.style.color = '#7c2d12';
-      status.style.backgroundColor = '#fff7ed';
-      status.style.borderColor = '#fed7aa';
-      status.textContent = 'Partner Activity is locked. Enter the correct password to view this tab.';
-    }
-    return false;
   };
 
   const getThirtyDayRunRate = (referer, totalSearches, cache) => {
@@ -276,12 +260,14 @@
     async load(force = false) {
       if (this.loading) return;
       if (this.loaded && !force) return;
+
       initUnlockForm();
 
       if (!requestAccess()) {
         showLockedView();
         return;
       }
+
       const status = statusEl();
       if (status) {
         status.className = 'text-sm';
@@ -289,11 +275,9 @@
         status.textContent = 'Loading partner activity…';
       }
       showUnlockedView();
+
       try {
         this.loading = true;
-      try {
-        this.loading = true;
-        if (!requestAccess()) return;
         if (!window.App || typeof App.apiCall !== 'function') throw new Error('CRM app is not ready yet.');
         const response = await App.apiCall('POST', { action: 'getPartnerActivitySummary', payload: {} });
         const rows = Array.isArray(response?.data) ? response.data : [];
