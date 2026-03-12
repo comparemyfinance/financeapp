@@ -8831,6 +8831,15 @@ getFormData(
                 } catch(e){}
               }
 
+              function resetForFreshPipelineLoad(){
+                try {
+                  if (window.App && App.state) {
+                    App.state.hasCompletedInitialLoad = false;
+                    App.state.isInitialDataLoading = false;
+                  }
+                } catch(e){}
+              }
+
 
               // Global hook used by apiCall() when server returns AUTH_REQUIRED
               window.__cmfHandleAuthRequired = function(resp){
@@ -8898,6 +8907,7 @@ getFormData(
                     await doLogin(u,p);
                     try { activateSalesPipeline(); } catch(e){}
                     // Now boot the app
+                    resetForFreshPipelineLoad();
                     if (typeof App.init === 'function') App.init();
                   } catch(e) {
                     showLogin(e.message || String(e));
@@ -8930,6 +8940,7 @@ getFormData(
               (async function(){
                 const ok = await checkSession();
                 if (ok) { try { activateSalesPipeline(); } catch(e){} }
+                if (ok) resetForFreshPipelineLoad();
                 if (ok && typeof App.init === 'function') App.init();
               })();
             })();
