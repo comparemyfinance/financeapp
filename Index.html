@@ -3507,15 +3507,19 @@ const initializePSE = () => {
             };
             
             const dedupeProductsByLender = (products) => {
-                const seen = new Set();
-                return (products || []).filter((product) => {
-                    const key = getLenderIdForProduct(product);
-                    if (!key || !seen.has(key)) {
-                        if (key) seen.add(key);
-                        return true;
+                const grouped = new Map();
+                (products || []).forEach((product, index) => {
+                    const key = getLenderIdForProduct(product) || `__row_${index}`;
+                    const existing = grouped.get(key);
+                    if (!existing) {
+                        grouped.set(key, product);
+                        return;
                     }
-                    return false;
+                    const existingPriority = existing && existing.mode === 'live' ? 2 : 1;
+                    const nextPriority = product && product.mode === 'live' ? 2 : 1;
+                    if (nextPriority >= existingPriority) grouped.set(key, product);
                 });
+                return Array.from(grouped.values());
             };
             
             const resetPseProductSourceState = () => {
@@ -3636,8 +3640,8 @@ const initializePSE = () => {
                 const { settlementFigure, remainingTerm } = window.appState.financeDetails;
                 const origLoan = getLoanAmount();
 
-                // Pattern B-lite: prefer server-side placeholder quotes (same lender list/defaults as UI),
-                // while keeping UI formulae available as a fallback.
+                // Placeholder bridge: use server batch quotes as the canonical lender source.
+                // Keep local formula fallback for outage resilience only.
                 try {
                     if (window.App && typeof App.apiCall === 'function') {
                         let token = '';
@@ -3648,14 +3652,8 @@ const initializePSE = () => {
                         });
 
                         if (res && res.success && Array.isArray(res.products) && res.products.length) {
-                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), standardApr: Number(p.apr), aprOffer: null, acceptanceRating: null }));
-                            const seen = new Set(serverProducts.map((p) => getLenderIdForProduct(p)));
-                            const missing = lenderData.filter((l) => !seen.has(normalizeLenderName(l.l))).map((l) => {
-                                const balloon = settlementFigure * getBalloonPerc(remainingTerm, origLoan);
-                                const monthly = calcMonthly(settlementFigure, remainingTerm, l.a, balloon);
-                                return { lender: l.l, lenderId: normalizeLenderName(l.l), apr: l.a, standardApr: l.a, aprOffer: null, acceptanceRating: null, term: remainingTerm, calculatedMonthlyPayment: monthly, calculatedBalloonPayment: balloon, calculatedCommission: settlementFigure * (l.c / 100), totalPayable: (monthly * remainingTerm) + balloon };
-                            });
-                            window.appState.products = dedupeProductsByLender(serverProducts.concat(missing));
+                            const serverProducts = res.products.slice().map((p) => ({ ...p, lenderId: getLenderIdForProduct(p), lenderKey: p.lenderKey || getLenderIdForProduct(p), standardApr: Number(p.standardApr ?? p.apr) || 0, aprOffer: null, acceptanceRating: null, mode: p.mode || res.mode || 'placeholder', source: p.source || 'server_placeholder' }));
+                            window.appState.products = dedupeProductsByLender(serverProducts);
                             sortProductsInPlace();
                             return;
                         }
@@ -3665,7 +3663,7 @@ const initializePSE = () => {
                     }
                 } catch (e) {
                     // swallow and fall back to local calc
-                    console.warn('Server placeholder lender quotes failed; falling back to UI calc.', e);
+                    console.warn('Server placeholder lender quotes failed; using local emergency fallback.', e);
                 }
 
                 // Fallback: local UI calculation (preserves current behaviour)
