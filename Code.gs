@@ -423,146 +423,176 @@ function safeClientJson_(obj) {
 // ==========================================
 // SHARED ROUTER (used by doPost and google.script.run)
 // ==========================================
-function routeAction_(action, payload, fullRequest) {
+function normalizeAction_(action) {
+  const raw = String(action || '').trim();
+  if (!raw) return 'unknown';
+  const aliases = {
+    validateJigsawReferral: 'validateJigsaw',
+    submitJigsawReferral: 'submitJigsaw',
+    load: 'getDelta',
+    getAll: 'getDelta'
+  };
+  return aliases[raw] || raw;
+}
+
+function makeRouteContext_(action, payload, fullRequest) {
   const legacy = fullRequest || {};
+  return {
+    rawAction: String(action || '').trim() || 'unknown',
+    action: normalizeAction_(action),
+    payload: (payload != null) ? payload : {},
+    legacy: legacy
+  };
+}
+
+function resolveFolderId_(payload, legacy) {
+  let folderId = '';
+  if (typeof payload === 'string') folderId = payload;
+  if (!folderId && payload && typeof payload === 'object') {
+    folderId =
+      payload.folderId || payload.folder_id || payload.id || payload.driveFolderId ||
+      (typeof payload.folder === 'string' ? payload.folder : (payload.folder && (payload.folder.id || payload.folder.folderId || payload.folder.driveFolderId))) ||
+      (payload.selectedFolder && (payload.selectedFolder.id || payload.selectedFolder.folderId || payload.selectedFolder.driveFolderId)) ||
+      (payload.node && (payload.node.id || payload.node.folderId || payload.node.driveFolderId)) ||
+      '';
+  }
+  if (!folderId && legacy) {
+    folderId =
+      legacy.folderId || legacy.folder_id || legacy.id || legacy.driveFolderId ||
+      (typeof legacy.folder === 'string' ? legacy.folder : (legacy.folder && (legacy.folder.id || legacy.folder.folderId || legacy.folder.driveFolderId))) ||
+      '';
+  }
+  return String(folderId || '').trim();
+}
+
+function handleHealthCheck_(ctx) { return { success: true, status: 'healthy' }; }
+
+// ------------------------ Auth handlers
+function handleAuthLogin_(ctx) {
+  const u = ctx.payload && ctx.payload.username;
+  const p = ctx.payload && ctx.payload.password;
+  return auth_login_plain_(u, p);
+}
+
+function handleAuthStatus_(ctx) {
+  const chk = auth_check_token_(ctx.payload && ctx.payload.token);
+  return chk.success ? { success: true, loggedIn: true, user: chk.user } : { success: true, loggedIn: false };
+}
+
+function handleAuthLogout_(ctx) {
+  return auth_logout_token_(ctx.payload && ctx.payload.token);
+}
+
+// ------------------------ Lender handlers
+function handleListLenders_(ctx) { return { success: true, lenders: listLenders_() }; }
+function handleGetLenderQuote_(ctx) { return getLenderQuote(ctx.payload || {}); }
+function handleGetLenderQuotesBatch_(ctx) { return getLenderQuotesBatch(ctx.payload || {}); }
+function handleGetFinanceNavigatorSoftScore_(ctx) { return getFinanceNavigatorSoftScore(ctx.payload || {}); }
+
+// ------------------------ Deals handlers
+function handleGetPartnerActivitySummary_(ctx) { return safeObj_(() => getPartnerActivitySummary_()); }
+
+function handleLockAction_(ctx) {
+  if (!ENABLE_CACHE_LOCKS) return { success: true, disabled: true };
+  return safeObj_(() => handleDealLocking_(ctx.legacy));
+}
+
+function handleGetDelta_(ctx) {
+  const sheet = getSheet_();
+  const data = getRowsData_(sheet);
+  return { success: true, data: data };
+}
+
+function handleSave_(ctx) {
+  return withLock_(30000, () => {
+    const sheet = getSheet_();
+    return safeObj_(() => saveDeal_(sheet, ctx.payload));
+  });
+}
+
+function handleDelete_(ctx) {
+  return withLock_(30000, () => {
+    const sheet = getSheet_();
+    return safeObj_(() => deleteDeal_(sheet, ctx.payload && ctx.payload.id));
+  });
+}
+
+function handleBatchUpdate_(ctx) {
+  return withLock_(30000, () => {
+    const sheet = getSheet_();
+    return safeObj_(() => batchUpdate_(sheet, ctx.payload && ctx.payload.updates));
+  });
+}
+
+// ------------------------ Drive handlers
+function handleSearchFolders_(ctx) {
+  const q = (ctx.payload && ctx.payload.query != null)
+    ? ctx.payload.query
+    : (ctx.legacy.query != null ? ctx.legacy.query : '');
+  return safeObj_(() => searchClientFolders_(q));
+}
+
+function handleGetFolderFiles_(ctx) {
+  const folderId = resolveFolderId_(ctx.payload, ctx.legacy);
+  if (!folderId) {
+    return makeError_('VALIDATION_ERROR', 'Missing folderId', {
+      hint: 'Send payload.folderId (or payload.id / payload.folder.id)'
+    });
+  }
+  return safeObj_(() => getFolderFiles_(folderId));
+}
+
+// ------------------------ Jigsaw handlers
+function handleValidateJigsaw_(ctx) { return safeObj_(() => validateJigsawAction_(ctx.payload)); }
+function handleSubmitJigsaw_(ctx) { return safeObj_(() => submitJigsawAction_(ctx.payload)); }
+
+// ------------------------ Visible dispatch registry
+const PUBLIC_ACTION_HANDLERS_ = {
+  healthCheck: handleHealthCheck_,
+  authLogin: handleAuthLogin_,
+  authStatus: handleAuthStatus_,
+  authLogout: handleAuthLogout_
+};
+
+const PROTECTED_ACTION_HANDLERS_ = {
+  listLenders: handleListLenders_,
+  getLenderQuote: handleGetLenderQuote_,
+  getLenderQuotesBatch: handleGetLenderQuotesBatch_,
+  getFinanceNavigatorSoftScore: handleGetFinanceNavigatorSoftScore_,
+  getPartnerActivitySummary: handleGetPartnerActivitySummary_,
+  acquireLock: handleLockAction_,
+  releaseLock: handleLockAction_,
+  heartbeatLock: handleLockAction_,
+  searchFolders: handleSearchFolders_,
+  getFolderFiles: handleGetFolderFiles_,
+  getDelta: handleGetDelta_,
+  validateJigsaw: handleValidateJigsaw_,
+  submitJigsaw: handleSubmitJigsaw_,
+  save: handleSave_,
+  delete: handleDelete_,
+  batchUpdate: handleBatchUpdate_
+};
+
+function routeAction_(action, payload, fullRequest) {
+  const ctx = makeRouteContext_(action, payload, fullRequest);
 
   try {
-    // ------------------------
-    // READ ONLY / FAST ACTIONS
-    // ------------------------
-    if (action === 'healthCheck') return { success: true, status: 'healthy' };
-    // ------------------------
-    // AUTH (TOKEN-BASED)
-    // ------------------------
-    if (action === 'authLogin') {
-      const u = payload && payload.username;
-      const p = payload && payload.password;
-      return auth_login_plain_(u, p);
-    }
-    if (action === 'authStatus') {
-      const chk = auth_check_token_(payload && payload.token);
-      return chk.success ? { success: true, loggedIn: true, user: chk.user } : { success: true, loggedIn: false };
-    }
-    if (action === 'authLogout') {
-      return auth_logout_token_(payload && payload.token);
-    }
+    const publicHandler = PUBLIC_ACTION_HANDLERS_[ctx.action];
+    if (publicHandler) return publicHandler(ctx);
 
-    // Gate everything else
-    const auth = auth_check_token_(payload && payload.token);
+    const auth = auth_check_token_(ctx.payload && ctx.payload.token);
     if (!auth.success) return auth;
 
-    // ------------------------
-    // LENDER API (PLACEHOLDER PREP - READ ONLY)
-    // ------------------------
-    if (action === 'listLenders') {
-      return { success: true, lenders: listLenders_() };
-    }
-    if (action === 'getLenderQuote') {
-      return getLenderQuote(payload || {});
-    }
-    if (action === 'getLenderQuotesBatch') {
-      return getLenderQuotesBatch(payload || {});
-    }
-    if (action === 'getFinanceNavigatorSoftScore') {
-      return getFinanceNavigatorSoftScore(payload || {});
-    }
+    const protectedHandler = PROTECTED_ACTION_HANDLERS_[ctx.action];
+    if (protectedHandler) return protectedHandler(ctx);
 
-    if (action === 'getPartnerActivitySummary') {
-      return safeObj_(() => getPartnerActivitySummary_());
-    }
-
-    // Cache-based locks
-    if (action === 'acquireLock' || action === 'releaseLock' || action === 'heartbeatLock') {
-      if (!ENABLE_CACHE_LOCKS) return { success: true, disabled: true };
-      return safeObj_(() => handleDealLocking_(legacy));
-    }
-
-    // Drive search
-    if (action === 'searchFolders') {
-      const q = (payload && payload.query != null) ? payload.query : (legacy.query != null ? legacy.query : '');
-      return safeObj_(() => searchClientFolders_(q));
-    }
-
-    // Folder listing
-    if (action === 'getFolderFiles') {
-      // Be tolerant: callers may send folderId in various shapes (string payload, nested folder object, etc.)
-      let folderId = '';
-
-      // 1) If payload is a string, treat it as the folderId
-      if (typeof payload === 'string') folderId = payload;
-
-      // 2) If payload is an object, try common keys
-      if (!folderId && payload && typeof payload === 'object') {
-        folderId =
-          payload.folderId || payload.folder_id || payload.id || payload.driveFolderId ||
-          // sometimes payload.folder is an object {id,...} or a string
-          (typeof payload.folder === 'string' ? payload.folder : (payload.folder && (payload.folder.id || payload.folder.folderId || payload.folder.driveFolderId))) ||
-          // other likely nesting
-          (payload.selectedFolder && (payload.selectedFolder.id || payload.selectedFolder.folderId || payload.selectedFolder.driveFolderId)) ||
-          (payload.node && (payload.node.id || payload.node.folderId || payload.node.driveFolderId)) ||
-          '';
-      }
-
-      // 3) Legacy/top-level keys (in case older callers pass folderId outside payload)
-      if (!folderId && legacy) {
-        folderId =
-          legacy.folderId || legacy.folder_id || legacy.id || legacy.driveFolderId ||
-          (typeof legacy.folder === 'string' ? legacy.folder : (legacy.folder && (legacy.folder.id || legacy.folder.folderId || legacy.folder.driveFolderId))) ||
-          '';
-      }
-
-      folderId = String(folderId || '').trim();
-
-      if (!folderId) {
-        return { success: false, error: 'Missing folderId', hint: 'Send payload.folderId (or payload.id / payload.folder.id)' };
-      }
-
-      return safeObj_(() => getFolderFiles_(folderId));
-    }
-
-    // Load / Delta read (treat 'load' as alias for getDelta)
-    if (action === 'load' || action === 'getDelta' || action === 'getAll') {
-      const sheet = getSheet_();
-      const data = getRowsData_(sheet);
-      return { success: true, data: data };
-    }
-
-    // ------------------------
-    // WRITE ACTIONS (LockService)
-    // --------------
-    // ------------------------
-    // JIGSAW (VALIDATE / SUBMIT)
-    // NOTE: These actions call external APIs; DO NOT wrap in the global sheet lock.
-    // ------------------------
-    if (action === 'validateJigsaw' || action === 'validateJigsawReferral') {
-      return safeObj_(() => validateJigsawAction_(payload));
-    }
-    if (action === 'submitJigsaw' || action === 'submitJigsawReferral') {
-      return safeObj_(() => submitJigsawAction_(payload));
-    }
-
-    return withLock_(30000, () => {
-      const sheet = getSheet_();
-
-      if (action === 'save') {
-        return safeObj_(() => saveDeal_(sheet, payload));
-      }
-
-      if (action === 'delete') {
-        return safeObj_(() => deleteDeal_(sheet, payload && payload.id));
-      }
-
-      if (action === 'batchUpdate') {
-        return safeObj_(() => batchUpdate_(sheet, payload && payload.updates));
-      }
-      return makeError_('UNKNOWN_ACTION', 'Unknown action: ' + action);
-    });
-
+    return makeError_('UNKNOWN_ACTION', 'Unknown action: ' + ctx.rawAction);
   } catch (err) {
-    console.error('routeAction_ error', action, err);
-    return makeError_('INTERNAL_ERROR', (err && err.message) ? String(err.message) : 'Server error', { action: action });
+    console.error('routeAction_ error', ctx.rawAction, err);
+    return makeError_('INTERNAL_ERROR', (err && err.message) ? String(err.message) : 'Server error', { action: ctx.rawAction });
   }
 }
+
 
 function getPartnerActivitySummary_() {
   const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));

@@ -18,7 +18,8 @@
 
 ## Boundaries
 
-- `Code.gs`: server concerns only (routing, persistence, integrations)
+- `Code.gs`: server concerns only (routing, persistence, integrations).
+  - Routing ownership is now visible via dispatch-table registries (`PUBLIC_ACTION_HANDLERS_`, `PROTECTED_ACTION_HANDLERS_`) and domain-named handler functions.
 - `Auth.js`: token/session concerns only
 - `Lenderapi.gs`: lender/quote math and lender definitions only
 - `Index.html`: shared shell + cross-tab orchestration
@@ -36,6 +37,7 @@
 ## Naming conventions
 
 - Apps Script helper/function suffix `_` for internal helpers.
+- Action normalization occurs in router utilities before dispatch-table resolution to preserve aliases (`load`/`getAll` and Jigsaw referral aliases).
 - Action names are string-based (`authLogin`, `save`, `getDelta`, `searchFolders`, etc.) and should stay backward compatible.
 - Keep canonical template name `Index`/`Index.html` aligned between docs and code.
 
