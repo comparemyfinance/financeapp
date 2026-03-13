@@ -90,20 +90,103 @@ IMPORTANT INSTALL NOTE:
  * ======================================================================
  */
 
-// === Spreadsheet backing store (Deals) ===
-const SPREADSHEET_ID = '1V5X_1MIk3VToNTFY7UkEaEs8bkOju7eybjTCkVuFji0';
-const SHEET_NAME     = 'Deals';
-const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
+// Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
-// === Runtime toggles (when serving UI from the same Apps Script project) ===
-// If you are running the CRM UI from HtmlService in this same project, you generally do NOT
-// need CacheService heartbeat locks or optimistic lastUpdated conflicts.
-const ENABLE_CACHE_LOCKS = false;       // CacheService-based acquire/heartbeat/release
-const ENABLE_OPTIMISTIC_LOCK = false;   // lastUpdated vs updatedAt conflict check
- // Main deals table sheet name
+function getSpreadsheetResolution_() {
+  const legacyId =
+    typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
+      ? String(SPREADSHEET_ID).trim()
+      : '';
+  const configuredId =
+    typeof configGet_ === 'function'
+      ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
+      : legacyId;
+  if (configuredId) {
+    let source = 'legacy_constant';
+    try {
+      if (typeof getConfigResolutionMeta_ === 'function') {
+        const m = getConfigResolutionMeta_('SPREADSHEET_ID');
+        if (m && m.source === 'script_property') source = 'script_property';
+      }
+    } catch (_) {}
+    return { id: configuredId, source: source, hasValue: true };
+  }
+
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active && typeof active.getId === 'function') {
+      const activeId = String(active.getId() || '').trim();
+      if (activeId) return { id: activeId, source: 'active_spreadsheet', hasValue: true };
+    }
+  } catch (_) {}
+
+  return { id: '', source: 'missing', hasValue: false };
+}
+
+function getSpreadsheetId_() {
+  const meta = getSpreadsheetResolution_();
+  if (meta.hasValue) return meta.id;
+  throw new Error('Missing required config: SPREADSHEET_ID');
+}
+
+function logRuntimeDiagnostic_(label, data) {
+  try {
+    Logger.log('[DIAG] ' + label + ' ' + JSON.stringify(data || {}));
+  } catch (_) {
+    try { Logger.log('[DIAG] ' + label); } catch (_) {}
+  }
+}
+
+function getRuntimeDiagnostics_() {
+  const spreadsheetMeta = getSpreadsheetResolution_();
+  let rootMeta = { source: 'missing', hasValue: false };
+  try {
+    rootMeta = typeof getConfigResolutionMeta_ === 'function'
+      ? getConfigResolutionMeta_('ROOT_FOLDER_ID')
+      : { source: 'missing', hasValue: false };
+  } catch (_) {}
+
+  let canOpenSpreadsheet = false;
+  try {
+    if (spreadsheetMeta.hasValue) {
+      canOpenSpreadsheet = !!SpreadsheetApp.openById(spreadsheetMeta.id);
+    }
+  } catch (_) {
+    canOpenSpreadsheet = false;
+  }
+
+  let canAccessRootFolder = false;
+  try {
+    if (rootMeta.hasValue) {
+      const folderId = String(configGet_('ROOT_FOLDER_ID') || '').trim();
+      if (folderId) canAccessRootFolder = !!DriveApp.getFolderById(folderId);
+    }
+  } catch (_) {
+    canAccessRootFolder = false;
+  }
+
+  let authMeta = { source: 'missing', hasValue: false };
+  try {
+    authMeta = typeof getConfigResolutionMeta_ === 'function'
+      ? getConfigResolutionMeta_('AUTH_USERS_JSON')
+      : { source: 'missing', hasValue: false };
+  } catch (_) {}
+
+  return {
+    success: true,
+    hasSpreadsheetIdResolved: !!spreadsheetMeta.hasValue,
+    spreadsheetIdSource: spreadsheetMeta.source || 'missing',
+    hasRootFolderIdResolved: !!rootMeta.hasValue,
+    rootFolderIdSource: rootMeta.source || 'missing',
+    canOpenSpreadsheet: !!canOpenSpreadsheet,
+    canAccessRootFolder: !!canAccessRootFolder,
+    hasAuthConfig: !!authMeta.hasValue,
+    authConfigSource: authMeta.source || 'missing',
+  };
+}
 
 function getSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found.');
   return sheet;
@@ -187,7 +270,7 @@ function objectToRow_(headers, obj) {
 // Uses CacheService for fast lookups; auto-rebuilds on mismatch.
 // ------------------------------------------------------------
 function cacheKey_(suffix) {
-  return 'CMFCRM:' + SPREADSHEET_ID + ':' + SHEET_NAME + ':' + suffix;
+  return 'CMFCRM:' + getSpreadsheetId_() + ':' + SHEET_NAME + ':' + suffix;
 }
 
 function getRowIndexCache_() {
@@ -367,13 +450,6 @@ function handleWebClientRequest(request) {
   return safeClientJson_(result);
 }
 
-function safeClientJson_(obj) {
-  return JSON.stringify(obj, (k, v) => {
-    // Convert Dates to ISO strings
-    if (v instanceof Date) return v.toISOString();
-    return v;
-  });
-}
 
 /**
  * Shared router used by both doPost (HTTP) and handleWebClientRequest (internal).
@@ -382,154 +458,9 @@ function safeClientJson_(obj) {
 // ==========================================
 // SHARED ROUTER (used by doPost and google.script.run)
 // ==========================================
-function routeAction_(action, payload, fullRequest) {
-  const legacy = fullRequest || {};
-
-  try {
-    // ------------------------
-    // READ ONLY / FAST ACTIONS
-    // ------------------------
-    if (action === 'healthCheck') return { success: true, status: 'healthy' };
-    // ------------------------
-    // AUTH (TOKEN-BASED)
-    // ------------------------
-    if (action === 'authLogin') {
-      const u = payload && payload.username;
-      const p = payload && payload.password;
-      return auth_login_plain_(u, p);
-    }
-    if (action === 'authStatus') {
-      const chk = auth_check_token_(payload && payload.token);
-      return chk.success ? { success: true, loggedIn: true, user: chk.user } : { success: true, loggedIn: false };
-    }
-    if (action === 'authLogout') {
-      return auth_logout_token_(payload && payload.token);
-    }
-
-    // Gate everything else
-    const auth = auth_check_token_(payload && payload.token);
-    if (!auth.success) return auth;
-
-    // ------------------------
-    // LENDER API (PLACEHOLDER PREP - READ ONLY)
-    // ------------------------
-    if (action === 'listLenders') {
-      return { success: true, lenders: listLenders_() };
-    }
-    if (action === 'getLenderQuote') {
-      return getLenderQuote(payload || {});
-    }
-    if (action === 'getLenderQuotesBatch') {
-      return getLenderQuotesBatch(payload || {});
-    }
-    if (action === 'getFinanceNavigatorSoftScore') {
-      return getFinanceNavigatorSoftScore(payload || {});
-    }
-
-    if (action === 'getPartnerActivitySummary') {
-      return safeObj_(() => getPartnerActivitySummary_());
-    }
-
-    // Cache-based locks
-    if (action === 'acquireLock' || action === 'releaseLock' || action === 'heartbeatLock') {
-      if (!ENABLE_CACHE_LOCKS) return { success: true, disabled: true };
-      return safeObj_(() => handleDealLocking_(legacy));
-    }
-
-    // Drive search
-    if (action === 'searchFolders') {
-      const q = (payload && payload.query != null) ? payload.query : (legacy.query != null ? legacy.query : '');
-      return safeObj_(() => searchClientFolders_(q));
-    }
-
-    // Folder listing
-    if (action === 'getFolderFiles') {
-      // Be tolerant: callers may send folderId in various shapes (string payload, nested folder object, etc.)
-      let folderId = '';
-
-      // 1) If payload is a string, treat it as the folderId
-      if (typeof payload === 'string') folderId = payload;
-
-      // 2) If payload is an object, try common keys
-      if (!folderId && payload && typeof payload === 'object') {
-        folderId =
-          payload.folderId || payload.folder_id || payload.id || payload.driveFolderId ||
-          // sometimes payload.folder is an object {id,...} or a string
-          (typeof payload.folder === 'string' ? payload.folder : (payload.folder && (payload.folder.id || payload.folder.folderId || payload.folder.driveFolderId))) ||
-          // other likely nesting
-          (payload.selectedFolder && (payload.selectedFolder.id || payload.selectedFolder.folderId || payload.selectedFolder.driveFolderId)) ||
-          (payload.node && (payload.node.id || payload.node.folderId || payload.node.driveFolderId)) ||
-          '';
-      }
-
-      // 3) Legacy/top-level keys (in case older callers pass folderId outside payload)
-      if (!folderId && legacy) {
-        folderId =
-          legacy.folderId || legacy.folder_id || legacy.id || legacy.driveFolderId ||
-          (typeof legacy.folder === 'string' ? legacy.folder : (legacy.folder && (legacy.folder.id || legacy.folder.folderId || legacy.folder.driveFolderId))) ||
-          '';
-      }
-
-      folderId = String(folderId || '').trim();
-
-      if (!folderId) {
-        return { success: false, error: 'Missing folderId', hint: 'Send payload.folderId (or payload.id / payload.folder.id)' };
-      }
-
-      return safeObj_(() => getFolderFiles_(folderId));
-    }
-
-    // Load / Delta read (treat 'load' as alias for getDelta)
-    if (action === 'load' || action === 'getDelta' || action === 'getAll') {
-      const sheet = getSheet_();
-      const data = getRowsData_(sheet);
-      return { success: true, data: data };
-    }
-
-    // ------------------------
-    // WRITE ACTIONS (LockService)
-    // --------------
-    // ------------------------
-    // JIGSAW (VALIDATE / SUBMIT)
-    // NOTE: These actions call external APIs; DO NOT wrap in the global sheet lock.
-    // ------------------------
-    if (action === 'validateJigsaw' || action === 'validateJigsawReferral') {
-      return safeObj_(() => validateJigsawAction_(payload));
-    }
-    if (action === 'submitJigsaw' || action === 'submitJigsawReferral') {
-      return safeObj_(() => submitJigsawAction_(payload));
-    }
-
-    return withLock_(30000, () => {
-      const sheet = getSheet_();
-
-      if (action === 'save') {
-        return safeObj_(() => saveDeal_(sheet, payload));
-      }
-
-      if (action === 'delete') {
-        return safeObj_(() => deleteDeal_(sheet, payload && payload.id));
-      }
-
-      if (action === 'batchUpdate') {
-        return safeObj_(() => batchUpdate_(sheet, payload && payload.updates));
-      }
-      return { success: false, error: 'Unknown action: ' + action };
-    });
-
-  } catch (err) {
-    return {
-      success: false,
-      error: String((err && err.message) ? err.message : err),
-      details: String(err),
-      stack: (err && err.stack) ? String(err.stack) : null,
-      action: action
-    };
-  }
-}
-
+// Router action dispatch extracted to server/router/actions.gs
 function getPartnerActivitySummary_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   const sheet = ss.getSheetByName(PARTNER_ACTIVITY_SHEET_NAME);
   if (!sheet) {
     throw new Error('Sheet "' + PARTNER_ACTIVITY_SHEET_NAME + '" not found.');
@@ -631,7 +562,7 @@ function isValidFinanceCompany_(value) {
 function doPost(e) {
   // Validate POST
   if (!e || !e.postData || !e.postData.contents) {
-    return createJsonOutput_({ success: false, error: "Valid POST data required" });
+    return createJsonOutput_(makeError_('VALIDATION_ERROR', "Valid POST data required"));
   }
 
   // Parse Payload
@@ -639,7 +570,8 @@ function doPost(e) {
   try {
     request = JSON.parse(e.postData.contents);
   } catch (err) {
-    return createJsonOutput_({ success: false, error: "Invalid JSON", details: err.toString() });
+    console.error('Invalid JSON payload', err);
+    return createJsonOutput_(makeError_('VALIDATION_ERROR', "Invalid JSON"));
   }
 
   const action = (request && request.action) ? request.action : 'unknown';
@@ -821,7 +753,7 @@ function dailyArchive() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = SpreadsheetApp.openById(getSpreadsheetId_());
     const src = ss.getSheetByName('Deals');
     let arc = ss.getSheetByName('Archive');
     if (!arc) arc = ss.insertSheet('Archive');
@@ -849,29 +781,6 @@ function dailyArchive() {
  * Consistent JSON output wrapper.
  * Always use this for responses so the front-end can safely JSON.parse().
  */
-function safeObj_(fn) {
-  try {
-    const out = fn();
-    // If a handler accidentally returns a ContentService output, convert to a plain object if possible.
-    if (out && typeof out.getContent === 'function') {
-      try {
-        return JSON.parse(out.getContent());
-      } catch (e) {
-        return { success: false, error: 'INVALID_OUTPUT', details: 'Handler returned a TextOutput that could not be parsed.' };
-      }
-    }
-    return out;
-  } catch (err) {
-    return {
-      success: false,
-      error: 'SERVER_ERROR',
-      details: (err && err.message) ? String(err.message) : String(err),
-      stack: (err && err.stack) ? String(err.stack) : null
-    };
-  }
-}
-
-
 /**
  * Run fn under a ScriptLock to serialize writes.
  * Returns fn()'s return value (plain object).
@@ -886,14 +795,6 @@ function withLock_(timeoutMs, fn) {
     try { lock.releaseLock(); } catch (_) {}
   }
 }
-
-function createJsonOutput_(o) {
-  return ContentService.createTextOutput(JSON.stringify(o))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// Backwards compatibility (HTTP handlers should return createJsonOutput_ at the very end)
-function json_(o) { return createJsonOutput_(o); }
 
 /**
  * ======================================================================
@@ -937,7 +838,7 @@ function getRequestUserEmail_(payload, req) {
 function handleDealLocking_(req) {
   const payload = (req && req.payload) ? req.payload : (req || {});
   const dealId = String(payload.dealId || payload.id || payload.dealID || '').trim();
-  if (!dealId) return { success: false, error: 'Missing payload.dealId' };
+  if (!dealId) return makeError_('VALIDATION_ERROR', 'Missing payload.dealId');
 
   const cache = CacheService.getScriptCache();
   const lockKey = 'LOCK_' + dealId;
@@ -948,7 +849,7 @@ function handleDealLocking_(req) {
 
   // Short lock to reduce race window for acquire/heartbeat/release
   const guard = LockService.getScriptLock();
-  if (!guard.tryLock(1000)) return { success: false, error: 'Server busy, please try again' };
+  if (!guard.tryLock(1000)) return makeError_('RATE_LIMITED', 'Server busy, please try again');
 
   try {
     const action = String(req.action || '').trim();
@@ -959,7 +860,7 @@ function handleDealLocking_(req) {
 
       // If locked by someone else
       if (currentOwner && currentOwner !== clientId) {
-        return { success: false, error: 'LOCKED', status: 'LOCKED' };
+        return makeError_('LOCKED', 'Deal is locked by another user', { status: 'LOCKED' });
       }
 
       // Acquire or renew lock
@@ -979,22 +880,13 @@ function handleDealLocking_(req) {
       }
 
       // Otherwise, refuse to release someone else's lock
-      return { success: false, error: 'LOCKED', status: 'LOCKED' };
+      return makeError_('LOCKED', 'Deal is locked by another user', { status: 'LOCKED' });
     }
 
-    return { success: false, error: 'Invalid locking action: ' + action };
+    return makeError_('VALIDATION_ERROR', 'Invalid locking action: ' + action);
   } finally {
     guard.releaseLock();
   }
-}
-
-
-// ------------------------- Properties helpers
-function getProp_(k) { return PropertiesService.getScriptProperties().getProperty(k); }
-function boolProp_(k, defVal) {
-  const v = (getProp_(k) || '').toString().trim().toLowerCase();
-  if (!v) return !!defVal;
-  return (v === 'true' || v === '1' || v === 'yes');
 }
 
 
@@ -1002,11 +894,11 @@ function boolProp_(k, defVal) {
 function setupJigsawUatProperties_() {
   // WARNING: This overwrites existing Script Properties with the supplied values.
   // Set your webhook shared secret before enabling webhooks.
-  PropertiesService.getScriptProperties().setProperties({
+  configSetMany_({
     JIGSAW_ENV: 'UAT',
-    JIGSAW_USERNAME: 'CompareMyFinance',
-    JIGSAW_PASSWORD: '349f5611-c408-4e4c-8141-b6705568fa80',
-    // JIGSAW_SHARED_SECRET: '<<<SET_ME>>>'
+    JIGSAW_USERNAME: '<<<SET_ME>>>',
+    JIGSAW_PASSWORD: '<<<SET_ME>>>',
+    JIGSAW_SHARED_SECRET: '<<<SET_ME>>>'
   }, true);
 }
 function getJigsawBaseUrl_() {
@@ -1018,7 +910,7 @@ function getJigsawBaseUrl_() {
 
 // ------------------------- Logging sheet
 function getLogSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(JIGSAW_LOG_SHEET);
   if (!sh) sh = ss.insertSheet(JIGSAW_LOG_SHEET);
   const headers = ['timestampUtc','event','dealId','introducerReference','jigsawReference','httpStatus','ok','message','request','response'];
@@ -1062,7 +954,7 @@ function safeStringify_(o) {
 
 // ------------------------- VRN cache
 function getVrnSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(VRN_CACHE_SHEET);
   if (!sh) sh = ss.insertSheet(VRN_CACHE_SHEET);
   const headers = ['vrn','data','updatedAt'];
@@ -1133,6 +1025,7 @@ function fetchWithTransientRetry_(url, options, maxAttempts) {
 }
 
 function getJigsawToken_() {
+  requireConfig_(['JIGSAW_USERNAME', 'JIGSAW_PASSWORD']);
   const username = getProp_('JIGSAW_USERNAME');
   const password = getProp_('JIGSAW_PASSWORD');
   if (!username || !password) throw new Error('Missing JIGSAW_USERNAME / JIGSAW_PASSWORD in Script Properties');
@@ -1319,7 +1212,7 @@ function getJigsawPath_(propName, defaultPath) {
 }
 
 function ensureJigsawStoreSheet_(name, headers) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
   if (sh.getLastRow() === 0) sh.appendRow(headers);
@@ -1733,14 +1626,14 @@ function handleJigsawWebhook_(e, bodyObj, rawBody) {
   const secret = getProp_('JIGSAW_SHARED_SECRET');
   if (!secret) {
     appendJigsawLog_('webhook_rejected', { httpStatus: 500, ok:false, message:'Missing JIGSAW_SHARED_SECRET' });
-    return { success:false, error:'Server missing JIGSAW_SHARED_SECRET' };
+    return makeError_('CONFIG_ERROR', 'Server missing JIGSAW_SHARED_SECRET');
   }
 
   if (!sig) {
     // We cannot validate without a signature. If your deployment does not expose e.headers,
     // use a proxy to forward the JF-SIGNATURE header into query param `sig`.
     appendJigsawLog_('webhook_rejected', { httpStatus: 401, ok:false, message:'Missing signature (sig)' , response: bodyObj });
-    return { success:false, error:'Missing signature. Provide as query param sig=... (or JSON JfSignature).' };
+    return makeError_('AUTH_REQUIRED', 'Missing signature. Provide as query param sig=... (or JSON JfSignature).');
   }
 
   const expectedHex = hmacSha512Hex_(secret, rawBody);
@@ -1751,7 +1644,7 @@ function handleJigsawWebhook_(e, bodyObj, rawBody) {
 
   if (!ok) {
     appendJigsawLog_('webhook_rejected', { httpStatus: 401, ok:false, message:'Signature mismatch', response: bodyObj });
-    return { success:false, error:'Invalid signature' };
+    return makeError_('FORBIDDEN', 'Invalid signature');
   }
 
   const introducerRef = String(bodyObj.IntroducerReference || bodyObj.introducerReference || '').trim();
@@ -2432,7 +2325,8 @@ function searchClientFolders_(query) {
 //    Apps Script Editor -> Services -> + -> Drive API (enable).
 //  - If not enabled, you'll see 'Drive is not defined'.
 //  - Keep fields/pageSize small for performance (live search).
-  const ROOT_FOLDER_ID = '1qgMSGfh01yODRumtdaQH44nVEAjft51-'; 
+  requireConfig_(['ROOT_FOLDER_ID']);
+  const ROOT_FOLDER_ID = configGet_('ROOT_FOLDER_ID');
 
   try {
     const q = String(query || '').trim().replace(/'/g, "\\'");
