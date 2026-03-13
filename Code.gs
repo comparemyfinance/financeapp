@@ -102,8 +102,49 @@ const ENABLE_CACHE_LOCKS = false;       // CacheService-based acquire/heartbeat/
 const ENABLE_OPTIMISTIC_LOCK = false;   // lastUpdated vs updatedAt conflict check
  // Main deals table sheet name
 
+// Centralized config accessors (Phase 3C)
+const CONFIG_DEFAULTS_ = {
+  SPREADSHEET_ID: SPREADSHEET_ID,
+  SHEET_NAME: SHEET_NAME,
+  PARTNER_ACTIVITY_SHEET_NAME: PARTNER_ACTIVITY_SHEET_NAME,
+  ROOT_FOLDER_ID: '1qgMSGfh01yODRumtdaQH44nVEAjft51-'
+};
+
+function configGet_(key, fallback) {
+  const fb = (fallback !== undefined) ? fallback : (Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key) ? CONFIG_DEFAULTS_[key] : '');
+  let propVal = '';
+  try { propVal = PropertiesService.getScriptProperties().getProperty(key) || ''; } catch (_) {}
+  const val = String(propVal || '').trim();
+  return val || fb;
+}
+
+function configBool_(key, defVal) {
+  const raw = String(configGet_(key, defVal ? 'true' : 'false')).trim().toLowerCase();
+  if (!raw) return !!defVal;
+  return raw === 'true' || raw === '1' || raw === 'yes';
+}
+
+function makeError_(code, message, extras) {
+  const errObj = {
+    success: false,
+    ok: false,
+    error: {
+      code: String(code || 'INTERNAL_ERROR'),
+      message: String(message || 'Unexpected server error')
+    }
+  };
+  const extra = extras && typeof extras === 'object' ? extras : null;
+  if (extra) {
+    Object.keys(extra).forEach((k) => {
+      if (k === 'stack' || k === 'details') return;
+      errObj[k] = extra[k];
+    });
+  }
+  return errObj;
+}
+
 function getSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found.');
   return sheet;
@@ -514,22 +555,17 @@ function routeAction_(action, payload, fullRequest) {
       if (action === 'batchUpdate') {
         return safeObj_(() => batchUpdate_(sheet, payload && payload.updates));
       }
-      return { success: false, error: 'Unknown action: ' + action };
+      return makeError_('UNKNOWN_ACTION', 'Unknown action: ' + action);
     });
 
   } catch (err) {
-    return {
-      success: false,
-      error: String((err && err.message) ? err.message : err),
-      details: String(err),
-      stack: (err && err.stack) ? String(err.stack) : null,
-      action: action
-    };
+    console.error('routeAction_ error', action, err);
+    return makeError_('INTERNAL_ERROR', (err && err.message) ? String(err.message) : 'Server error', { action: action });
   }
 }
 
 function getPartnerActivitySummary_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   const sheet = ss.getSheetByName(PARTNER_ACTIVITY_SHEET_NAME);
   if (!sheet) {
     throw new Error('Sheet "' + PARTNER_ACTIVITY_SHEET_NAME + '" not found.');
@@ -631,7 +667,7 @@ function isValidFinanceCompany_(value) {
 function doPost(e) {
   // Validate POST
   if (!e || !e.postData || !e.postData.contents) {
-    return createJsonOutput_({ success: false, error: "Valid POST data required" });
+    return createJsonOutput_(makeError_('VALIDATION_ERROR', "Valid POST data required"));
   }
 
   // Parse Payload
@@ -639,7 +675,8 @@ function doPost(e) {
   try {
     request = JSON.parse(e.postData.contents);
   } catch (err) {
-    return createJsonOutput_({ success: false, error: "Invalid JSON", details: err.toString() });
+    console.error('Invalid JSON payload', err);
+    return createJsonOutput_(makeError_('VALIDATION_ERROR', "Invalid JSON"));
   }
 
   const action = (request && request.action) ? request.action : 'unknown';
@@ -821,7 +858,7 @@ function dailyArchive() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
     const src = ss.getSheetByName('Deals');
     let arc = ss.getSheetByName('Archive');
     if (!arc) arc = ss.insertSheet('Archive');
@@ -857,17 +894,13 @@ function safeObj_(fn) {
       try {
         return JSON.parse(out.getContent());
       } catch (e) {
-        return { success: false, error: 'INVALID_OUTPUT', details: 'Handler returned a TextOutput that could not be parsed.' };
+        return makeError_('INVALID_OUTPUT', 'Handler returned a non-JSON payload.');
       }
     }
     return out;
   } catch (err) {
-    return {
-      success: false,
-      error: 'SERVER_ERROR',
-      details: (err && err.message) ? String(err.message) : String(err),
-      stack: (err && err.stack) ? String(err.stack) : null
-    };
+    console.error('safeObj_ error', err);
+    return makeError_('INTERNAL_ERROR', 'Server error');
   }
 }
 
@@ -937,7 +970,7 @@ function getRequestUserEmail_(payload, req) {
 function handleDealLocking_(req) {
   const payload = (req && req.payload) ? req.payload : (req || {});
   const dealId = String(payload.dealId || payload.id || payload.dealID || '').trim();
-  if (!dealId) return { success: false, error: 'Missing payload.dealId' };
+  if (!dealId) return makeError_('VALIDATION_ERROR', 'Missing payload.dealId');
 
   const cache = CacheService.getScriptCache();
   const lockKey = 'LOCK_' + dealId;
@@ -948,7 +981,7 @@ function handleDealLocking_(req) {
 
   // Short lock to reduce race window for acquire/heartbeat/release
   const guard = LockService.getScriptLock();
-  if (!guard.tryLock(1000)) return { success: false, error: 'Server busy, please try again' };
+  if (!guard.tryLock(1000)) return makeError_('RATE_LIMITED', 'Server busy, please try again');
 
   try {
     const action = String(req.action || '').trim();
@@ -959,7 +992,7 @@ function handleDealLocking_(req) {
 
       // If locked by someone else
       if (currentOwner && currentOwner !== clientId) {
-        return { success: false, error: 'LOCKED', status: 'LOCKED' };
+        return makeError_('LOCKED', 'Deal is locked by another user', { status: 'LOCKED' });
       }
 
       // Acquire or renew lock
@@ -979,10 +1012,10 @@ function handleDealLocking_(req) {
       }
 
       // Otherwise, refuse to release someone else's lock
-      return { success: false, error: 'LOCKED', status: 'LOCKED' };
+      return makeError_('LOCKED', 'Deal is locked by another user', { status: 'LOCKED' });
     }
 
-    return { success: false, error: 'Invalid locking action: ' + action };
+    return makeError_('VALIDATION_ERROR', 'Invalid locking action: ' + action);
   } finally {
     guard.releaseLock();
   }
@@ -990,19 +1023,19 @@ function handleDealLocking_(req) {
 
 
 // ------------------------- Properties helpers
-function getProp_(k) { return PropertiesService.getScriptProperties().getProperty(k); }
-function boolProp_(k, defVal) {
-  const v = (getProp_(k) || '').toString().trim().toLowerCase();
-  if (!v) return !!defVal;
-  return (v === 'true' || v === '1' || v === 'yes');
-}
+function getProp_(k) { return configGet_(k, ''); }
+function boolProp_(k, defVal) { return configBool_(k, defVal); }
 
+
+function configSetMany_(obj, deleteAllOthers) {
+  return PropertiesService.getScriptProperties().setProperties(obj || {}, !!deleteAllOthers);
+}
 
 // ------------------------- One-time setup helper (run manually from Apps Script editor)
 function setupJigsawUatProperties_() {
   // WARNING: This overwrites existing Script Properties with the supplied values.
   // Set your webhook shared secret before enabling webhooks.
-  PropertiesService.getScriptProperties().setProperties({
+  configSetMany_({
     JIGSAW_ENV: 'UAT',
     JIGSAW_USERNAME: 'CompareMyFinance',
     JIGSAW_PASSWORD: '349f5611-c408-4e4c-8141-b6705568fa80',
@@ -1018,7 +1051,7 @@ function getJigsawBaseUrl_() {
 
 // ------------------------- Logging sheet
 function getLogSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   let sh = ss.getSheetByName(JIGSAW_LOG_SHEET);
   if (!sh) sh = ss.insertSheet(JIGSAW_LOG_SHEET);
   const headers = ['timestampUtc','event','dealId','introducerReference','jigsawReference','httpStatus','ok','message','request','response'];
@@ -1062,7 +1095,7 @@ function safeStringify_(o) {
 
 // ------------------------- VRN cache
 function getVrnSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   let sh = ss.getSheetByName(VRN_CACHE_SHEET);
   if (!sh) sh = ss.insertSheet(VRN_CACHE_SHEET);
   const headers = ['vrn','data','updatedAt'];
@@ -1319,7 +1352,7 @@ function getJigsawPath_(propName, defaultPath) {
 }
 
 function ensureJigsawStoreSheet_(name, headers) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
   if (sh.getLastRow() === 0) sh.appendRow(headers);
@@ -1733,14 +1766,14 @@ function handleJigsawWebhook_(e, bodyObj, rawBody) {
   const secret = getProp_('JIGSAW_SHARED_SECRET');
   if (!secret) {
     appendJigsawLog_('webhook_rejected', { httpStatus: 500, ok:false, message:'Missing JIGSAW_SHARED_SECRET' });
-    return { success:false, error:'Server missing JIGSAW_SHARED_SECRET' };
+    return makeError_('CONFIG_ERROR', 'Server missing JIGSAW_SHARED_SECRET');
   }
 
   if (!sig) {
     // We cannot validate without a signature. If your deployment does not expose e.headers,
     // use a proxy to forward the JF-SIGNATURE header into query param `sig`.
     appendJigsawLog_('webhook_rejected', { httpStatus: 401, ok:false, message:'Missing signature (sig)' , response: bodyObj });
-    return { success:false, error:'Missing signature. Provide as query param sig=... (or JSON JfSignature).' };
+    return makeError_('AUTH_REQUIRED', 'Missing signature. Provide as query param sig=... (or JSON JfSignature).');
   }
 
   const expectedHex = hmacSha512Hex_(secret, rawBody);
@@ -1751,7 +1784,7 @@ function handleJigsawWebhook_(e, bodyObj, rawBody) {
 
   if (!ok) {
     appendJigsawLog_('webhook_rejected', { httpStatus: 401, ok:false, message:'Signature mismatch', response: bodyObj });
-    return { success:false, error:'Invalid signature' };
+    return makeError_('FORBIDDEN', 'Invalid signature');
   }
 
   const introducerRef = String(bodyObj.IntroducerReference || bodyObj.introducerReference || '').trim();
@@ -2432,7 +2465,7 @@ function searchClientFolders_(query) {
 //    Apps Script Editor -> Services -> + -> Drive API (enable).
 //  - If not enabled, you'll see 'Drive is not defined'.
 //  - Keep fields/pageSize small for performance (live search).
-  const ROOT_FOLDER_ID = '1qgMSGfh01yODRumtdaQH44nVEAjft51-'; 
+  const ROOT_FOLDER_ID = configGet_('ROOT_FOLDER_ID');
 
   try {
     const q = String(query || '').trim().replace(/'/g, "\\'");
