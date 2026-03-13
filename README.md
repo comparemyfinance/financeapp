@@ -31,6 +31,8 @@ npm run hooks:install
 npm run sanity
 npm run lint
 npm test
+# Behavioral contract + smoke suite only
+npm run test:behavioral
 ```
 
 ## How to run
@@ -59,7 +61,7 @@ Local development workflow is:
 
 - **Quality gate (local/CI):**
   - `npm run lint` (format check + syntax validation)
-  - `npm test` (sanity + syntax validation)
+  - `npm test` (sanity + syntax validation + behavioral contracts/smoke)
 - **PR CI:** `.github/workflows/ci.yml`
 - **Post-merge checks:** `.github/workflows/post-merge-quality.yml`
 - **Deploy to Apps Script:** `.github/workflows/deploy.yml` on push to `main`
