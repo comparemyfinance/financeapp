@@ -18,9 +18,9 @@ const AUTH_TOKEN_PREFIX = "authToken:";
 function auth_login_plain_(username, password) {
   const u = String(username || "").trim().toLowerCase();
   const p = String(password || "");
-  if (!u || !p) return { success: false, error: "Missing username or password." };
-  if (!(u in AUTH_USERS)) return { success: false, error: "Invalid username or password." };
-  if (AUTH_USERS[u] !== p) return { success: false, error: "Invalid username or password." };
+  if (!u || !p) return makeError_("VALIDATION_ERROR", "Missing username or password.");
+  if (!(u in AUTH_USERS)) return makeError_("AUTH_REQUIRED", "Invalid username or password.");
+  if (AUTH_USERS[u] !== p) return makeError_("AUTH_REQUIRED", "Invalid username or password.");
 
   const token = Utilities.getUuid();
   CacheService.getScriptCache().put(AUTH_TOKEN_PREFIX + token, u, AUTH_TOKEN_TTL_SECONDS);
@@ -29,9 +29,9 @@ function auth_login_plain_(username, password) {
 
 function auth_check_token_(token) {
   const t = String(token || "").trim();
-  if (!t) return { success: false, error: "AUTH_REQUIRED", authRequired: true };
+  if (!t) return makeError_("AUTH_REQUIRED", "AUTH_REQUIRED", { authRequired: true });
   const u = CacheService.getScriptCache().get(AUTH_TOKEN_PREFIX + t);
-  if (!u) return { success: false, error: "AUTH_REQUIRED", authRequired: true };
+  if (!u) return makeError_("AUTH_REQUIRED", "AUTH_REQUIRED", { authRequired: true });
   return { success: true, user: u };
 }
 

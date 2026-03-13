@@ -1,51 +1,55 @@
-# Target Architecture (Staged Migration)
+# Architecture Map
 
-## Goals
+## Systems
 
-- Keep production app runnable during refactor.
-- Isolate concerns (routing, data access, auth, UI modules).
-- Make template and script syntax failures detectable pre-merge.
+- **Apps Script Backend (server runtime):**
+  - Entry points: `doGet`, `doPost`, `handleWebClientRequest` in `Code.gs`
+  - Responsibilities: action routing, auth gating, sheet CRUD, Drive file lookup, external integrations, webhook handling
+- **Browser UI (Apps Script HTML templates):**
+  - Main shell: `Index.html`
+  - Feature tabs: `tab*.html`
+  - Communication: `google.script.run.handleWebClientRequest(...)` using `{ action, payload }`
+- **Data/infra dependencies:**
+  - Google Sheets (deals + supporting sheets)
+  - Google Drive (client folders/files)
+  - Apps Script `CacheService` (sessions, caches)
+  - Script Properties (integration credentials/config)
+  - External lender/Jigsaw endpoints
 
-## Structure
+## Boundaries
 
-- `server/`: Apps Script controllers/services (new code path, gated).
-- `client/`: browser-side modules extracted from large inline script blocks.
-- `templates/`: HTML partials/includes for tab composition.
-- `shared/`: schemas, contract validators, common transforms.
-- `scripts/`: validation/build/deploy helpers.
-- `tests/`: smoke tests and contract checks.
+- `Code.gs`: server concerns only (routing, persistence, integrations).
+  - Routing ownership is now visible via dispatch-table registries (`PUBLIC_ACTION_HANDLERS_`, `PROTECTED_ACTION_HANDLERS_`) and domain-named handler functions.
+- `Auth.js`: token/session concerns only
+- `Lenderapi.gs`: lender/quote math and lender definitions only
+- `Index.html`: shared shell + cross-tab orchestration
+- `tab*.html`: feature-local rendering and interaction logic
 
-## Routing conventions
+## Data flow
 
-- Keep existing `doGet` / `doPost` and `handleWebClientRequest` stable as compatibility API.
-- Route all actions through a single dispatcher contract (`action`, `payload`, metadata).
-- Introduce new handler registry behind migration feature flag before removing legacy switch logic.
+1. Browser action triggered in UI (`Index.html` or tab template).
+2. Client submits `{ action, payload }` via `google.script.run.handleWebClientRequest(...)`.
+3. `handleWebClientRequest` delegates to `routeAction_` in `Code.gs`.
+4. `routeAction_` enforces auth for protected actions.
+5. Handler performs reads/writes to Sheets, Drive, or external APIs.
+6. Response envelope returned to client and rendered by UI.
 
-## Contract conventions
+## Naming conventions
 
-- Validate requests at route boundaries.
-- Use explicit success/error envelope:
-  - `{ success: true, data, meta? }`
-  - `{ success: false, error, code?, correlationId? }`
-- Never expose stack traces to clients in production responses.
+- Apps Script helper/function suffix `_` for internal helpers.
+- Action normalization occurs in router utilities before dispatch-table resolution to preserve aliases (`load`/`getAll` and Jigsaw referral aliases).
+- Action names are string-based (`authLogin`, `save`, `getDelta`, `searchFolders`, etc.) and should stay backward compatible.
+- Keep canonical template name `Index`/`Index.html` aligned between docs and code.
 
-## Data layer conventions
+## Dependency direction
 
-- Centralize sheet reads/writes behind one service module with:
-  - lock handling
-  - cache/index consistency
-  - deterministic errors
-- Add helper adapters so legacy functions can call new service without full rewrite.
+- UI templates depend on backend action contracts.
+- Backend router depends on domain helpers (`Auth.js`, `Lenderapi.gs`, `Code.gs` internals).
+- Domain logic depends on platform services (Sheets/Drive/Cache/Properties) and external APIs.
+- Docs describe behavior and constraints; they should not be behind implementation changes.
 
-## Frontend conventions
+## Current constraints
 
-- Keep tab wiring event delegation as a compatibility layer.
-- Move tab-specific behavior to per-feature modules gradually.
-- Prefer `textContent` and explicit escaping helpers over raw `innerHTML` for dynamic user content.
-
-## Rollout strategy
-
-1. Land quality gates and syntax validators.
-2. Fix hard parser/runtime blockers.
-3. Migrate feature slices with smoke checks.
-4. Remove dead legacy code only after parity checks pass.
+- Runtime is Google Apps Script (V8), so there is no local Node server for feature runtime.
+- Large inline scripts still exist in template files; refactors should be incremental.
+- Deployment is CI-driven using `clasp`.
