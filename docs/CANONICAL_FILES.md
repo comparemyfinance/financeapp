@@ -20,6 +20,12 @@ Use this map to avoid editing the wrong file.
 - **Feature-local UI behavior:** `tab*.html`
 - **Transitional/delegated duplicate runtime logic exists in `tabSalesPipeline.html`**. Treat `Index.html` as canonical when behavior diverges unless runtime wiring explicitly routes through tab-owned logic.
 
+### Operating habit update (frontend)
+
+- Session/bootstrap source of truth is `Index.html`.
+- Shared `apiCall` source of truth is `Index.html`.
+- Tab-local wrappers are compatibility paths unless explicitly requested.
+
 ## Edit-here guidance
 
 - Add/modify backend actions -> `server/router/actions.gs`

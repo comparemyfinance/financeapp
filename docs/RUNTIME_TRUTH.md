@@ -27,6 +27,12 @@ Use this first in a cold session.
 - Canonical shared wrapper/session bootstrap: `Index.html`
 - Feature UI + transitional duplicates: `tab*.html` (notably `tabSalesPipeline.html`)
 
+### Operating habit update (frontend)
+
+- Session/bootstrap source of truth: `Index.html`
+- Shared `apiCall` source of truth: `Index.html`
+- Tab-local wrappers are compatibility paths unless explicitly requested
+
 ## Tests
 
 - Contracts: `tests/contracts/*`
