@@ -97,9 +97,9 @@ Deploy workflow assumptions:
 
 ## Environment risk notes
 
-- Some environment identifiers are currently hardcoded in source (`SPREADSHEET_ID`, `ROOT_FOLDER_ID`).
-- Migration to Script Properties for these values is recommended to reduce hidden environment coupling.
+- Production-sensitive identifiers are expected from Script Properties (`SPREADSHEET_ID`, `ROOT_FOLDER_ID`) instead of hardcoded source values.
 - Any environment key change must be reflected in:
   - this file
+  - `docs/SETUP_CHECKLIST.md`
   - `README.md` deployment section
   - any onboarding runbook

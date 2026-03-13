@@ -91,7 +91,7 @@ IMPORTANT INSTALL NOTE:
  */
 
 // === Spreadsheet backing store (Deals) ===
-const SPREADSHEET_ID = '1V5X_1MIk3VToNTFY7UkEaEs8bkOju7eybjTCkVuFji0';
+const SPREADSHEET_ID = ''; // from Script Properties: SPREADSHEET_ID
 const SHEET_NAME     = 'Deals';
 const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
 
@@ -107,7 +107,7 @@ const CONFIG_DEFAULTS_ = {
   SPREADSHEET_ID: SPREADSHEET_ID,
   SHEET_NAME: SHEET_NAME,
   PARTNER_ACTIVITY_SHEET_NAME: PARTNER_ACTIVITY_SHEET_NAME,
-  ROOT_FOLDER_ID: '1qgMSGfh01yODRumtdaQH44nVEAjft51-'
+  ROOT_FOLDER_ID: ''
 };
 
 function configGet_(key, fallback) {
@@ -122,6 +122,16 @@ function configBool_(key, defVal) {
   const raw = String(configGet_(key, defVal ? 'true' : 'false')).trim().toLowerCase();
   if (!raw) return !!defVal;
   return raw === 'true' || raw === '1' || raw === 'yes';
+}
+
+
+function requireConfig_(keys) {
+  const missing = [];
+  (keys || []).forEach((k) => {
+    const v = String(configGet_(k, '') || '').trim();
+    if (!v) missing.push(k);
+  });
+  if (missing.length) throw new Error('Missing required config: ' + missing.join(', '));
 }
 
 function makeError_(code, message, extras) {
@@ -144,6 +154,7 @@ function makeError_(code, message, extras) {
 }
 
 function getSheet_() {
+  requireConfig_(['SPREADSHEET_ID']);
   const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found.');
@@ -228,7 +239,7 @@ function objectToRow_(headers, obj) {
 // Uses CacheService for fast lookups; auto-rebuilds on mismatch.
 // ------------------------------------------------------------
 function cacheKey_(suffix) {
-  return 'CMFCRM:' + SPREADSHEET_ID + ':' + SHEET_NAME + ':' + suffix;
+  return 'CMFCRM:' + configGet_('SPREADSHEET_ID') + ':' + SHEET_NAME + ':' + suffix;
 }
 
 function getRowIndexCache_() {
@@ -1067,9 +1078,9 @@ function setupJigsawUatProperties_() {
   // Set your webhook shared secret before enabling webhooks.
   configSetMany_({
     JIGSAW_ENV: 'UAT',
-    JIGSAW_USERNAME: 'CompareMyFinance',
-    JIGSAW_PASSWORD: '349f5611-c408-4e4c-8141-b6705568fa80',
-    // JIGSAW_SHARED_SECRET: '<<<SET_ME>>>'
+    JIGSAW_USERNAME: '<<<SET_ME>>>',
+    JIGSAW_PASSWORD: '<<<SET_ME>>>',
+    JIGSAW_SHARED_SECRET: '<<<SET_ME>>>'
   }, true);
 }
 function getJigsawBaseUrl_() {
@@ -1196,6 +1207,7 @@ function fetchWithTransientRetry_(url, options, maxAttempts) {
 }
 
 function getJigsawToken_() {
+  requireConfig_(['JIGSAW_USERNAME', 'JIGSAW_PASSWORD']);
   const username = getProp_('JIGSAW_USERNAME');
   const password = getProp_('JIGSAW_PASSWORD');
   if (!username || !password) throw new Error('Missing JIGSAW_USERNAME / JIGSAW_PASSWORD in Script Properties');
@@ -2495,6 +2507,7 @@ function searchClientFolders_(query) {
 //    Apps Script Editor -> Services -> + -> Drive API (enable).
 //  - If not enabled, you'll see 'Drive is not defined'.
 //  - Keep fields/pageSize small for performance (live search).
+  requireConfig_(['ROOT_FOLDER_ID']);
   const ROOT_FOLDER_ID = configGet_('ROOT_FOLDER_ID');
 
   try {

@@ -129,3 +129,24 @@ test('missing folderId returns canonical validation error shape', () => {
   assert.equal(out.error.code, 'VALIDATION_ERROR');
   assert.match(out.error.message, /Missing folderId/);
 });
+
+
+test('auth login returns config error when AUTH_USERS_JSON is missing', () => {
+  const ctx = boot();
+  ctx.PropertiesService.getScriptProperties().setProperties({}, true);
+  const out = ctx.routeAction_('authLogin', { username: 'kyle', password: 'CMF2025' }, {});
+  assert.equal(out.success, false);
+  assert.equal(out.error.code, 'CONFIG_ERROR');
+});
+
+test('drive search returns internal error when ROOT_FOLDER_ID is missing', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  ctx.PropertiesService.getScriptProperties().setProperties({
+    AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' }),
+    SPREADSHEET_ID: 'TEST_SPREADSHEET_ID'
+  }, true);
+  const out = ctx.routeAction_('searchFolders', { token: login.token, query: 'x' }, {});
+  assert.equal(out.success, false);
+  assert.equal(out.error.code, 'INTERNAL_ERROR');
+});

@@ -27,6 +27,11 @@ function createCacheStore() {
 export function createGasContext() {
   const scriptCache = createCacheStore();
   const scriptProperties = new Map();
+  scriptProperties.set('AUTH_USERS_JSON', JSON.stringify({ kyle: 'CMF2025', admin: 'admin123' }));
+  scriptProperties.set('SPREADSHEET_ID', 'TEST_SPREADSHEET_ID');
+  scriptProperties.set('ROOT_FOLDER_ID', 'TEST_ROOT_FOLDER_ID');
+  scriptProperties.set('JIGSAW_USERNAME', 'TEST_USER');
+  scriptProperties.set('JIGSAW_PASSWORD', 'TEST_PASS');
   const ctx = {
     console,
     Date,

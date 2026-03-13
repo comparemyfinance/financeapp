@@ -76,6 +76,7 @@ Local development workflow is:
 - Canonical file map: `docs/CANONICAL_FILES.md`
 - Error envelope policy: `docs/ERROR_POLICY.md`
 - Environment/runtime assumptions: `docs/ENVIRONMENT.md`
+- Setup checklist: `docs/SETUP_CHECKLIST.md`
 - Test strategy and refactor gates: `docs/TEST_STRATEGY.md`
 - Ambiguity/dedup decisions: `docs/DEDUP_MAP.md`
 - Canonical auth/session flow: `docs/AUTH_FLOW.md`
