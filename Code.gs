@@ -188,7 +188,7 @@ function getRuntimeDiagnostics_() {
 }
       if (activeId) return activeId;
     }
-  } catch (_) {}
+  } catch (_) {
 
   throw new Error('Missing required config: SPREADSHEET_ID');
 }
