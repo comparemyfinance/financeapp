@@ -9,9 +9,10 @@
     "format:check": "prettier --check \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "validate:syntax": "node scripts/validate-syntax.mjs",
     "lint": "npm run format:check && npm run validate:syntax",
-    "test": "npm run sanity && npm run validate:syntax",
+    "test": "npm run sanity && npm run validate:syntax && npm run test:behavioral",
     "hooks:install": "git config core.hooksPath .githooks",
-    "check:merge-conflicts": "node scripts/check-merge-conflicts.mjs"
+    "check:merge-conflicts": "node scripts/check-merge-conflicts.mjs",
+    "test:behavioral": "node --test tests/contracts tests/smoke"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
