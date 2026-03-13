@@ -93,7 +93,6 @@ IMPORTANT INSTALL NOTE:
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
 function getSpreadsheetResolution_() {
-function getSpreadsheetId_() {
   const legacyId =
     typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
       ? String(SPREADSHEET_ID).trim()
@@ -112,7 +111,6 @@ function getSpreadsheetId_() {
     } catch (_) {}
     return { id: configuredId, source: source, hasValue: true };
   }
-  if (configuredId) return configuredId;
 
   try {
     const active = SpreadsheetApp.getActiveSpreadsheet();
@@ -185,12 +183,6 @@ function getRuntimeDiagnostics_() {
     hasAuthConfig: !!authMeta.hasValue,
     authConfigSource: authMeta.source || 'missing',
   };
-}
-      if (activeId) return activeId;
-    }
-  } catch (_) {
-
-  throw new Error('Missing required config: SPREADSHEET_ID');
 }
 
 function getSheet_() {
