@@ -46,6 +46,7 @@ Use this first in a cold session.
 - Config/runtime assumptions: `docs/ENVIRONMENT.md`
 - Error envelope policy: `docs/ERROR_POLICY.md`
 - Canonical ownership map: `docs/CANONICAL_FILES.md`
+- Live frontend runtime owner map: `docs/LIVE_FRONTEND_RUNTIME_MAP.md`
 
 ## Transitional/ambiguous surfaces
 
