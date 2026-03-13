@@ -11,12 +11,12 @@ test('lender apply modal has viewport max-height and internally scrolling body',
 
   assert.match(
     html,
-    /id="lenderAppModal"[\s\S]*?class="[^"]*overflow-y-auto/,
+    /<div class="[^"]*overflow-y-auto" id="lenderAppModal"/,
     'expected overlay to allow viewport scrolling on smaller screens',
   );
   assert.match(
     html,
-    /max-h-\[calc\(100vh-2rem\)\]/,
+    /#lenderAppModal \.lender-app-modal-panel \{\s*max-height: min\(90vh, 860px\);/,
     'expected modal container max-height relative to viewport',
   );
   assert.match(
@@ -26,8 +26,13 @@ test('lender apply modal has viewport max-height and internally scrolling body',
   );
   assert.match(
     html,
-    /modal-content modal-body-scroll flex-1 min-h-0 overflow-y-auto/,
+    /class="lender-app-modal-body p-6 space-y-6 modal-content modal-body-scroll flex-1"/,
     'expected body area to scroll internally',
+  );
+  assert.doesNotMatch(
+    html,
+    /id="lenderAppSaveBtn"/,
+    'expected Save Draft button to be removed from lender apply modal',
   );
 });
 
