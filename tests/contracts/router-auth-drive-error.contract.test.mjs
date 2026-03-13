@@ -171,13 +171,13 @@ test('configGet_ falls back to legacy constants when Script Properties are missi
   assert.equal(ctx.configGet_('ROOT_FOLDER_ID'), 'LEGACY_ROOT_FOLDER_ID');
 });
 
-test('getDelta resolves spreadsheet config via legacy fallback when Script Property is missing', () => {
+test('getDelta resolves spreadsheet config via shared resolver path', () => {
   const ctx = boot();
   const login = ctx.auth_login_plain_('kyle', 'CMF2025');
-  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
   ctx.PropertiesService.getScriptProperties().setProperties({
     AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' }),
-    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID'
+    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID',
+    SPREADSHEET_ID: 'TEST_SPREADSHEET_ID'
   }, true);
   let openedId = '';
   ctx.SpreadsheetApp.openById = (id) => {
@@ -193,16 +193,16 @@ test('getDelta resolves spreadsheet config via legacy fallback when Script Prope
   };
   const out = ctx.routeAction_('getDelta', { token: login.token }, {});
   assert.equal(out.success, true);
-  assert.equal(openedId, 'LEGACY_SPREADSHEET_ID');
+  assert.equal(openedId, 'TEST_SPREADSHEET_ID');
 });
 
-test('partner activity action resolves spreadsheet config via legacy fallback when Script Property is missing', () => {
+test('partner activity action resolves spreadsheet config via shared resolver path', () => {
   const ctx = boot();
   const login = ctx.auth_login_plain_('kyle', 'CMF2025');
-  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
   ctx.PropertiesService.getScriptProperties().setProperties({
     AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' }),
-    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID'
+    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID',
+    SPREADSHEET_ID: 'TEST_SPREADSHEET_ID'
   }, true);
   let openedId = '';
   ctx.SpreadsheetApp.openById = (id) => {
@@ -220,7 +220,7 @@ test('partner activity action resolves spreadsheet config via legacy fallback wh
   };
   const out = ctx.routeAction_('getPartnerActivitySummary', { token: login.token }, {});
   assert.equal(out.success, true);
-  assert.equal(openedId, 'LEGACY_SPREADSHEET_ID');
+  assert.equal(openedId, 'TEST_SPREADSHEET_ID');
 });
 
 
@@ -250,4 +250,59 @@ test('router catch preserves backend error message for getDelta failures', () =>
   assert.equal(out.success, false);
   assert.equal(out.error.code, 'INTERNAL_ERROR');
   assert.equal(out.error.message, 'Diagnostic failure from getDelta');
+});
+
+test('getDelta and partner activity both use shared getSpreadsheetId_ resolver', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  let calls = 0;
+  ctx.getSpreadsheetId_ = () => {
+    calls += 1;
+    return 'SHARED_SPREADSHEET';
+  };
+  ctx.SpreadsheetApp.openById = () => ({
+    getSheetByName: (name) => {
+      if (name === 'VRNdata') {
+        return {
+          getDataRange: () => ({
+            getValues: () => [
+              ['referer', 'finance_company'],
+              ['Alice', 'Lender A'],
+            ],
+          }),
+        };
+      }
+      return {
+        getLastColumn: () => 1,
+        getRange: () => ({ getValues: () => [['id']] }),
+        getLastRow: () => 1,
+        getDataRange: () => ({ getValues: () => [['id'], ['D1']] }),
+      };
+    },
+  });
+
+  const a = ctx.routeAction_('getDelta', { token: login.token }, {});
+  const b = ctx.routeAction_('getPartnerActivitySummary', { token: login.token }, {});
+  assert.equal(a.success, true);
+  assert.equal(b.success, true);
+  assert.ok(calls >= 2);
+});
+
+test('searchFolders uses shared ROOT_FOLDER_ID resolver helper', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  let called = 0;
+  ctx.getRootFolderId_ = () => {
+    called += 1;
+    return 'ROOT_OK';
+  };
+  ctx.Drive = {
+    Files: {
+      list: () => ({ files: [{ id: 'F1', name: 'Folder One', modifiedTime: '2025-01-01T00:00:00.000Z' }] }),
+    },
+  };
+  const out = ctx.routeAction_('searchFolders', { token: login.token, query: 'one' }, {});
+  assert.equal(out.success, true);
+  assert.equal(called, 1);
+  assert.ok(Array.isArray(out.folders));
 });

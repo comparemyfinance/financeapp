@@ -1,19 +1,8 @@
-# Change Playbook
+# Change Playbook (Runtime Truth)
 
-How to safely make common changes in this repository without changing behavior unintentionally.
-
-## Before you change anything
-
-1. Read `AGENTS.md` and `docs/architecture.md`.
-2. Identify whether change is:
-   - contract-affecting (API/action/response)
-   - behavior-preserving refactor
-   - docs-only/tooling-only
-3. Prefer smallest viable change set.
+Use this for safe, incremental changes.
 
 ## Baseline checks
-
-Run before and after code changes:
 
 ```bash
 npm run sanity
@@ -21,80 +10,44 @@ npm run lint
 npm test
 ```
 
-## Common change recipes
+## Where to change what
 
-### 1) Add or modify a backend action
+### Add or modify a backend action
 
-Files: usually `Code.gs` (+ docs if contract changes)
+- Edit: `server/router/actions.gs`
+- Keep entrypoints stable in `Code.gs`
+- Update: `docs/API_ACTIONS.md` if action/auth/alias behavior changes
 
-- Add explicit action branch in router.
-- Validate payload shape defensively.
-- Keep response envelope consistent.
-- For writes, use existing locking patterns.
-- Update docs (`README.md`/`docs/architecture.md`/API notes) if externally visible.
+### Change config behavior
 
-### 2) Change auth/session behavior
+- Edit: `server/shared/config.gs`
+- Update: `docs/ENVIRONMENT.md` and `docs/SETUP_CHECKLIST.md`
 
-Files: `Auth.js`, token-calling sites in `Index.html` / tabs
+### Change error envelope behavior
 
-- Keep backward compatibility for existing token consumers where possible.
-- Ensure login/status/logout flow still works end-to-end.
-- Avoid introducing plaintext secrets or new unsafe storage practices.
+- Edit: `server/shared/response.gs`
+- Update: `docs/ERROR_POLICY.md`
 
-### 3) Update lender/quote logic
+### Change auth/session backend
 
-Files: `Lenderapi.gs` (and matching UI assumptions)
+- Edit: `Auth.js`
+- Validate router auth-gated behavior in contracts
 
-- Preserve expected field names in quote outputs.
-- Keep calculation helpers deterministic.
-- Note any formula changes in docs/changelog section of PR.
+### Change shared frontend API/session handling
 
-### 4) Modify UI tab behavior
+- Canonical edit location: `Index.html`
+- If tab-level duplicate logic is touched (`tabSalesPipeline.html`), document whether change is canonical or compatibility-only.
 
-Files: `Index.html`, `tab*.html`
+## Guardrails
 
-- Keep feature logic in the relevant tab where possible.
-- Reuse shared helpers instead of duplicating functions.
-- Escape dynamic content where possible.
-- Verify affected flows manually in Apps Script web app context.
+- No broad rewrites in mixed-purpose PRs.
+- Keep API contracts backward compatible unless explicitly planned and documented.
+- No secrets in source.
+- Prefer additive compatibility fallbacks over hard cutovers.
 
-### 5) Add new sheet/Drive/integration dependency
+## High-risk areas
 
-Files: usually `Code.gs`, docs
-
-- Centralize identifiers/config in one place.
-- Prefer script properties for secrets and environment-specific values.
-- Document required setup variables in README/docs.
-
-## Refactor rules (behavior-preserving)
-
-- No silent contract changes.
-- No mixed unrelated refactors in same PR.
-- Move/rename with compatibility wrappers when needed.
-- If you duplicate temporarily, include follow-up cleanup note.
-
-## PR checklist
-
-- [ ] Change is scoped and explained.
-- [ ] `npm run lint` passes.
-- [ ] `npm test` passes.
-- [ ] Docs updated for any public/contract/operational change.
-- [ ] No unrelated files changed.
-- [ ] No credentials/secrets added.
-
-## When to split into multiple PRs
-
-Split if change touches more than one of:
-
-- API contract behavior
-- auth/session model
-- persistence/locking mechanics
-- external integration behavior
-- major UI rendering logic
-
-## High-risk areas requiring extra caution
-
-- `routeAction_` and write operations in `Code.gs`
-- auth token issuance/validation in `Auth.js`
-- large inline scripts in `Index.html` and `tabSalesPipeline.html`
-- Jigsaw/webhook validation and request/response handling
+- `server/router/actions.gs` action dispatch and auth gating
+- `Code.gs` write paths (`save`, `delete`, `batchUpdate`)
+- `Index.html` and `tabSalesPipeline.html` due to large inline scripts and overlapping logic
+- Jigsaw/webhook paths

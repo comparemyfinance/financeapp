@@ -1,101 +1,68 @@
-# Test Strategy (Phase 3A)
+# Test Strategy (Operational Map)
 
-This document defines validation expectations before refactors and contract changes.
+## 1) Structural checks
 
-## Test layers
+Purpose: fast integrity + parse checks.
 
-## 1) Structural validation
+Commands:
 
-Structural checks confirm repository integrity and parse-level correctness.
+```bash
+npm run sanity
+npm run lint
+npm run validate:syntax
+npm run validate:gas-runtime
+```
 
-Current structural checks:
+Files/scripts:
 
-- `npm run sanity`
-  - verifies required key files exist
-- `npm run lint`
-  - formatting check (`prettier --check`)
-  - syntax validation (`scripts/validate-syntax.mjs`)
-- `npm test`
-  - sanity + syntax validation
+- `scripts/validate-syntax.mjs`
+- `scripts/validate-gas-runtime.mjs`
 
-Structural validation does **not** prove runtime behavior correctness.
+## 2) Behavioral contract tests
 
-## 2) Behavioral validation
+Purpose: action contracts + error/auth/config behavior.
 
-Behavioral validation confirms action contracts and workflow behavior remain stable.
+Command:
 
-Behavioral validation should include:
+```bash
+npm run test:behavioral
+```
 
-- action-level contract assertions (payload in / envelope out)
-- auth-gated vs public action behavior
-- write-path side effects on sheet state
-- integration action success/failure path handling
-- UI critical-path smoke flows in Apps Script runtime context
+Key files:
 
-## Critical flows requiring contract tests
+- `tests/contracts/router-auth-drive-error.contract.test.mjs`
+- `tests/contracts/frontend-error-normalization.contract.test.mjs`
+- Harness: `tests/helpers/gas-test-harness.mjs`
 
-At minimum, treat these as contract-critical:
+## 3) Smoke tests
 
-1. Auth lifecycle
+Purpose: critical end-to-end baseline flow.
 
-- `authLogin`
-- `authStatus`
-- `authLogout`
-- protected-action denial when token invalid/missing
+Executed as part of `npm run test:behavioral`.
 
-2. Deal persistence lifecycle
+Key file:
 
-- `save` (including conflict/no-match behavior)
-- `delete`
-- `batchUpdate`
-- `load/getDelta/getAll` response shape stability
+- `tests/smoke/core-flows.smoke.test.mjs`
 
-3. Client files flows
+## 4) Standard agent validation path
 
-- `searchFolders`
-- `getFolderFiles`
-- legacy folderId alias handling (temporary compatibility)
+Run this for most PRs:
 
-4. Integration flows
+```bash
+npm run lint
+npm test
+```
 
-- `validateJigsaw` / `validateJigsawReferral`
-- `submitJigsaw` / `submitJigsawReferral`
-- webhook/secret validation behavior (where applicable)
+`npm test` currently runs:
 
-5. Lender/quote flows
+- sanity
+- syntax validation
+- GAS runtime validation
+- behavioral tests (contracts + smoke)
 
-- `listLenders`
-- `getLenderQuote`
-- `getLenderQuotesBatch`
-- score path outputs/error handling
+## 5) Change-to-test mapping
 
-## Smoke test scope
-
-Smoke tests should verify, at minimum:
-
-- app can load in Apps Script web app context
-- login succeeds with valid credentials and fails safely with invalid credentials
-- one read action and one write action complete successfully
-- one integration validate path returns expected envelope
-- client-files search/list renders expected response handling
-
-## Pre-refactor mandatory test gate
-
-Before any significant refactor (router, auth, persistence, integration, large template rework):
-
-1. Run structural checks (`npm run lint`, `npm test`).
-2. Execute contract smoke tests for impacted actions.
-3. Compare response envelopes against `docs/API_ACTIONS.md`.
-4. Confirm error behavior follows `docs/ERROR_POLICY.md` (or compatibility bridge documented).
-
-## Refactor safety requirements
-
-- No contract-affecting change ships without matching doc updates.
-- If behavior changes are intentional, include explicit before/after examples in PR description.
-- If only structural changes are made, expected outputs must remain unchanged.
-
-## Coverage goals (incremental)
-
-- Maintain 100% structural-check pass rate.
-- Add and maintain contract checks for all critical flows listed above.
-- Reduce reliance on manual verification by codifying repeatable smoke scripts over time.
+- Router/action changes -> `tests/contracts/router-auth-drive-error.contract.test.mjs`
+- Error envelope/client error changes -> `tests/contracts/frontend-error-normalization.contract.test.mjs`
+- Auth/session lifecycle changes -> contract + smoke tests
+- Config resolution changes -> contract tests covering spreadsheet/root-folder/auth config

@@ -93,14 +93,10 @@ IMPORTANT INSTALL NOTE:
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
 function getSpreadsheetResolution_() {
-  const legacyId =
-    typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
-      ? String(SPREADSHEET_ID).trim()
-      : '';
   const configuredId =
-    typeof configGet_ === 'function'
-      ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
-      : legacyId;
+    typeof getSpreadsheetConfigId_ === 'function'
+      ? String(getSpreadsheetConfigId_() || '').trim()
+      : (typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID ? String(SPREADSHEET_ID).trim() : '');
   if (configuredId) {
     let source = 'legacy_constant';
     try {
@@ -2325,8 +2321,7 @@ function searchClientFolders_(query) {
 //    Apps Script Editor -> Services -> + -> Drive API (enable).
 //  - If not enabled, you'll see 'Drive is not defined'.
 //  - Keep fields/pageSize small for performance (live search).
-  requireConfig_(['ROOT_FOLDER_ID']);
-  const ROOT_FOLDER_ID = configGet_('ROOT_FOLDER_ID');
+  const ROOT_FOLDER_ID = getRootFolderId_();
 
   try {
     const q = String(query || '').trim().replace(/'/g, "\\'");

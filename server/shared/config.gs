@@ -6,6 +6,10 @@
 const SHEET_NAME = 'Deals';
 const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
 
+// Optional legacy fallbacks for pre-Script-Properties deployments.
+const LEGACY_SPREADSHEET_ID = '';
+const LEGACY_ROOT_FOLDER_ID = '';
+
 // === Runtime toggles (when serving UI from the same Apps Script project) ===
 const ENABLE_CACHE_LOCKS = false; // CacheService-based acquire/heartbeat/release
 const ENABLE_OPTIMISTIC_LOCK = false; // lastUpdated vs updatedAt conflict check
@@ -20,6 +24,13 @@ const CONFIG_DEFAULTS_ = {
 function getLegacyConfigFallback_(key) {
   try {
     if (key === 'SPREADSHEET_ID') {
+      const inlineLegacy = String(LEGACY_SPREADSHEET_ID || '').trim();
+      if (inlineLegacy) return inlineLegacy;
+      const globalLegacy =
+        typeof globalThis !== 'undefined' && globalThis && globalThis.SPREADSHEET_ID
+          ? String(globalThis.SPREADSHEET_ID).trim()
+          : '';
+      if (globalLegacy) return globalLegacy;
       return typeof SPREADSHEET_ID !== 'undefined' ? String(SPREADSHEET_ID || '').trim() : '';
     }
     if (key === 'SHEET_NAME') {
@@ -31,6 +42,13 @@ function getLegacyConfigFallback_(key) {
         : '';
     }
     if (key === 'ROOT_FOLDER_ID') {
+      const inlineLegacy = String(LEGACY_ROOT_FOLDER_ID || '').trim();
+      if (inlineLegacy) return inlineLegacy;
+      const globalLegacy =
+        typeof globalThis !== 'undefined' && globalThis && globalThis.ROOT_FOLDER_ID
+          ? String(globalThis.ROOT_FOLDER_ID).trim()
+          : '';
+      if (globalLegacy) return globalLegacy;
       return typeof ROOT_FOLDER_ID !== 'undefined' ? String(ROOT_FOLDER_ID || '').trim() : '';
     }
   } catch (_) {}
@@ -103,4 +121,15 @@ function configSetMany_(obj, deleteAllOthers) {
     obj || {},
     !!deleteAllOthers,
   );
+}
+
+function getSpreadsheetConfigId_() {
+  const v = String(configGet_('SPREADSHEET_ID', '') || '').trim();
+  return v;
+}
+
+function getRootFolderId_() {
+  const v = String(configGet_('ROOT_FOLDER_ID', '') || '').trim();
+  if (!v) throw new Error('Missing required config: ROOT_FOLDER_ID');
+  return v;
 }

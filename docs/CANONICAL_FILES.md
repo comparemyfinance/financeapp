@@ -1,78 +1,33 @@
-# Canonical Files (Contract Freeze - Phase 3A)
+# Canonical Files (Runtime Truth)
 
-This document defines where changes must be made when multiple implementations or mirrored logic exist.
+Use this map to avoid editing the wrong file.
 
-## Backend canonical entrypoint
+## Backend canonical ownership
 
-- **Canonical backend entrypoint:** `Code.gs`
-  - `doGet`
-  - `doPost`
-  - `handleWebClientRequest`
-- **Canonical extracted backend modules (Phase 7):**
-  - `server/router/actions.gs` (router dispatch + domain handler ownership)
-  - `server/shared/config.gs` (config access + required config validation)
-  - `server/shared/response.gs` (error/response helpers)
+- **Entrypoints only:** `Code.gs`
+  - `doGet`, `doPost`, `handleWebClientRequest`
+- **Action routing and ownership:** `server/router/actions.gs`
+  - `routeAction_`
+  - `PUBLIC_ACTION_HANDLERS_`, `PROTECTED_ACTION_HANDLERS_`
+- **Config access and required config resolution:** `server/shared/config.gs`
+- **Error/response envelope helpers:** `server/shared/response.gs`
+- **Auth/session backend:** `Auth.js`
+- **Lender domain behavior:** `Lenderapi.gs`
 
-If you are changing API action handling/ownership, edit `server/router/actions.gs`; keep `Code.gs` entrypoints stable. For config/response semantics, edit the corresponding `server/shared/*` module.
+## Frontend canonical ownership (current)
 
-## Primary UI shell
+- **Primary shell + canonical API wrapper/session bootstrap:** `Index.html`
+- **Feature-local UI behavior:** `tab*.html`
+- **Transitional/delegated duplicate runtime logic exists in `tabSalesPipeline.html`**. Treat `Index.html` as canonical when behavior diverges unless runtime wiring explicitly routes through tab-owned logic.
 
-- **Canonical primary UI shell:** `Index.html`
+## Edit-here guidance
 
-`Index.html` is the template served by `HtmlService.createTemplateFromFile('Index')` and is the root runtime shell.
+- Add/modify backend actions -> `server/router/actions.gs`
+- Change config resolution behavior -> `server/shared/config.gs`
+- Change error envelope behavior -> `server/shared/response.gs`
+- Change Apps Script entry transport behavior -> `Code.gs`
+- Change shared frontend auth/API wrapper behavior -> `Index.html`
 
-## Transitional / mirrored files
+## Transitional areas
 
-- `tab*.html` files are feature partials and include significant client-side behavior.
-- Some UI/domain text and interaction logic may be mirrored between `Index.html` and specific `tab*.html` files.
-- Historical docs mention mirrored content specifically for Demands & Needs related content.
-
-## Canonical choice when duplicate logic exists
-
-When duplicate or near-duplicate client logic exists, use this rule set:
-
-1. **Server contracts:** canonical in `Code.gs`.
-2. **Global shell/auth bootstrapping:** canonical in `Index.html`.
-3. **Feature-local interaction logic:** canonical in the owning `tab*.html`.
-4. **If duplicate logic appears in both `Index.html` and `tab*.html`:**
-   - Treat the implementation currently exercised by runtime tab wiring as canonical.
-   - Remove or clearly mark stale duplicate code in follow-up cleanup PR.
-   - Update this file if the canonical location changes.
-
-## Edit here, not there
-
-### API actions and payload/response behavior
-
-- Edit here: `Code.gs` (+ `docs/API_ACTIONS.md`, `docs/ERROR_POLICY.md` if changed)
-- Not there: tab-local ad-hoc backend contract assumptions without docs update
-
-### Auth/session rules
-
-- Edit here: `Auth.js` and shared auth call sites in `Index.html`
-- Not there: fragmented per-tab auth divergence unless intentionally scoped and documented
-
-### Lender quote math
-
-- Edit here: `Lenderapi.gs`
-- Not there: duplicate formula rewrites scattered across templates without reconciliation plan
-
-### Architecture/domain guidance
-
-- Edit here: `docs/architecture.md`, `docs/domain-model.md`, `docs/change-playbook.md`
-- Not there: comments-only guidance that becomes undiscoverable
-
-## Duplication handling policy
-
-If you discover duplicate behavior:
-
-- Do not perform broad rewrites in the same PR as unrelated changes.
-- Add explicit comments/TODO markers only when necessary and actionable.
-- Prefer incremental consolidation with compatibility checks.
-
-## Required update policy
-
-Any PR that changes canonical location of behavior MUST update:
-
-- this file (`docs/CANONICAL_FILES.md`)
-- `docs/architecture.md`
-- any impacted section in `AGENTS.md`
+See `docs/KNOWN_AMBIGUITIES.md` for active duplicate/ambiguous surfaces and safe-edit guidance.

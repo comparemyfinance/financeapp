@@ -1,11 +1,10 @@
-# Error Policy (Contract Freeze - Phase 3A)
+# Error Policy (Current Runtime)
 
-This document defines the canonical client-safe error policy and migration target.
-
-## Canonical client-safe error envelope (target)
+## Canonical error envelope (current)
 
 ```json
 {
+  "success": false,
   "ok": false,
   "error": {
     "code": "STRING_CODE",
@@ -14,84 +13,48 @@ This document defines the canonical client-safe error policy and migration targe
 }
 ```
 
-## Success envelope companion (recommended)
+## Canonical success convention (current)
+
+Most handlers return:
 
 ```json
-{
-  "ok": true,
-  "data": {}
-}
+{ "success": true, "...": "..." }
 ```
 
-## Mandatory policy requirements
+Some include additional fields as needed by domain flows.
+
+## Current implementation owner
+
+- Error construction helper: `server/shared/response.gs` (`makeError_`)
+- Safe wrapper behavior: `server/shared/response.gs` (`safeObj_`)
+- Route-level fallback behavior: `server/router/actions.gs` (`routeAction_` catch)
+
+## Policy requirements
 
 - No stack traces in client responses.
-- No secret leakage (credentials, tokens, signatures, raw auth headers, internal IDs that must remain private).
-- No raw exception dumps (`err.toString()`, full exception object, serialized stack frames) to client.
-- Stable machine-readable error codes.
-- Deep/internal details may be logged server-side only.
+- No secrets in client responses.
+- Preserve specific safe backend messages when known (for example missing config messages).
+- Keep machine-readable error codes in `error.code`.
 
-## Current state (compatibility reality)
+## Common codes in use
 
-Current implementation still commonly emits:
+- `AUTH_REQUIRED`
+- `VALIDATION_ERROR`
+- `CONFIG_ERROR`
+- `UNKNOWN_ACTION`
+- `INTERNAL_ERROR`
+- `RATE_LIMITED`
+- `FORBIDDEN`
 
-- `{ "success": false, "error": "..." }`
-- In some catch paths: `details` and/or `stack` are currently present.
+## Server-side diagnostics
 
-This is **not** the desired end state. New or refactored paths should converge toward this policy while preserving compatibility during migration.
+- Detailed stack/context may be logged server-side only.
+- Client should receive safe messages only.
 
-## Stable error codes (contract set)
+## Change rule
 
-Use these codes for canonicalized errors:
+Any change to error shape/codes/messages must update:
 
-- `AUTH_REQUIRED` – missing/invalid/expired auth token
-- `VALIDATION_ERROR` – bad input shape, missing required fields
-- `NOT_FOUND` – requested entity missing
-- `CONFLICT` – optimistic-lock or concurrent update conflict
-- `FORBIDDEN` – action blocked by policy/role/config
-- `INTEGRATION_ERROR` – upstream API failure
-- `RATE_LIMITED` – throttling/lock contention related refusal
-- `UNKNOWN_ACTION` – unsupported action name
-- `INTERNAL_ERROR` – unexpected server-side failure
-
-## Error mapping guidance
-
-- Keep original client-safe message concise and non-sensitive.
-- Map implementation-specific errors into stable codes.
-- Preserve legacy `success:false` compatibility where required, but avoid adding new `details`/`stack` fields.
-
-Example transitional-compatible shape:
-
-```json
-{
-  "success": false,
-  "ok": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Missing folderId"
-  }
-}
-```
-
-## Server-side logging guidance
-
-Allowed in server logs:
-
-- correlation IDs
-- exception type
-- sanitized request context
-- stack traces (server-side only)
-
-Not allowed in logs without redaction:
-
-- plaintext credentials
-- bearer tokens
-- webhook shared secrets
-- full PII payload dumps unless explicitly required and controlled
-
-## Rollout rules
-
-1. New handlers should emit canonical policy-compliant errors.
-2. Existing handlers can be migrated incrementally.
-3. Every migration PR must verify no client-breaking envelope regressions.
-4. `docs/API_ACTIONS.md` must be updated when action-level error behavior changes.
+- `docs/API_ACTIONS.md`
+- this file
+- relevant contract tests under `tests/contracts/`

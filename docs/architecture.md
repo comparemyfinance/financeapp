@@ -1,64 +1,42 @@
-# Architecture Map
+# Architecture Map (Runtime Truth)
 
-## Systems
+## Runtime model
 
-- **Apps Script Backend (server runtime):**
-  - Entry points: `doGet`, `doPost`, `handleWebClientRequest` in `Code.gs`
-  - Responsibilities: action routing, auth gating, sheet CRUD, Drive file lookup, external integrations, webhook handling
-- **Browser UI (Apps Script HTML templates):**
-  - Main shell: `Index.html`
-  - Feature tabs: `tab*.html`
-  - Communication: `google.script.run.handleWebClientRequest(...)` using `{ action, payload }`
-- **Data/infra dependencies:**
-  - Google Sheets (deals + supporting sheets)
-  - Google Drive (client folders/files)
-  - Apps Script `CacheService` (sessions, caches)
-  - Script Properties (integration credentials/config)
-  - External lender/Jigsaw endpoints
+This project runs as a **Google Apps Script Web App** (V8 runtime).
 
-## Boundaries
+- Entry surface: `Code.gs`
+  - `doGet` (UI + optional API GET)
+  - `doPost` (HTTP POST API)
+  - `handleWebClientRequest` (Apps Script bridge for `google.script.run`)
+- Router and action ownership: `server/router/actions.gs`
+- Shared config helpers: `server/shared/config.gs`
+- Shared response/error helpers: `server/shared/response.gs`
+- Auth/session backend: `Auth.js`
+- Lender domain backend: `Lenderapi.gs`
 
-- `Code.gs`: server concerns only (routing, persistence, integrations).
-  - Routing ownership is now visible via dispatch-table registries (`PUBLIC_ACTION_HANDLERS_`, `PROTECTED_ACTION_HANDLERS_`) and domain-named handler functions.
-- `Auth.js`: token/session concerns only
-- `Lenderapi.gs`: lender/quote math and lender definitions only
-- `Index.html`: shared shell + cross-tab orchestration
-- `tab*.html`: feature-local rendering and interaction logic
+## Request flow
 
-## Data flow
+1. UI triggers action with `{ action, payload }`.
+2. Request enters via `handleWebClientRequest` or `doPost` in `Code.gs`.
+3. `Code.gs` delegates to `routeAction_` in `server/router/actions.gs`.
+4. Router enforces public/protected action gating and dispatches to action handlers.
+5. Handlers call domain helpers in `Code.gs` / `Auth.js` / `Lenderapi.gs`.
+6. Response returns in canonical envelope shape from shared response helpers.
 
-1. Browser action triggered in UI (`Index.html` or tab template).
-2. Client submits `{ action, payload }` via `google.script.run.handleWebClientRequest(...)`.
-3. `handleWebClientRequest` delegates to `routeAction_` in `Code.gs`.
-4. `routeAction_` enforces auth for protected actions.
-5. Handler performs reads/writes to Sheets, Drive, or external APIs.
-6. Response envelope returned to client and rendered by UI.
+## UI runtime
 
-## Naming conventions
+- Primary shell: `Index.html` (served by `createTemplateFromFile('Index')`)
+- Feature templates: `tab*.html`
+- Current reality: both `Index.html` and `tabSalesPipeline.html` still contain substantial API/session logic; canonical/delegated guidance is in `docs/CANONICAL_FILES.md` and `docs/KNOWN_AMBIGUITIES.md`.
 
-- Apps Script helper/function suffix `_` for internal helpers.
-- Action normalization occurs in router utilities before dispatch-table resolution to preserve aliases (`load`/`getAll` and Jigsaw referral aliases).
-- Action names are string-based (`authLogin`, `save`, `getDelta`, `searchFolders`, etc.) and should stay backward compatible.
-- Keep canonical template name `Index`/`Index.html` aligned between docs and code.
+## Platform dependencies
 
-## Dependency direction
+- Google Sheets
+- Google Drive (Advanced Drive API v3 + `DriveApp`)
+- Apps Script services: `PropertiesService`, `CacheService`, `LockService`
 
-- UI templates depend on backend action contracts.
-- Backend router depends on domain helpers (`Auth.js`, `Lenderapi.gs`, `Code.gs` internals).
-- Domain logic depends on platform services (Sheets/Drive/Cache/Properties) and external APIs.
-- Docs describe behavior and constraints; they should not be behind implementation changes.
+## Constraints
 
-## Current constraints
-
-- Runtime is Google Apps Script (V8), so there is no local Node server for feature runtime.
-- Large inline scripts still exist in template files; refactors should be incremental.
-- Deployment is CI-driven using `clasp`.
-
-## Modularization status (Phase 7)
-
-- **Wave 1 logical extraction completed (within Apps Script constraints):**
-  - `server/shared/config.gs` (config helpers)
-  - `server/shared/response.gs` (response/error helpers)
-  - `server/router/actions.gs` (dispatch map + action handlers)
-- `Code.gs` remains the runtime entrypoint surface (`doGet`, `doPost`, `handleWebClientRequest`) and delegates to extracted helpers.
-- Apps Script runtime truth is preserved: global function model remains intact; extraction is organizational, not behavioral.
+- Global Apps Script function namespace (no module imports at runtime).
+- Large legacy files remain (`Code.gs`, `Index.html`, `tabSalesPipeline.html`), so changes should be incremental and narrowly scoped.
+- Deployment is CI-driven (`clasp` workflows).
