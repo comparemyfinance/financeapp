@@ -937,6 +937,50 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   #twilio-flex .rounded-2xl.border { border-color:#dbe7e2 !important; }
 </style>
 
+<script id="cmf-session-util">
+(function(){
+  if (window.CMFSession) return;
+  const KEY = 'CMF_AUTH_TOKEN';
+  const EXP_KEY = 'CMF_AUTH_TOKEN_EXP';
+  window.CMFSession = {
+    tokenKey: KEY,
+    tokenExpiryKey: EXP_KEY,
+    readToken(){ try { return localStorage.getItem(KEY) || ''; } catch(_e){ return ''; } },
+    writeToken(token, ttlSeconds){
+      try {
+        localStorage.setItem(KEY, token == null ? '' : String(token));
+        if (ttlSeconds && Number(ttlSeconds) > 0) {
+          localStorage.setItem(EXP_KEY, String(Date.now() + (Number(ttlSeconds) * 1000)));
+        }
+      } catch(_e){}
+    },
+    clearToken(){ try { localStorage.removeItem(KEY); localStorage.removeItem(EXP_KEY); } catch(_e){} },
+    isFresh(){
+      try {
+        const t = this.readToken();
+        if (!t) return false;
+        const raw = localStorage.getItem(EXP_KEY);
+        if (!raw) return true;
+        const exp = Number(raw || 0);
+        return !!exp && Date.now() < exp;
+      } catch(_e){ return !!this.readToken(); }
+    },
+    authPayload(base){
+      const out = (base && typeof base === 'object') ? { ...base } : {};
+      const t = this.readToken();
+      if (t && !out.token) out.token = t;
+      return out;
+    },
+    onUnauthenticated(message){
+      this.clearToken();
+      if (typeof window.showLogin === 'function') {
+        window.showLogin(message || 'Session expired. Please sign in again.');
+      }
+    }
+  };
+})();
+</script>
+
 </head>
 <body>
 <!-- LLM EDITING GUIDE:
@@ -3645,7 +3689,7 @@ const initializePSE = () => {
                 try {
                     if (window.App && typeof App.apiCall === 'function') {
                         let token = '';
-                        try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch(e) {}
+                        try { token = (window.CMFSession ? window.CMFSession.readToken() : ''); } catch(e) {}
                         const res = await App.apiCall('POST', {
                             action: 'getLenderQuotesBatch',
                             payload: { settlementFigure, remainingTerm, origLoan, token }
@@ -3745,7 +3789,7 @@ const initializePSE = () => {
                 toggleProductSourceOverlay(true);
                 try {
                     let token = '';
-                    try { token = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || ''; } catch (e) {}
+                    try { token = (window.CMFSession ? window.CMFSession.readToken() : ''); } catch (e) {}
                     if (!(window.App && typeof App.apiCall === 'function')) throw new Error('API client unavailable');
                     const payload = {
                         token,
@@ -5989,7 +6033,7 @@ buildDraft({ dealId, deal, formData }) {
                       
                       // --- Attach CMF auth token automatically (single token system) ---
                       try {
-                        const t = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || '';
+                        const t = (window.CMFSession ? window.CMFSession.readToken() : '');
                         if (t && _payload && typeof _payload === 'object' && !_payload.token) _payload.token = t;
                       } catch(e) {}
 // Normalize payload shapes for certain actions
@@ -6006,7 +6050,7 @@ buildDraft({ dealId, deal, formData }) {
 
                       // Attach auth token to every request except authLogin/authStatus
                         try {
-                          const token = (action !== 'authLogin') ? (localStorage.getItem('CMF_AUTH_TOKEN') || '') : '';
+                          const token = (action !== 'authLogin') ? (window.CMFSession ? window.CMFSession.readToken() : '') : '';
                           if (token && _payload && typeof _payload === 'object') _payload.token = token;
                         } catch(e) {}
                         const request = { action: action, payload: _payload || {} };
@@ -6888,7 +6932,7 @@ if (typeof applyBankAccountToJigsawPayloadDeal === 'function') {
 async function jigsawFetchAction(action, payload) {
   const _payload = (payload && typeof payload === 'object') ? { ...payload } : {};
   try {
-    const t = (window.localStorage && localStorage.getItem('CMF_AUTH_TOKEN')) || '';
+    const t = (window.CMFSession ? window.CMFSession.readToken() : '');
     if (t && !_payload.token) _payload.token = t;
   } catch(e) {}
 
@@ -8870,7 +8914,7 @@ getFormData(
               window.__cmfHandleAuthRequired = function(resp){
                 if (!resp) return false;
                 if (resp.authRequired || resp.error === 'AUTH_REQUIRED') {
-                  try { localStorage.removeItem('CMF_AUTH_TOKEN'); } catch(e){}
+                  try { window.CMFSession.clearToken(); } catch(e){}
                   showLogin('Session expired. Please sign in again.');
                   return true;
                 }
@@ -8901,13 +8945,13 @@ getFormData(
                   showLogin('This page must be opened via the deployed Apps Script Web App URL.');
                   return false;
                 }
-                const token = (() => { try { return localStorage.getItem('CMF_AUTH_TOKEN') || ''; } catch(e){ return ''; } })();
+                const token = (window.CMFSession ? window.CMFSession.readToken() : '');
                 if (!token) { showLogin(); return false; }
                 try {
                   const res = await callAction('authStatus', { token });
                   if (res && res.success && res.loggedIn) { hideLogin(); return true; }
                 } catch(e) {}
-                try { localStorage.removeItem('CMF_AUTH_TOKEN'); } catch(e){}
+                try { window.CMFSession.clearToken(); } catch(e){}
                 showLogin();
                 return false;
               }
@@ -8915,7 +8959,7 @@ getFormData(
               async function doLogin(username, password){
                 const res = await callAction('authLogin', { username, password });
                 if (!res || !res.success || !res.token) throw new Error(res?.error || 'Login failed');
-                try { localStorage.setItem('CMF_AUTH_TOKEN', res.token); } catch(e){}
+                try { window.CMFSession.writeToken(res.token, 28800); } catch(e){}
                 hideLogin();
                 return true;
               }
@@ -8951,11 +8995,11 @@ getFormData(
                   ev.preventDefault();
                   try { if (btn) btn.disabled = false; } catch(e) {}
                   try {
-                    const token = (() => { try { return localStorage.getItem('CMF_AUTH_TOKEN') || ''; } catch(e){ return ''; } })();
+                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
                     // Tell server to invalidate token (best-effort)
                     try { await callAction('authLogout', { token }); } catch(e) {}
                   } finally {
-                    try { localStorage.removeItem('CMF_AUTH_TOKEN'); } catch(e){}
+                    try { window.CMFSession.clearToken(); } catch(e){}
                     showLogin('Signed out.');
                     try { activateSalesPipeline(); } catch(e){}
                   }
