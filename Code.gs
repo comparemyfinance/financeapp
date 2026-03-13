@@ -92,6 +92,57 @@ IMPORTANT INSTALL NOTE:
 
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
+// Centralized config accessors (Phase 3C)
+const CONFIG_DEFAULTS_ = {
+  SPREADSHEET_ID: SPREADSHEET_ID,
+  SHEET_NAME: SHEET_NAME,
+  PARTNER_ACTIVITY_SHEET_NAME: PARTNER_ACTIVITY_SHEET_NAME,
+  ROOT_FOLDER_ID: ''
+};
+
+function configGet_(key, fallback) {
+  const fb = (fallback !== undefined) ? fallback : (Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key) ? CONFIG_DEFAULTS_[key] : '');
+  let propVal = '';
+  try { propVal = PropertiesService.getScriptProperties().getProperty(key) || ''; } catch (_) {}
+  const val = String(propVal || '').trim();
+  return val || fb;
+}
+
+function configBool_(key, defVal) {
+  const raw = String(configGet_(key, defVal ? 'true' : 'false')).trim().toLowerCase();
+  if (!raw) return !!defVal;
+  return raw === 'true' || raw === '1' || raw === 'yes';
+}
+
+
+function requireConfig_(keys) {
+  const missing = [];
+  (keys || []).forEach((k) => {
+    const v = String(configGet_(k, '') || '').trim();
+    if (!v) missing.push(k);
+  });
+  if (missing.length) throw new Error('Missing required config: ' + missing.join(', '));
+}
+
+function makeError_(code, message, extras) {
+  const errObj = {
+    success: false,
+    ok: false,
+    error: {
+      code: String(code || 'INTERNAL_ERROR'),
+      message: String(message || 'Unexpected server error')
+    }
+  };
+  const extra = extras && typeof extras === 'object' ? extras : null;
+  if (extra) {
+    Object.keys(extra).forEach((k) => {
+      if (k === 'stack' || k === 'details') return;
+      errObj[k] = extra[k];
+    });
+  }
+  return errObj;
+}
+
 function getSheet_() {
   requireConfig_(['SPREADSHEET_ID']);
   const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
