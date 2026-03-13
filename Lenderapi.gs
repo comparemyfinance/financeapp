@@ -11,6 +11,237 @@
  * NOTE: This is placeholder mode only; no live lender calls yet.
  */
 
+
+function getLenderCapabilities_() {
+  var defaults = getLenderDefaults_();
+  var capabilities = {};
+
+  for (var i = 0; i < defaults.length; i++) {
+    var lenderName = defaults[i].lender;
+    capabilities[lenderName] = {
+      lenderId: lenderName,
+      displayName: lenderName,
+      validationProvider: "JigsawRules",
+      submissionProvider: "SimulatedSuccess",
+      supportsApply: true,
+      supportsValidate: true,
+      isLiveSubmission: false,
+    };
+  }
+
+  capabilities.Jigsaw = {
+    lenderId: "Jigsaw",
+    displayName: "Jigsaw",
+    validationProvider: "JigsawRules",
+    submissionProvider: "JigsawLive",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: true,
+  };
+
+  capabilities.CarMoney = {
+    lenderId: "CarMoney",
+    displayName: "CarMoney",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+
+  capabilities.CF247 = {
+    lenderId: "CF247",
+    displayName: "CF247",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+
+  return capabilities;
+}
+
+function getLenderCapability_(selectedLender) {
+  var capabilities = getLenderCapabilities_();
+  var lenderName = String(selectedLender || "").trim();
+
+  if (capabilities[lenderName]) return capabilities[lenderName];
+
+  var normalized = toLenderKey_(lenderName);
+  var keys = Object.keys(capabilities);
+  for (var i = 0; i < keys.length; i++) {
+    if (toLenderKey_(keys[i]) === normalized) return capabilities[keys[i]];
+  }
+
+  return {
+    lenderId: lenderName || "Unknown",
+    displayName: lenderName || "Unknown",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+}
+
+function resolveValidationProvider_(selectedLender) {
+  return getLenderCapability_(selectedLender).validationProvider;
+}
+
+function resolveSubmissionProvider_(selectedLender) {
+  return getLenderCapability_(selectedLender).submissionProvider;
+}
+
+
+function validateWithProvider_(providerId, payload) {
+  var provider = String(providerId || "").trim();
+  if (provider === "JigsawRules") {
+    return validateWithJigsawRulesPlaceholder_(payload || {});
+  }
+  return {
+    success: false,
+    code: "UNKNOWN_VALIDATION_PROVIDER",
+    message: "Unsupported validation provider: " + provider,
+  };
+}
+
+function submitWithProvider_(providerId, payload) {
+  var provider = String(providerId || "").trim();
+  if (provider === "JigsawLive") {
+    // Guardrail placeholder: only selected lender Jigsaw may ever use this provider.
+    if (String(payload && payload.selectedLender || "") !== "Jigsaw") {
+      return {
+        success: false,
+        code: "LIVE_PROVIDER_BLOCKED",
+        message: "Only Jigsaw can use JigsawLive submission provider",
+      };
+    }
+    return {
+      success: false,
+      code: "SUBMIT_NOT_ACTIVE",
+      message: "Submit is not active in Product Source modal yet",
+    };
+  }
+  if (provider === "SimulatedSuccess") {
+    return {
+      success: true,
+      mode: "placeholder",
+      message: "Simulated submit success",
+    };
+  }
+  return {
+    success: false,
+    code: "UNKNOWN_SUBMISSION_PROVIDER",
+    message: "Unsupported submission provider: " + provider,
+  };
+}
+
+function validateLenderApplication_(payload) {
+  payload = payload || {};
+  var selectedLender = String(
+    payload.selectedLender || payload.lender || payload.lenderName || "",
+  ).trim();
+  if (!selectedLender) {
+    return {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "selectedLender is required",
+    };
+  }
+
+  var capability = getLenderCapability_(selectedLender);
+  var validationProvider = resolveValidationProvider_(selectedLender);
+  var providerResult = validateWithProvider_(validationProvider, {
+    selectedLender: selectedLender,
+    capability: capability,
+    deal: payload.deal || null,
+    draft: payload.draft || null,
+    rawPayload: payload,
+  });
+
+  return {
+    success: !!providerResult.success,
+    selectedLender: selectedLender,
+    validationProvider: validationProvider,
+    submissionProvider: capability.submissionProvider,
+    statusMessage: providerResult.success
+      ? selectedLender + " validation successful"
+      : selectedLender + " validation failed",
+    result: providerResult,
+  };
+}
+
+function validateWithJigsawRulesPlaceholder_(ctx) {
+  var deal = ctx && (ctx.deal || null);
+  if (!deal || typeof deal !== "object") {
+    return {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "Missing deal payload",
+      errors: ["deal payload is required"],
+    };
+  }
+
+  return {
+    success: true,
+    mode: "placeholder",
+    ruleProvider: "JigsawRules",
+    message: "Validation passed",
+    warnings: [],
+  };
+}
+
+
+function submitLenderApplication_(payload) {
+  payload = payload || {};
+  var selectedLender = String(
+    payload.selectedLender || payload.lender || payload.lenderName || "",
+  ).trim();
+  if (!selectedLender) {
+    return {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "selectedLender is required",
+    };
+  }
+
+  var capability = getLenderCapability_(selectedLender);
+  var validationResult = validateLenderApplication_(payload);
+  if (!validationResult.success) {
+    return {
+      success: false,
+      stage: "validate",
+      selectedLender: selectedLender,
+      validationProvider: validationResult.validationProvider,
+      submissionProvider: capability.submissionProvider,
+      statusMessage: selectedLender + " submit blocked: validation failed",
+      validation: validationResult,
+    };
+  }
+
+  var submissionProvider = resolveSubmissionProvider_(selectedLender);
+  var providerResult = submitWithProvider_(submissionProvider, {
+    selectedLender: selectedLender,
+    capability: capability,
+    deal: payload.deal || null,
+    draft: payload.draft || null,
+    rawPayload: payload,
+  });
+
+  return {
+    success: !!providerResult.success,
+    selectedLender: selectedLender,
+    validationProvider: validationResult.validationProvider,
+    submissionProvider: submissionProvider,
+    statusMessage: providerResult.success
+      ? selectedLender + " submission successful"
+      : selectedLender + " submission failed",
+    validation: validationResult,
+    result: providerResult,
+  };
+}
+
 function listLenders_() {
   return getLenderDefaults_().map(function (x) {
     return {
@@ -94,6 +325,7 @@ function getLenderQuotesBatch(payload) {
   var settlementFigure = toNumber_(payload.settlementFigure);
   var remainingTerm = toInt_(payload.remainingTerm);
   var origLoan = toNumber_(payload.origLoan);
+  var financeType = String(payload.financeType || "").toUpperCase();
 
   if (!isFinite(settlementFigure) || settlementFigure <= 0)
     return { success: false, error: "settlementFigure required" };
@@ -104,7 +336,13 @@ function getLenderQuotesBatch(payload) {
 
   var defaults = getLenderDefaults_();
   var products = defaults.map(function (def) {
-    return computeProduct_(def, settlementFigure, remainingTerm, origLoan);
+    return computeProduct_(
+      def,
+      settlementFigure,
+      remainingTerm,
+      origLoan,
+      financeType,
+    );
   });
 
   // Mirror UI sort: ascending APR
@@ -123,7 +361,13 @@ function getLenderQuotesBatch(payload) {
   };
 }
 
-function computeProduct_(lenderDef, settlementFigure, remainingTerm, origLoan) {
+function computeProduct_(
+  lenderDef,
+  settlementFigure,
+  remainingTerm,
+  origLoan,
+  financeType,
+) {
   // Same as UI: base balloon uses settlementFigure and term/origLoan curve
   var baseBalloon = settlementFigure * getBalloonPerc_(remainingTerm, origLoan);
 
@@ -133,6 +377,16 @@ function computeProduct_(lenderDef, settlementFigure, remainingTerm, origLoan) {
     if (lenderDef.lender === "Alphera") v = 1.05;
     else if (lenderDef.lender === "Motonovo") v = 0.98;
     else if (lenderDef.lender === "Northridge Finance") v = 1.1;
+  }
+
+  // Product Source migration placeholder rule:
+  // - Jigsaw/CarMoney/CF247 must use best comparative PCP balloon only.
+  // - HP rows do not receive balloon manipulation.
+  if (
+    isProductSourcePriorityLender_(lenderDef.lender) &&
+    String(financeType || "").toUpperCase() === "PCP"
+  ) {
+    v = 1.2;
   }
   var balloon = baseBalloon * v;
 
@@ -201,6 +455,24 @@ function calcMonthly_(p, t, apr, b) {
 
 function getLenderDefaults_() {
   return [
+    {
+      lender: "Jigsaw",
+      apr: 1.0,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "CarMoney",
+      apr: 1.0,
+      commissionPct: 4,
+      highlight: false,
+    },
+    {
+      lender: "CF247",
+      apr: 1.0,
+      commissionPct: 4,
+      highlight: false,
+    },
     {
       lender: "BNP Paribas Finance",
       apr: 12.9,
@@ -368,6 +640,18 @@ function getFinanceNavigatorSoftScore(payload) {
     var rand = seededNumber_(clientSeed + "|" + lenderId);
     var rand2 = seededNumber_(clientSeed + "|" + lenderId + "|a");
     var rand3 = seededNumber_(clientSeed + "|" + lenderId + "|d");
+
+    if (isProductSourcePriorityLenderId_(lenderId, lenderName)) {
+      return {
+        lenderId: lenderId,
+        lenderName: lenderName,
+        aprOffer: 1.0,
+        decision: "accept",
+        acceptanceScore: 90,
+        acceptanceLabel: "High",
+      };
+    }
+
     var baseApr = toNumber_(entry.baseApr);
     if (!isFinite(baseApr)) {
       var found = defaults.filter(function (def) {
@@ -458,4 +742,16 @@ function acceptanceLabelFromScore_(score) {
   if (score >= 50) return "Medium";
   if (score >= 30) return "Low";
   return "Very Low";
+}
+
+function isProductSourcePriorityLender_(lenderName) {
+  var key = toLenderKey_(lenderName);
+  return key === "jigsaw" || key === "carmoney" || key === "cf247";
+}
+
+function isProductSourcePriorityLenderId_(lenderId, lenderName) {
+  return (
+    isProductSourcePriorityLender_(lenderId) ||
+    isProductSourcePriorityLender_(lenderName)
+  );
 }
