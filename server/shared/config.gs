@@ -3,7 +3,6 @@
 // ============================================================
 
 // === Spreadsheet backing store (Deals) ===
-const SPREADSHEET_ID = ''; // from Script Properties: SPREADSHEET_ID
 const SHEET_NAME = 'Deals';
 const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
 
@@ -12,7 +11,7 @@ const ENABLE_CACHE_LOCKS = false; // CacheService-based acquire/heartbeat/releas
 const ENABLE_OPTIMISTIC_LOCK = false; // lastUpdated vs updatedAt conflict check
 
 const CONFIG_DEFAULTS_ = {
-  SPREADSHEET_ID: SPREADSHEET_ID,
+  SPREADSHEET_ID: '',
   SHEET_NAME: SHEET_NAME,
   PARTNER_ACTIVITY_SHEET_NAME: PARTNER_ACTIVITY_SHEET_NAME,
   ROOT_FOLDER_ID: '',

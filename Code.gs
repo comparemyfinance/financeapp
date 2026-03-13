@@ -92,60 +92,23 @@ IMPORTANT INSTALL NOTE:
 
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
-// Centralized config accessors (Phase 3C)
-const CONFIG_DEFAULTS_ = {
-  SPREADSHEET_ID: SPREADSHEET_ID,
-  SHEET_NAME: SHEET_NAME,
-  PARTNER_ACTIVITY_SHEET_NAME: PARTNER_ACTIVITY_SHEET_NAME,
-  ROOT_FOLDER_ID: ''
-};
-
-function configGet_(key, fallback) {
-  const fb = (fallback !== undefined) ? fallback : (Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key) ? CONFIG_DEFAULTS_[key] : '');
-  let propVal = '';
-  try { propVal = PropertiesService.getScriptProperties().getProperty(key) || ''; } catch (_) {}
-  const val = String(propVal || '').trim();
-  return val || fb;
-}
-
-function configBool_(key, defVal) {
-  const raw = String(configGet_(key, defVal ? 'true' : 'false')).trim().toLowerCase();
-  if (!raw) return !!defVal;
-  return raw === 'true' || raw === '1' || raw === 'yes';
-}
-
-
-function requireConfig_(keys) {
-  const missing = [];
-  (keys || []).forEach((k) => {
-    const v = String(configGet_(k, '') || '').trim();
-    if (!v) missing.push(k);
-  });
-  if (missing.length) throw new Error('Missing required config: ' + missing.join(', '));
-}
-
-function makeError_(code, message, extras) {
-  const errObj = {
-    success: false,
-    ok: false,
-    error: {
-      code: String(code || 'INTERNAL_ERROR'),
-      message: String(message || 'Unexpected server error')
-    }
-  };
-  const extra = extras && typeof extras === 'object' ? extras : null;
-  if (extra) {
-    Object.keys(extra).forEach((k) => {
-      if (k === 'stack' || k === 'details') return;
-      errObj[k] = extra[k];
-    });
+function getSpreadsheetId_() {
+  const legacyId =
+    typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
+      ? String(SPREADSHEET_ID).trim()
+      : '';
+  const configuredId =
+    typeof configGet_ === 'function'
+      ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
+      : legacyId;
+  if (!configuredId) {
+    throw new Error('Missing required config: SPREADSHEET_ID');
   }
-  return errObj;
+  return configuredId;
 }
 
 function getSheet_() {
-  requireConfig_(['SPREADSHEET_ID']);
-  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found.');
   return sheet;
@@ -229,7 +192,7 @@ function objectToRow_(headers, obj) {
 // Uses CacheService for fast lookups; auto-rebuilds on mismatch.
 // ------------------------------------------------------------
 function cacheKey_(suffix) {
-  return 'CMFCRM:' + configGet_('SPREADSHEET_ID') + ':' + SHEET_NAME + ':' + suffix;
+  return 'CMFCRM:' + getSpreadsheetId_() + ':' + SHEET_NAME + ':' + suffix;
 }
 
 function getRowIndexCache_() {
@@ -419,7 +382,7 @@ function handleWebClientRequest(request) {
 // ==========================================
 // Router action dispatch extracted to server/router/actions.gs
 function getPartnerActivitySummary_() {
-  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   const sheet = ss.getSheetByName(PARTNER_ACTIVITY_SHEET_NAME);
   if (!sheet) {
     throw new Error('Sheet "' + PARTNER_ACTIVITY_SHEET_NAME + '" not found.');
@@ -712,7 +675,7 @@ function dailyArchive() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
   try {
-    const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+    const ss = SpreadsheetApp.openById(getSpreadsheetId_());
     const src = ss.getSheetByName('Deals');
     let arc = ss.getSheetByName('Archive');
     if (!arc) arc = ss.insertSheet('Archive');
@@ -869,7 +832,7 @@ function getJigsawBaseUrl_() {
 
 // ------------------------- Logging sheet
 function getLogSheet_() {
-  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(JIGSAW_LOG_SHEET);
   if (!sh) sh = ss.insertSheet(JIGSAW_LOG_SHEET);
   const headers = ['timestampUtc','event','dealId','introducerReference','jigsawReference','httpStatus','ok','message','request','response'];
@@ -913,7 +876,7 @@ function safeStringify_(o) {
 
 // ------------------------- VRN cache
 function getVrnSheet_() {
-  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(VRN_CACHE_SHEET);
   if (!sh) sh = ss.insertSheet(VRN_CACHE_SHEET);
   const headers = ['vrn','data','updatedAt'];
@@ -1171,7 +1134,7 @@ function getJigsawPath_(propName, defaultPath) {
 }
 
 function ensureJigsawStoreSheet_(name, headers) {
-  const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
   if (sh.getLastRow() === 0) sh.appendRow(headers);
