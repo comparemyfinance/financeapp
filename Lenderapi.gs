@@ -192,6 +192,56 @@ function validateWithJigsawRulesPlaceholder_(ctx) {
   };
 }
 
+
+function submitLenderApplication_(payload) {
+  payload = payload || {};
+  var selectedLender = String(
+    payload.selectedLender || payload.lender || payload.lenderName || "",
+  ).trim();
+  if (!selectedLender) {
+    return {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "selectedLender is required",
+    };
+  }
+
+  var capability = getLenderCapability_(selectedLender);
+  var validationResult = validateLenderApplication_(payload);
+  if (!validationResult.success) {
+    return {
+      success: false,
+      stage: "validate",
+      selectedLender: selectedLender,
+      validationProvider: validationResult.validationProvider,
+      submissionProvider: capability.submissionProvider,
+      statusMessage: selectedLender + " submit blocked: validation failed",
+      validation: validationResult,
+    };
+  }
+
+  var submissionProvider = resolveSubmissionProvider_(selectedLender);
+  var providerResult = submitWithProvider_(submissionProvider, {
+    selectedLender: selectedLender,
+    capability: capability,
+    deal: payload.deal || null,
+    draft: payload.draft || null,
+    rawPayload: payload,
+  });
+
+  return {
+    success: !!providerResult.success,
+    selectedLender: selectedLender,
+    validationProvider: validationResult.validationProvider,
+    submissionProvider: submissionProvider,
+    statusMessage: providerResult.success
+      ? selectedLender + " submission successful"
+      : selectedLender + " submission failed",
+    validation: validationResult,
+    result: providerResult,
+  };
+}
+
 function listLenders_() {
   return getLenderDefaults_().map(function (x) {
     return {

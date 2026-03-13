@@ -78,6 +78,7 @@ Router alias normalization in `normalizeAction_`:
 - `validateJigsaw`
 - `submitJigsaw`
 - `validateLenderApplication`
+- `submitLenderApplication`
 - `save`
 - `delete`
 - `batchUpdate`
@@ -111,8 +112,25 @@ If required config is missing, handlers should preserve specific safe messages s
     - `statusMessage`
     - `result`
 
+- `submitLenderApplication`
+  - Auth: protected.
+  - Request payload (current minimum):
+    - `selectedLender` (required)
+    - `deal` (required placeholder payload source)
+  - Behavior:
+    - re-runs validation through provider dispatch before attempting submission provider.
+    - non-Jigsaw lenders use simulated success provider after validation passes.
+    - Jigsaw remains the only live-capable submission provider mapping; submit remains backend-contract only until UI activation.
+  - Response includes:
+    - `selectedLender`
+    - `validationProvider`
+    - `submissionProvider`
+    - `statusMessage`
+    - `validation`
+    - `result`
+
 Compatibility notes:
 
-- This action is additive and does not replace `validateJigsaw`.
+- These actions are additive and do not replace `validateJigsaw` / `submitJigsaw`.
 - Current placeholder behavior uses `JigsawRules` validation provider for all lenders.
 - Only `Jigsaw` maps to live submission provider (`JigsawLive`); non-Jigsaw lenders map to `SimulatedSuccess`.
