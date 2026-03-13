@@ -101,10 +101,24 @@ function getSpreadsheetId_() {
     typeof configGet_ === 'function'
       ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
       : legacyId;
+<<<<<<< codex/conduct-repository-legibility-audit-a9uvo9
+  if (configuredId) return configuredId;
+
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active && typeof active.getId === 'function') {
+      const activeId = String(active.getId() || '').trim();
+      if (activeId) return activeId;
+    }
+  } catch (_) {}
+
+  throw new Error('Missing required config: SPREADSHEET_ID');
+=======
   if (!configuredId) {
     throw new Error('Missing required config: SPREADSHEET_ID');
   }
   return configuredId;
+>>>>>>> main
 }
 
 function getSheet_() {
