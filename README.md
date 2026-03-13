@@ -75,6 +75,7 @@ Local development workflow is:
 - Error envelope policy: `docs/ERROR_POLICY.md`
 - Environment/runtime assumptions: `docs/ENVIRONMENT.md`
 - Test strategy and refactor gates: `docs/TEST_STRATEGY.md`
+- Ambiguity/dedup decisions: `docs/DEDUP_MAP.md`
 - Historical audit context: `docs/audit.md`, `docs/audit-report.md`
 
 ## Deployment secrets (GitHub)
