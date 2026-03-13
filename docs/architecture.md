@@ -1,51 +1,42 @@
-# Target Architecture (Staged Migration)
+# Architecture Map (Runtime Truth)
 
-## Goals
+## Runtime model
 
-- Keep production app runnable during refactor.
-- Isolate concerns (routing, data access, auth, UI modules).
-- Make template and script syntax failures detectable pre-merge.
+This project runs as a **Google Apps Script Web App** (V8 runtime).
 
-## Structure
+- Entry surface: `Code.gs`
+  - `doGet` (UI + optional API GET)
+  - `doPost` (HTTP POST API)
+  - `handleWebClientRequest` (Apps Script bridge for `google.script.run`)
+- Router and action ownership: `server/router/actions.gs`
+- Shared config helpers: `server/shared/config.gs`
+- Shared response/error helpers: `server/shared/response.gs`
+- Auth/session backend: `Auth.js`
+- Lender domain backend: `Lenderapi.gs`
 
-- `server/`: Apps Script controllers/services (new code path, gated).
-- `client/`: browser-side modules extracted from large inline script blocks.
-- `templates/`: HTML partials/includes for tab composition.
-- `shared/`: schemas, contract validators, common transforms.
-- `scripts/`: validation/build/deploy helpers.
-- `tests/`: smoke tests and contract checks.
+## Request flow
 
-## Routing conventions
+1. UI triggers action with `{ action, payload }`.
+2. Request enters via `handleWebClientRequest` or `doPost` in `Code.gs`.
+3. `Code.gs` delegates to `routeAction_` in `server/router/actions.gs`.
+4. Router enforces public/protected action gating and dispatches to action handlers.
+5. Handlers call domain helpers in `Code.gs` / `Auth.js` / `Lenderapi.gs`.
+6. Response returns in canonical envelope shape from shared response helpers.
 
-- Keep existing `doGet` / `doPost` and `handleWebClientRequest` stable as compatibility API.
-- Route all actions through a single dispatcher contract (`action`, `payload`, metadata).
-- Introduce new handler registry behind migration feature flag before removing legacy switch logic.
+## UI runtime
 
-## Contract conventions
+- Primary shell: `Index.html` (served by `createTemplateFromFile('Index')`)
+- Feature templates: `tab*.html`
+- Current reality: both `Index.html` and `tabSalesPipeline.html` still contain substantial API/session logic; canonical/delegated guidance is in `docs/CANONICAL_FILES.md` and `docs/KNOWN_AMBIGUITIES.md`.
 
-- Validate requests at route boundaries.
-- Use explicit success/error envelope:
-  - `{ success: true, data, meta? }`
-  - `{ success: false, error, code?, correlationId? }`
-- Never expose stack traces to clients in production responses.
+## Platform dependencies
 
-## Data layer conventions
+- Google Sheets
+- Google Drive (Advanced Drive API v3 + `DriveApp`)
+- Apps Script services: `PropertiesService`, `CacheService`, `LockService`
 
-- Centralize sheet reads/writes behind one service module with:
-  - lock handling
-  - cache/index consistency
-  - deterministic errors
-- Add helper adapters so legacy functions can call new service without full rewrite.
+## Constraints
 
-## Frontend conventions
-
-- Keep tab wiring event delegation as a compatibility layer.
-- Move tab-specific behavior to per-feature modules gradually.
-- Prefer `textContent` and explicit escaping helpers over raw `innerHTML` for dynamic user content.
-
-## Rollout strategy
-
-1. Land quality gates and syntax validators.
-2. Fix hard parser/runtime blockers.
-3. Migrate feature slices with smoke checks.
-4. Remove dead legacy code only after parity checks pass.
+- Global Apps Script function namespace (no module imports at runtime).
+- Large legacy files remain (`Code.gs`, `Index.html`, `tabSalesPipeline.html`), so changes should be incremental and narrowly scoped.
+- Deployment is CI-driven (`clasp` workflows).
