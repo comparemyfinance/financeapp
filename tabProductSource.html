@@ -2603,12 +2603,14 @@
           let modal = getEl("lenderAppModal");
           if (modal) return modal;
           const html = `
-            <div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-[60] p-4" id="lenderAppModal">
-              <div class="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] text-gray-800 flex flex-col overflow-hidden">
-                <div class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40">
-                  <img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/>
-                  <h2 class="text-xl font-bold truncate pr-28 min-w-0" id="lenderAppTitle">Lender Application</h2>
-                  <div class="absolute right-4 top-4 flex items-center gap-2 z-50">
+            <div class="fixed inset-0 bg-black/60 flex items-start justify-center hidden z-[60] p-4 overflow-y-auto" id="lenderAppModal">
+              <div class="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[calc(100vh-2rem)] text-gray-800 flex flex-col overflow-hidden my-auto">
+                <div class="flex items-center justify-between gap-3 p-4 border-b sticky top-0 bg-white z-40">
+                  <div class="min-w-0 flex items-center gap-3">
+                    <img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/>
+                    <h2 class="text-xl font-bold truncate min-w-0" id="lenderAppTitle">Lender Application</h2>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
                     <button type="button" id="lenderAppValidateBtn" class="bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg hover:bg-blue-700">Validate</button>
                     <button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button">
                       <span>Close</span>
@@ -4643,4 +4645,3 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
       };
 
       // (deduped duplicate prefillLetterCreator block)
-
