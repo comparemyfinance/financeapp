@@ -4,4 +4,3 @@ This file marks a known-good project snapshot requested by the user before login
 
 - Snapshot baseline commit: `eb19246`
 - Snapshot recorded in commit containing this file.
-
