@@ -90,17 +90,7 @@ IMPORTANT INSTALL NOTE:
  * ======================================================================
  */
 
-// === Spreadsheet backing store (Deals) ===
-const SPREADSHEET_ID = ''; // from Script Properties: SPREADSHEET_ID
-const SHEET_NAME     = 'Deals';
-const PARTNER_ACTIVITY_SHEET_NAME = 'VRNdata';
-
-// === Runtime toggles (when serving UI from the same Apps Script project) ===
-// If you are running the CRM UI from HtmlService in this same project, you generally do NOT
-// need CacheService heartbeat locks or optimistic lastUpdated conflicts.
-const ENABLE_CACHE_LOCKS = false;       // CacheService-based acquire/heartbeat/release
-const ENABLE_OPTIMISTIC_LOCK = false;   // lastUpdated vs updatedAt conflict check
- // Main deals table sheet name
+// Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
 // Centralized config accessors (Phase 3C)
 const CONFIG_DEFAULTS_ = {
@@ -419,13 +409,6 @@ function handleWebClientRequest(request) {
   return safeClientJson_(result);
 }
 
-function safeClientJson_(obj) {
-  return JSON.stringify(obj, (k, v) => {
-    // Convert Dates to ISO strings
-    if (v instanceof Date) return v.toISOString();
-    return v;
-  });
-}
 
 /**
  * Shared router used by both doPost (HTTP) and handleWebClientRequest (internal).
@@ -434,177 +417,7 @@ function safeClientJson_(obj) {
 // ==========================================
 // SHARED ROUTER (used by doPost and google.script.run)
 // ==========================================
-function normalizeAction_(action) {
-  const raw = String(action || '').trim();
-  if (!raw) return 'unknown';
-  const aliases = {
-    validateJigsawReferral: 'validateJigsaw',
-    submitJigsawReferral: 'submitJigsaw',
-    load: 'getDelta',
-    getAll: 'getDelta'
-  };
-  return aliases[raw] || raw;
-}
-
-function makeRouteContext_(action, payload, fullRequest) {
-  const legacy = fullRequest || {};
-  return {
-    rawAction: String(action || '').trim() || 'unknown',
-    action: normalizeAction_(action),
-    payload: (payload != null) ? payload : {},
-    legacy: legacy
-  };
-}
-
-function resolveFolderId_(payload, legacy) {
-  let folderId = '';
-  if (typeof payload === 'string') folderId = payload;
-  if (!folderId && payload && typeof payload === 'object') {
-    folderId =
-      payload.folderId || payload.folder_id || payload.id || payload.driveFolderId ||
-      (typeof payload.folder === 'string' ? payload.folder : (payload.folder && (payload.folder.id || payload.folder.folderId || payload.folder.driveFolderId))) ||
-      (payload.selectedFolder && (payload.selectedFolder.id || payload.selectedFolder.folderId || payload.selectedFolder.driveFolderId)) ||
-      (payload.node && (payload.node.id || payload.node.folderId || payload.node.driveFolderId)) ||
-      '';
-  }
-  if (!folderId && legacy) {
-    folderId =
-      legacy.folderId || legacy.folder_id || legacy.id || legacy.driveFolderId ||
-      (typeof legacy.folder === 'string' ? legacy.folder : (legacy.folder && (legacy.folder.id || legacy.folder.folderId || legacy.folder.driveFolderId))) ||
-      '';
-  }
-  return String(folderId || '').trim();
-}
-
-function handleHealthCheck_(ctx) { return { success: true, status: 'healthy' }; }
-
-// ------------------------ Auth handlers
-function handleAuthLogin_(ctx) {
-  const u = ctx.payload && ctx.payload.username;
-  const p = ctx.payload && ctx.payload.password;
-  return auth_login_plain_(u, p);
-}
-
-function handleAuthStatus_(ctx) {
-  const chk = auth_check_token_(ctx.payload && ctx.payload.token);
-  return chk.success ? { success: true, loggedIn: true, user: chk.user } : { success: true, loggedIn: false };
-}
-
-function handleAuthLogout_(ctx) {
-  return auth_logout_token_(ctx.payload && ctx.payload.token);
-}
-
-// ------------------------ Lender handlers
-function handleListLenders_(ctx) { return { success: true, lenders: listLenders_() }; }
-function handleGetLenderQuote_(ctx) { return getLenderQuote(ctx.payload || {}); }
-function handleGetLenderQuotesBatch_(ctx) { return getLenderQuotesBatch(ctx.payload || {}); }
-function handleGetFinanceNavigatorSoftScore_(ctx) { return getFinanceNavigatorSoftScore(ctx.payload || {}); }
-
-// ------------------------ Deals handlers
-function handleGetPartnerActivitySummary_(ctx) { return safeObj_(() => getPartnerActivitySummary_()); }
-
-function handleLockAction_(ctx) {
-  if (!ENABLE_CACHE_LOCKS) return { success: true, disabled: true };
-  return safeObj_(() => handleDealLocking_(ctx.legacy));
-}
-
-function handleGetDelta_(ctx) {
-  const sheet = getSheet_();
-  const data = getRowsData_(sheet);
-  return { success: true, data: data };
-}
-
-function handleSave_(ctx) {
-  return withLock_(30000, () => {
-    const sheet = getSheet_();
-    return safeObj_(() => saveDeal_(sheet, ctx.payload));
-  });
-}
-
-function handleDelete_(ctx) {
-  return withLock_(30000, () => {
-    const sheet = getSheet_();
-    return safeObj_(() => deleteDeal_(sheet, ctx.payload && ctx.payload.id));
-  });
-}
-
-function handleBatchUpdate_(ctx) {
-  return withLock_(30000, () => {
-    const sheet = getSheet_();
-    return safeObj_(() => batchUpdate_(sheet, ctx.payload && ctx.payload.updates));
-  });
-}
-
-// ------------------------ Drive handlers
-function handleSearchFolders_(ctx) {
-  const q = (ctx.payload && ctx.payload.query != null)
-    ? ctx.payload.query
-    : (ctx.legacy.query != null ? ctx.legacy.query : '');
-  return safeObj_(() => searchClientFolders_(q));
-}
-
-function handleGetFolderFiles_(ctx) {
-  const folderId = resolveFolderId_(ctx.payload, ctx.legacy);
-  if (!folderId) {
-    return makeError_('VALIDATION_ERROR', 'Missing folderId', {
-      hint: 'Send payload.folderId (or payload.id / payload.folder.id)'
-    });
-  }
-  return safeObj_(() => getFolderFiles_(folderId));
-}
-
-// ------------------------ Jigsaw handlers
-function handleValidateJigsaw_(ctx) { return safeObj_(() => validateJigsawAction_(ctx.payload)); }
-function handleSubmitJigsaw_(ctx) { return safeObj_(() => submitJigsawAction_(ctx.payload)); }
-
-// ------------------------ Visible dispatch registry
-const PUBLIC_ACTION_HANDLERS_ = {
-  healthCheck: handleHealthCheck_,
-  authLogin: handleAuthLogin_,
-  authStatus: handleAuthStatus_,
-  authLogout: handleAuthLogout_
-};
-
-const PROTECTED_ACTION_HANDLERS_ = {
-  listLenders: handleListLenders_,
-  getLenderQuote: handleGetLenderQuote_,
-  getLenderQuotesBatch: handleGetLenderQuotesBatch_,
-  getFinanceNavigatorSoftScore: handleGetFinanceNavigatorSoftScore_,
-  getPartnerActivitySummary: handleGetPartnerActivitySummary_,
-  acquireLock: handleLockAction_,
-  releaseLock: handleLockAction_,
-  heartbeatLock: handleLockAction_,
-  searchFolders: handleSearchFolders_,
-  getFolderFiles: handleGetFolderFiles_,
-  getDelta: handleGetDelta_,
-  validateJigsaw: handleValidateJigsaw_,
-  submitJigsaw: handleSubmitJigsaw_,
-  save: handleSave_,
-  delete: handleDelete_,
-  batchUpdate: handleBatchUpdate_
-};
-
-function routeAction_(action, payload, fullRequest) {
-  const ctx = makeRouteContext_(action, payload, fullRequest);
-
-  try {
-    const publicHandler = PUBLIC_ACTION_HANDLERS_[ctx.action];
-    if (publicHandler) return publicHandler(ctx);
-
-    const auth = auth_check_token_(ctx.payload && ctx.payload.token);
-    if (!auth.success) return auth;
-
-    const protectedHandler = PROTECTED_ACTION_HANDLERS_[ctx.action];
-    if (protectedHandler) return protectedHandler(ctx);
-
-    return makeError_('UNKNOWN_ACTION', 'Unknown action: ' + ctx.rawAction);
-  } catch (err) {
-    console.error('routeAction_ error', ctx.rawAction, err);
-    return makeError_('INTERNAL_ERROR', (err && err.message) ? String(err.message) : 'Server error', { action: ctx.rawAction });
-  }
-}
-
-
+// Router action dispatch extracted to server/router/actions.gs
 function getPartnerActivitySummary_() {
   const ss = SpreadsheetApp.openById(configGet_('SPREADSHEET_ID'));
   const sheet = ss.getSheetByName(PARTNER_ACTIVITY_SHEET_NAME);
@@ -927,25 +740,6 @@ function dailyArchive() {
  * Consistent JSON output wrapper.
  * Always use this for responses so the front-end can safely JSON.parse().
  */
-function safeObj_(fn) {
-  try {
-    const out = fn();
-    // If a handler accidentally returns a ContentService output, convert to a plain object if possible.
-    if (out && typeof out.getContent === 'function') {
-      try {
-        return JSON.parse(out.getContent());
-      } catch (e) {
-        return makeError_('INVALID_OUTPUT', 'Handler returned a non-JSON payload.');
-      }
-    }
-    return out;
-  } catch (err) {
-    console.error('safeObj_ error', err);
-    return makeError_('INTERNAL_ERROR', 'Server error');
-  }
-}
-
-
 /**
  * Run fn under a ScriptLock to serialize writes.
  * Returns fn()'s return value (plain object).
@@ -960,14 +754,6 @@ function withLock_(timeoutMs, fn) {
     try { lock.releaseLock(); } catch (_) {}
   }
 }
-
-function createJsonOutput_(o) {
-  return ContentService.createTextOutput(JSON.stringify(o))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// Backwards compatibility (HTTP handlers should return createJsonOutput_ at the very end)
-function json_(o) { return createJsonOutput_(o); }
 
 /**
  * ======================================================================
@@ -1062,15 +848,6 @@ function handleDealLocking_(req) {
   }
 }
 
-
-// ------------------------- Properties helpers
-function getProp_(k) { return configGet_(k, ''); }
-function boolProp_(k, defVal) { return configBool_(k, defVal); }
-
-
-function configSetMany_(obj, deleteAllOthers) {
-  return PropertiesService.getScriptProperties().setProperties(obj || {}, !!deleteAllOthers);
-}
 
 // ------------------------- One-time setup helper (run manually from Apps Script editor)
 function setupJigsawUatProperties_() {

@@ -149,8 +149,16 @@ export function createGasContext() {
 }
 
 export function loadGasRuntime(ctx) {
-  const files = ['Code.gs', 'Auth.js', 'Lenderapi.gs'];
+  const files = [
+    'server/shared/config.gs',
+    'server/shared/response.gs',
+    'server/router/actions.gs',
+    'Code.gs',
+    'Auth.js',
+    'Lenderapi.gs',
+  ];
   for (const file of files) {
+    if (!fs.existsSync(file)) continue;
     const src = fs.readFileSync(file, 'utf8');
     vm.runInContext(src, ctx, { filename: file });
   }

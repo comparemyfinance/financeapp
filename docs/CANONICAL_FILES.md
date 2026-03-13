@@ -8,9 +8,12 @@ This document defines where changes must be made when multiple implementations o
   - `doGet`
   - `doPost`
   - `handleWebClientRequest`
-  - `routeAction_`
+- **Canonical extracted backend modules (Phase 7):**
+  - `server/router/actions.gs` (router dispatch + domain handler ownership)
+  - `server/shared/config.gs` (config access + required config validation)
+  - `server/shared/response.gs` (error/response helpers)
 
-If you are changing API action handling, routing, auth gating behavior, or server-side integration flow control, edit `Code.gs` first.
+If you are changing API action handling/ownership, edit `server/router/actions.gs`; keep `Code.gs` entrypoints stable. For config/response semantics, edit the corresponding `server/shared/*` module.
 
 ## Primary UI shell
 

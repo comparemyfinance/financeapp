@@ -47,7 +47,8 @@ Local development workflow is:
 
 ## Top-level structure
 
-- `Code.gs` – main backend router + sheet/Drive/Jigsaw operations
+- `Code.gs` – runtime entrypoints (`doGet`/`doPost`/bridge)
+- `server/` – extracted backend modules (`router/`, `shared/`)
 - `Auth.js` – auth/session helpers
 - `Lenderapi.gs` – lender quote data/calculation helpers
 - `Index.html` – main UI shell template

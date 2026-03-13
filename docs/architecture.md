@@ -53,3 +53,12 @@
 - Runtime is Google Apps Script (V8), so there is no local Node server for feature runtime.
 - Large inline scripts still exist in template files; refactors should be incremental.
 - Deployment is CI-driven using `clasp`.
+
+## Modularization status (Phase 7)
+
+- **Wave 1 logical extraction completed (within Apps Script constraints):**
+  - `server/shared/config.gs` (config helpers)
+  - `server/shared/response.gs` (response/error helpers)
+  - `server/router/actions.gs` (dispatch map + action handlers)
+- `Code.gs` remains the runtime entrypoint surface (`doGet`, `doPost`, `handleWebClientRequest`) and delegates to extracted helpers.
+- Apps Script runtime truth is preserved: global function model remains intact; extraction is organizational, not behavioral.
