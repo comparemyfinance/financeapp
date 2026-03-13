@@ -1424,6 +1424,22 @@
       }
       #pse #products-table tbody tr.lender-broker-row.selected-row {
         background-color: #ddd0ff;
+        box-shadow: 0 0 0 2px #5b3fa3;
+      }
+      #lenderAppModal .lender-app-modal-panel {
+        max-height: min(90vh, 860px);
+      }
+      #lenderAppModal .lender-app-modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+      }
+      #lenderAppModal .lender-app-modal-body {
+        overflow-y: auto;
+        min-height: 0;
+      }
+      #lenderAppModal #lenderAppPayloadJson {
+        max-height: none;
       }
       #pse .placeholder-text {
         color: #777;
@@ -2172,7 +2188,7 @@
           );
         const LENDER_BROKER_IDS = new Set(["jigsaw", "carmoney", "cf247"]);
         const isLenderBrokerProduct = (product) =>
-          LENDER_BROKER_IDS.has(getLenderIdForProduct(product));
+          LENDER_BROKER_IDS.has(getLenderIdForProduct(product).replace(/\s+/g, ""));
         const formatApr = (n) => {
           const num = parseFloat(n);
           if (!Number.isFinite(num)) return "";
@@ -2604,8 +2620,8 @@
           if (modal) return modal;
           const html = `
             <div class="fixed inset-0 bg-black/60 flex items-start justify-center hidden z-[60] p-4 overflow-y-auto" id="lenderAppModal">
-              <div class="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[calc(100vh-2rem)] text-gray-800 flex flex-col overflow-hidden my-auto">
-                <div class="flex items-center justify-between gap-3 p-4 border-b sticky top-0 bg-white z-40">
+              <div class="lender-app-modal-panel bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col overflow-hidden my-auto">
+                <div class="lender-app-modal-header flex items-center justify-between gap-3 p-4 border-b bg-white">
                   <div class="min-w-0 flex items-center gap-3">
                     <img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/>
                     <h2 class="text-xl font-bold truncate min-w-0" id="lenderAppTitle">Lender Application</h2>
@@ -2618,7 +2634,7 @@
                     </button>
                   </div>
                 </div>
-                <div class="p-6 space-y-6 modal-content modal-body-scroll flex-1 min-h-0 overflow-y-auto">
+                <div class="lender-app-modal-body p-6 space-y-6 modal-content modal-body-scroll flex-1">
                   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div>
                     <div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div>
@@ -2626,12 +2642,9 @@
                   </div>
                   <div class="bg-white border rounded-lg">
                     <div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div>
-                    <pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto max-h-[45vh] bg-gray-50">Loading…</pre>
+                    <pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto bg-gray-50">Loading…</pre>
                   </div>
                   <div id="lenderAppStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
-                </div>
-                <div class="flex items-center justify-end p-4 border-t gap-2 bg-white">
-                  <button type="button" id="lenderAppSaveBtn" class="bg-[#004225] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#00331e]">Save Draft</button>
                 </div>
               </div>
             </div>`;
@@ -2667,12 +2680,6 @@
             }
             statusEl.textContent = message || "";
           };
-
-          const saveBtn = getEl("lenderAppSaveBtn");
-          if (saveBtn)
-            on(saveBtn, "click", () =>
-              showToast("Lender app draft saved (placeholder).", "success"),
-            );
 
           const validateBtn = getEl("lenderAppValidateBtn");
           if (validateBtn)
@@ -2765,6 +2772,11 @@
             statusEl.classList.add("hidden");
             statusEl.textContent = "";
           }
+          const validateBtn = getEl("lenderAppValidateBtn");
+          if (validateBtn) {
+            validateBtn.disabled = true;
+            validateBtn.classList.add("opacity-60", "cursor-not-allowed");
+          }
           modal.classList.remove("hidden");
           const pre = getEl("lenderAppPayloadJson");
           if (pre) pre.textContent = "Loading active client payload…";
@@ -2776,6 +2788,11 @@
                 null,
                 2,
               );
+            const headerValidateBtn = getEl("lenderAppValidateBtn");
+            if (headerValidateBtn) {
+              headerValidateBtn.disabled = false;
+              headerValidateBtn.classList.remove("opacity-60", "cursor-not-allowed");
+            }
             return;
           }
           try {
@@ -2789,6 +2806,12 @@
                 null,
                 2,
               );
+          } finally {
+            const headerValidateBtn = getEl("lenderAppValidateBtn");
+            if (headerValidateBtn) {
+              headerValidateBtn.disabled = false;
+              headerValidateBtn.classList.remove("opacity-60", "cursor-not-allowed");
+            }
           }
         };
 
