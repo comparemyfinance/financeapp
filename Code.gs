@@ -92,11 +92,8 @@ IMPORTANT INSTALL NOTE:
 
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
-<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
 function getSpreadsheetResolution_() {
-=======
 function getSpreadsheetId_() {
->>>>>>> main
   const legacyId =
     typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
       ? String(SPREADSHEET_ID).trim()
@@ -105,7 +102,6 @@ function getSpreadsheetId_() {
     typeof configGet_ === 'function'
       ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
       : legacyId;
-<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
   if (configuredId) {
     let source = 'legacy_constant';
     try {
@@ -116,15 +112,12 @@ function getSpreadsheetId_() {
     } catch (_) {}
     return { id: configuredId, source: source, hasValue: true };
   }
-=======
   if (configuredId) return configuredId;
->>>>>>> main
 
   try {
     const active = SpreadsheetApp.getActiveSpreadsheet();
     if (active && typeof active.getId === 'function') {
       const activeId = String(active.getId() || '').trim();
-<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
       if (activeId) return { id: activeId, source: 'active_spreadsheet', hasValue: true };
     }
   } catch (_) {}
@@ -193,14 +186,12 @@ function getRuntimeDiagnostics_() {
     authConfigSource: authMeta.source || 'missing',
   };
 }
-=======
       if (activeId) return activeId;
     }
   } catch (_) {}
 
   throw new Error('Missing required config: SPREADSHEET_ID');
 }
->>>>>>> main
 
 function getSheet_() {
   const ss = SpreadsheetApp.openById(getSpreadsheetId_());
