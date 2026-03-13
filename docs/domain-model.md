@@ -45,6 +45,11 @@ Computed lending option for comparison.
 - Sources:
   - Placeholder lender logic in `Lenderapi.gs`.
   - Potential external lender/integration data.
+- Product Source placeholder migration invariant:
+  - `Jigsaw`, `CarMoney`, and `CF247` are additive lender rows with fixed 1% APR placeholders.
+  - In PCP scenarios only, these three receive deterministic best-comparative balloon placeholders.
+  - In HP scenarios, these three do not receive balloon uplift (APR placeholder still applies).
+  - Soft-score/pre-qual placeholder path forces `High` eligibility for these three.
 
 ### Application Submission
 
@@ -52,6 +57,10 @@ Payload sent to external lender/integration APIs.
 
 - Typical attributes: mapped customer/vehicle/finance data, introducer references, validation status.
 - Includes validate and submit paths.
+- Provider-model compatibility invariant:
+  - `selectedLender`: customer-visible lender identity.
+  - `validationProvider`: rule-engine provider (currently placeholder `JigsawRules` for all lenders).
+  - `submissionProvider`: submission transport/auth provider (`JigsawLive` only for `Jigsaw`; `SimulatedSuccess` placeholder for non-Jigsaw lenders).
 
 ### Document / Client File
 

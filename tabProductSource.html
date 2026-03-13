@@ -2119,6 +2119,9 @@
           resultsSort: { key: "apr", direction: "asc" },
         };
         const lenderData = [
+          { l: "Jigsaw", a: 1.0, c: 4, pcpBestBalloon: true },
+          { l: "CarMoney", a: 1.0, c: 4, pcpBestBalloon: true },
+          { l: "CF247", a: 1.0, c: 4, pcpBestBalloon: true },
           { l: "BNP Paribas Finance", a: 12.9, c: 4 },
           { l: "Motonovo", a: 11.9, c: 4, h: true },
           { l: "V12", a: 15.9, c: 5 },
@@ -2484,7 +2487,13 @@
               } catch (e) {}
               const res = await App.apiCall("POST", {
                 action: "getLenderQuotesBatch",
-                payload: { settlementFigure, remainingTerm, origLoan, token },
+                payload: {
+                  settlementFigure,
+                  remainingTerm,
+                  origLoan,
+                  financeType: getVal("finance-type"),
+                  token,
+                },
               });
 
               if (
@@ -2528,19 +2537,20 @@
           // Fallback: local UI calculation (preserves current behaviour)
           const productsWithBalloons = await Promise.all(
             lenderData.map(async (p) => {
-              let balloon;
+              const baseBalloon =
+                settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+              let balloon = baseBalloon;
               if (p.h) {
                 await new Promise((r) => setTimeout(r, 200));
-                const base =
-                  settlementFigure * getBalloonPerc(remainingTerm, origLoan);
                 let v = 1.0;
                 if (p.l === "Alphera") v = 1.05;
                 else if (p.l === "Motonovo") v = 0.98;
                 else if (p.l === "Northridge Finance") v = 1.1;
-                balloon = base * v;
-              } else
-                balloon =
-                  settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                balloon = baseBalloon * v;
+              }
+              if (p.pcpBestBalloon && getVal("finance-type") === "PCP") {
+                balloon = baseBalloon * 1.2;
+              }
               const commission = settlementFigure * (p.c / 100);
               const monthly = calcMonthly(
                 settlementFigure,
