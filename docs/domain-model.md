@@ -57,6 +57,10 @@ Payload sent to external lender/integration APIs.
 
 - Typical attributes: mapped customer/vehicle/finance data, introducer references, validation status.
 - Includes validate and submit paths.
+- Provider-model compatibility invariant:
+  - `selectedLender`: customer-visible lender identity.
+  - `validationProvider`: rule-engine provider (currently placeholder `JigsawRules` for all lenders).
+  - `submissionProvider`: submission transport/auth provider (`JigsawLive` only for `Jigsaw`; `SimulatedSuccess` placeholder for non-Jigsaw lenders).
 
 ### Document / Client File
 

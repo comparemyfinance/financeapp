@@ -11,6 +11,88 @@
  * NOTE: This is placeholder mode only; no live lender calls yet.
  */
 
+
+function getLenderCapabilities_() {
+  var defaults = getLenderDefaults_();
+  var capabilities = {};
+
+  for (var i = 0; i < defaults.length; i++) {
+    var lenderName = defaults[i].lender;
+    capabilities[lenderName] = {
+      lenderId: lenderName,
+      displayName: lenderName,
+      validationProvider: "JigsawRules",
+      submissionProvider: "SimulatedSuccess",
+      supportsApply: true,
+      supportsValidate: true,
+      isLiveSubmission: false,
+    };
+  }
+
+  capabilities.Jigsaw = {
+    lenderId: "Jigsaw",
+    displayName: "Jigsaw",
+    validationProvider: "JigsawRules",
+    submissionProvider: "JigsawLive",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: true,
+  };
+
+  capabilities.CarMoney = {
+    lenderId: "CarMoney",
+    displayName: "CarMoney",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+
+  capabilities.CF247 = {
+    lenderId: "CF247",
+    displayName: "CF247",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+
+  return capabilities;
+}
+
+function getLenderCapability_(selectedLender) {
+  var capabilities = getLenderCapabilities_();
+  var lenderName = String(selectedLender || "").trim();
+
+  if (capabilities[lenderName]) return capabilities[lenderName];
+
+  var normalized = toLenderKey_(lenderName);
+  var keys = Object.keys(capabilities);
+  for (var i = 0; i < keys.length; i++) {
+    if (toLenderKey_(keys[i]) === normalized) return capabilities[keys[i]];
+  }
+
+  return {
+    lenderId: lenderName || "Unknown",
+    displayName: lenderName || "Unknown",
+    validationProvider: "JigsawRules",
+    submissionProvider: "SimulatedSuccess",
+    supportsApply: true,
+    supportsValidate: true,
+    isLiveSubmission: false,
+  };
+}
+
+function resolveValidationProvider_(selectedLender) {
+  return getLenderCapability_(selectedLender).validationProvider;
+}
+
+function resolveSubmissionProvider_(selectedLender) {
+  return getLenderCapability_(selectedLender).submissionProvider;
+}
+
 function listLenders_() {
   return getLenderDefaults_().map(function (x) {
     return {
