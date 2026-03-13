@@ -70,6 +70,11 @@ Local development workflow is:
 - Architecture map: `docs/architecture.md`
 - Domain model + terms: `docs/domain-model.md`
 - Safe change procedures: `docs/change-playbook.md`
+- API action contracts: `docs/API_ACTIONS.md`
+- Canonical file map: `docs/CANONICAL_FILES.md`
+- Error envelope policy: `docs/ERROR_POLICY.md`
+- Environment/runtime assumptions: `docs/ENVIRONMENT.md`
+- Test strategy and refactor gates: `docs/TEST_STRATEGY.md`
 - Historical audit context: `docs/audit.md`, `docs/audit-report.md`
 
 ## Deployment secrets (GitHub)
