@@ -936,6 +936,11 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </style>
 
 <script id="cmf-session-util">
+// CANONICAL FRONTEND OWNERSHIP:
+// - window.CMFSession bootstrap in this file is canonical.
+// - Duplicates in tabSalesPipeline.html are transitional compatibility only.
+// - Prefer editing session/auth bootstrap behavior here, then sync docs.
+
 (function(){
   if (window.CMFSession) return;
   const KEY = 'CMF_AUTH_TOKEN';
@@ -6017,6 +6022,8 @@ buildDraft({ dealId, deal, formData }) {
                     }
                     on(document, 'keydown', (e) => { if (e.key === 'Escape') this.ui.closeAllModals(); });
                 },
+                // CANONICAL: shared frontend API wrapper ownership lives in Index.html.
+                // Transitional duplicate wrappers may exist in tabSalesPipeline.html for compatibility.
                 async apiCall(method, data = {}) {
 
                   // Unified API call that supports Apps Script hosting (google.script.run) and local/desktop (fetch)

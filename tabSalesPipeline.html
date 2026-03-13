@@ -2311,6 +2311,10 @@ Open the console for full details.`);
               return safe;
             },
 
+            // TRANSITIONAL COMPATIBILITY NOTE:
+            // - Canonical CMFSession bootstrap is in Index.html.
+            // - This local bootstrap exists only for standalone/legacy tab runtime safety.
+            // - Prefer changing session bootstrap behavior in Index.html first.
             getSessionUtil() {
               if (window.CMFSession) return window.CMFSession;
               const KEY = "CMF_AUTH_TOKEN";
@@ -3137,6 +3141,10 @@ Open the console for full details.`);
               if (e.key === "Escape") this.ui.closeAllModals();
             });
           },
+          // TRANSITIONAL API WRAPPER NOTE:
+          // - Canonical shared API wrapper is in Index.html.
+          // - This wrapper is kept for compatibility in tab-scoped runtime paths.
+          // - Keep behavior aligned with Index.html when editing.
           async apiCall(method, data = {}) {
             // Unified API call that supports Apps Script hosting (google.script.run) and local/desktop (fetch)
 
