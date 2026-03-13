@@ -2480,9 +2480,7 @@
               let token = "";
               try {
                 token =
-                  (window.localStorage &&
-                    localStorage.getItem("CMF_AUTH_TOKEN")) ||
-                  "";
+                  (window.CMFSession ? window.CMFSession.readToken() : "");
               } catch (e) {}
               const res = await App.apiCall("POST", {
                 action: "getLenderQuotesBatch",
@@ -2636,9 +2634,7 @@
             let token = "";
             try {
               token =
-                (window.localStorage &&
-                  localStorage.getItem("CMF_AUTH_TOKEN")) ||
-                "";
+                (window.CMFSession ? window.CMFSession.readToken() : "");
             } catch (e) {}
             if (!(window.App && typeof App.apiCall === "function"))
               throw new Error("API client unavailable");
