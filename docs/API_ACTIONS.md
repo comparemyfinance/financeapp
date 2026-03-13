@@ -77,6 +77,7 @@ Router alias normalization in `normalizeAction_`:
 - `getDelta`
 - `validateJigsaw`
 - `submitJigsaw`
+- `validateLenderApplication`
 - `save`
 - `delete`
 - `batchUpdate`
@@ -95,3 +96,23 @@ If required config is missing, handlers should preserve specific safe messages s
 
 - Add/modify action ownership in: `server/router/actions.gs`
 - Update this file whenever action names, aliases, auth gating, or error behavior changes.
+
+## Lender validation (additive, current)
+
+- `validateLenderApplication`
+  - Auth: protected.
+  - Request payload (current minimum):
+    - `selectedLender` (required)
+    - `deal` (required placeholder payload source)
+  - Response includes:
+    - `selectedLender`
+    - `validationProvider`
+    - `submissionProvider`
+    - `statusMessage`
+    - `result`
+
+Compatibility notes:
+
+- This action is additive and does not replace `validateJigsaw`.
+- Current placeholder behavior uses `JigsawRules` validation provider for all lenders.
+- Only `Jigsaw` maps to live submission provider (`JigsawLive`); non-Jigsaw lenders map to `SimulatedSuccess`.

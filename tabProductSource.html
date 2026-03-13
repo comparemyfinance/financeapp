@@ -2119,6 +2119,9 @@
           resultsSort: { key: "apr", direction: "asc" },
         };
         const lenderData = [
+          { l: "Jigsaw", a: 1.0, c: 4, pcpBestBalloon: true },
+          { l: "CarMoney", a: 1.0, c: 4, pcpBestBalloon: true },
+          { l: "CF247", a: 1.0, c: 4, pcpBestBalloon: true },
           { l: "BNP Paribas Finance", a: 12.9, c: 4 },
           { l: "Motonovo", a: 11.9, c: 4, h: true },
           { l: "V12", a: 15.9, c: 5 },
@@ -2484,7 +2487,13 @@
               } catch (e) {}
               const res = await App.apiCall("POST", {
                 action: "getLenderQuotesBatch",
-                payload: { settlementFigure, remainingTerm, origLoan, token },
+                payload: {
+                  settlementFigure,
+                  remainingTerm,
+                  origLoan,
+                  financeType: getVal("finance-type"),
+                  token,
+                },
               });
 
               if (
@@ -2528,19 +2537,20 @@
           // Fallback: local UI calculation (preserves current behaviour)
           const productsWithBalloons = await Promise.all(
             lenderData.map(async (p) => {
-              let balloon;
+              const baseBalloon =
+                settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+              let balloon = baseBalloon;
               if (p.h) {
                 await new Promise((r) => setTimeout(r, 200));
-                const base =
-                  settlementFigure * getBalloonPerc(remainingTerm, origLoan);
                 let v = 1.0;
                 if (p.l === "Alphera") v = 1.05;
                 else if (p.l === "Motonovo") v = 0.98;
                 else if (p.l === "Northridge Finance") v = 1.1;
-                balloon = base * v;
-              } else
-                balloon =
-                  settlementFigure * getBalloonPerc(remainingTerm, origLoan);
+                balloon = baseBalloon * v;
+              }
+              if (p.pcpBestBalloon && getVal("finance-type") === "PCP") {
+                balloon = baseBalloon * 1.2;
+              }
               const commission = settlementFigure * (p.c / 100);
               const monthly = calcMonthly(
                 settlementFigure,
@@ -2574,16 +2584,135 @@
         const ensureLenderAppModal = () => {
           let modal = getEl("lenderAppModal");
           if (modal) return modal;
-          const html = `<div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-[60] p-4" id="lenderAppModal"><div class="bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col"><div class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40"><img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/><h2 class="text-xl font-bold truncate pr-28 min-w-0" id="lenderAppTitle">Lender Application</h2><div class="absolute right-4 top-4 flex items-center gap-2 z-50"><button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button"><span>Close</span><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span></button></div></div><div class="p-6 space-y-6 modal-content modal-body-scroll"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Lender</div><div class="font-semibold" id="lenderAppLender">—</div></div></div><div class="bg-white border rounded-lg"><div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div><pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto max-h-[45vh] bg-gray-50">Loading…</pre></div></div><div class="flex items-center justify-end p-4 border-t gap-2"><button type="button" id="lenderAppSaveBtn" class="bg-[#004225] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#00331e]">Save Draft</button></div></div></div>`;
+          const html = `
+            <div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-[60] p-4" id="lenderAppModal">
+              <div class="bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col">
+                <div class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40">
+                  <img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/>
+                  <h2 class="text-xl font-bold truncate pr-28 min-w-0" id="lenderAppTitle">Lender Application</h2>
+                  <div class="absolute right-4 top-4 flex items-center gap-2 z-50">
+                    <button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button">
+                      <span>Close</span>
+                      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="p-6 space-y-6 modal-content modal-body-scroll">
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div>
+                    <div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div>
+                    <div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Lender</div><div class="font-semibold" id="lenderAppLender">—</div></div>
+                  </div>
+                  <div class="bg-white border rounded-lg">
+                    <div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div>
+                    <pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto max-h-[45vh] bg-gray-50">Loading…</pre>
+                  </div>
+                  <div id="lenderAppStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
+                </div>
+                <div class="flex items-center justify-end p-4 border-t gap-2">
+                  <button type="button" id="lenderAppValidateBtn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700">Validate</button>
+                  <button type="button" id="lenderAppSaveBtn" class="bg-[#004225] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#00331e]">Save Draft</button>
+                </div>
+              </div>
+            </div>`;
           document.body.insertAdjacentHTML("beforeend", html);
           modal = getEl("lenderAppModal");
           const closeBtn = getEl("closeLenderAppModal");
           if (closeBtn) on(closeBtn, "click", () => modal.classList.add("hidden"));
-          on(modal, "click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+          on(modal, "click", (e) => {
+            if (e.target === modal) modal.classList.add("hidden");
+          });
+
+          const setLenderModalStatus = (message, level) => {
+            const statusEl = getEl("lenderAppStatus");
+            if (!statusEl) return;
+            statusEl.classList.remove(
+              "hidden",
+              "border-gray-200",
+              "bg-gray-50",
+              "text-gray-700",
+              "border-red-200",
+              "bg-red-50",
+              "text-red-700",
+              "border-green-200",
+              "bg-green-50",
+              "text-green-700",
+            );
+            if (level === "error") {
+              statusEl.classList.add("border-red-200", "bg-red-50", "text-red-700");
+            } else if (level === "success") {
+              statusEl.classList.add("border-green-200", "bg-green-50", "text-green-700");
+            } else {
+              statusEl.classList.add("border-gray-200", "bg-gray-50", "text-gray-700");
+            }
+            statusEl.textContent = message || "";
+          };
+
           const saveBtn = getEl("lenderAppSaveBtn");
-          if (saveBtn) on(saveBtn, "click", () => showToast("Lender app draft saved (placeholder).", "success"));
+          if (saveBtn)
+            on(saveBtn, "click", () =>
+              showToast("Lender app draft saved (placeholder).", "success"),
+            );
+
+          const validateBtn = getEl("lenderAppValidateBtn");
+          if (validateBtn)
+            on(validateBtn, "click", async () => {
+              const modalState = window.appState.lenderAppModal || {};
+              const selectedLender = modalState.selectedLender || "Lender";
+              const selectedPayload = modalState.payloadJson || null;
+              if (!(window.App && typeof App.apiCall === "function")) {
+                setLenderModalStatus(
+                  `${selectedLender} validation unavailable: API client missing`,
+                  "error",
+                );
+                return;
+              }
+              let token = "";
+              try {
+                token = (window.CMFSession ? window.CMFSession.readToken() : "");
+              } catch (e) {}
+              validateBtn.disabled = true;
+              validateBtn.classList.add("opacity-60", "cursor-not-allowed");
+              setLenderModalStatus(
+                `Validating ${selectedLender} using placeholder rules...`,
+                "info",
+              );
+              try {
+                const dealPayload =
+                  (selectedPayload &&
+                    (selectedPayload.deal ||
+                      selectedPayload.dnsPayload ||
+                      selectedPayload.raw)) ||
+                  selectedPayload ||
+                  {};
+                const res = await App.apiCall("POST", {
+                  action: "validateLenderApplication",
+                  payload: {
+                    token,
+                    selectedLender,
+                    deal: dealPayload,
+                  },
+                });
+                const ok = !!(res && res.success);
+                const statusMessage =
+                  (res && res.statusMessage) ||
+                  `${selectedLender} ${ok ? "validation successful" : "validation failed"}`;
+                setLenderModalStatus(statusMessage, ok ? "success" : "error");
+                showToast(statusMessage, ok ? "success" : "error");
+              } catch (err) {
+                const msg =
+                  (err && err.message) || `${selectedLender} validation failed`;
+                setLenderModalStatus(msg, "error");
+                showToast(msg, "error");
+              } finally {
+                validateBtn.disabled = false;
+                validateBtn.classList.remove("opacity-60", "cursor-not-allowed");
+              }
+            });
+
           return modal;
         };
+
         const getLenderLogoUrl = (lenderName) => {
           const key = normalizeLenderName(lenderName);
           if (key.includes("finclusion")) return "https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle";
@@ -2594,26 +2723,52 @@
           if (!p) return;
           const modal = ensureLenderAppModal();
           const lender = p.lender || "Lender";
+          window.appState.lenderAppModal = {
+            selectedLender: lender,
+            payloadJson: null,
+          };
           setTxt("lenderAppTitle", `Lender Application — ${lender}`);
           setTxt("lenderAppLender", lender);
-          setTxt("lenderAppVrn", (getVal("vrn") || "—").toString().trim() || "—");
-          const fullName = [getVal("ps_client_firstName"), getVal("ps_client_lastName")].filter(Boolean).join(" ").trim();
+          setTxt(
+            "lenderAppVrn",
+            (getVal("vrn") || "—").toString().trim() || "—",
+          );
+          const fullName = [getVal("ps_client_firstName"), getVal("ps_client_lastName")]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
           setTxt("lenderAppClientName", fullName || "—");
           const logo = getEl("lenderAppLogo");
           if (logo) logo.src = getLenderLogoUrl(lender);
+          const statusEl = getEl("lenderAppStatus");
+          if (statusEl) {
+            statusEl.classList.add("hidden");
+            statusEl.textContent = "";
+          }
           modal.classList.remove("hidden");
           const pre = getEl("lenderAppPayloadJson");
           if (pre) pre.textContent = "Loading active client payload…";
           const vrn = (getVal("vrn") || "").toString().trim();
           if (!vrn || typeof window.fetchVrnPayloadFromSheet !== "function") {
-            if (pre) pre.textContent = JSON.stringify({ message: "VRN/payload helper unavailable", vrn }, null, 2);
+            if (pre)
+              pre.textContent = JSON.stringify(
+                { message: "VRN/payload helper unavailable", vrn },
+                null,
+                2,
+              );
             return;
           }
           try {
             const payloadJson = await window.fetchVrnPayloadFromSheet(vrn);
+            window.appState.lenderAppModal.payloadJson = payloadJson;
             if (pre) pre.textContent = JSON.stringify(payloadJson, null, 2);
           } catch (err) {
-            if (pre) pre.textContent = JSON.stringify({ error: String(err && err.message ? err.message : err) }, null, 2);
+            if (pre)
+              pre.textContent = JSON.stringify(
+                { error: String(err && err.message ? err.message : err) },
+                null,
+                2,
+              );
           }
         };
 
