@@ -38,6 +38,24 @@ function getLegacyConfigFallback_(key) {
 }
 
 
+function getConfigResolutionMeta_(key) {
+  let scriptProp = '';
+  try {
+    scriptProp = String(PropertiesService.getScriptProperties().getProperty(key) || '').trim();
+  } catch (_) {}
+  if (scriptProp) return { key: key, source: 'script_property', hasValue: true };
+
+  const legacy = String(getLegacyConfigFallback_(key) || '').trim();
+  if (legacy) return { key: key, source: 'legacy_constant', hasValue: true };
+
+  const fallbackDefault =
+    Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key) && String(CONFIG_DEFAULTS_[key] || '').trim()
+      ? 'default'
+      : 'missing';
+  return { key: key, source: fallbackDefault, hasValue: fallbackDefault !== 'missing' };
+}
+
+
 function configGet_(key, fallback) {
   const fallbackDefault =
     Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key)
@@ -45,12 +63,14 @@ function configGet_(key, fallback) {
       : '';
   const legacyFallback = getLegacyConfigFallback_(key);
   const fb = fallback !== undefined ? fallback : (legacyFallback || fallbackDefault);
-  let propVal = '';
-  try {
-    propVal = PropertiesService.getScriptProperties().getProperty(key) || '';
-  } catch (_) {}
-  const val = String(propVal || '').trim();
-  return val || fb;
+  const meta = getConfigResolutionMeta_(key);
+  if (meta.source === 'script_property') {
+    try {
+      const val = String(PropertiesService.getScriptProperties().getProperty(key) || '').trim();
+      if (val) return val;
+    } catch (_) {}
+  }
+  return String(fb || '').trim();
 }
 
 function configBool_(key, defVal) {

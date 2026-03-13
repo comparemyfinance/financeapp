@@ -72,8 +72,6 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 }
 </style>
 
-
-
 <script>
 // ===== UI: Stage-change highlight =========================================
 // Purpose: When a card's Stage dropdown changes, briefly outline the card green
@@ -6098,7 +6096,7 @@ if (dataObj && dataObj.success === false) {
 
                               const msg = (App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(dataObj, 'Server error') : 'Server error';
 
-                              reject(new Error(msg));
+                              reject(new Error('[' + action + '] ' + msg));
 
                             } else {
 
@@ -6122,7 +6120,7 @@ if (dataObj && dataObj.success === false) {
 
                           const msg = (err && err.message) ? err.message : String(err);
 
-                          reject(new Error(msg));
+                          reject(new Error('[' + action + '] ' + msg));
 
                         })
 
@@ -6161,7 +6159,7 @@ if (dataObj && dataObj.success === false) {
 
                   const out = await r.json();
 
-                  if (out && out.success === false) throw new Error((App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(out, 'Server error') : 'Server error');
+                  if (out && out.success === false) throw new Error('[' + action + '] ' + ((App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(out, 'Server error') : 'Server error'));
 
                   return out;
 
@@ -6287,7 +6285,7 @@ if (dataObj && dataObj.success === false) {
                     this.render.all();
                     } catch (err) {
                         console.error('Initial/refresh load failed:', err);
-                        showNavMessage('Failed to load data from server.', 'error', 7000);
+                        showNavMessage('Failed to load data from server: ' + ((err && err.message) ? err.message : 'Server error'), 'error', 7000);
                         this.state.deals = this.state.deals || [];
                         this.render.all();
                     } finally {

@@ -92,7 +92,11 @@ IMPORTANT INSTALL NOTE:
 
 // Core config/error helpers extracted to server/shared/config.gs and server/shared/response.gs
 
+<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
+function getSpreadsheetResolution_() {
+=======
 function getSpreadsheetId_() {
+>>>>>>> main
   const legacyId =
     typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID
       ? String(SPREADSHEET_ID).trim()
@@ -101,18 +105,102 @@ function getSpreadsheetId_() {
     typeof configGet_ === 'function'
       ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
       : legacyId;
+<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
+  if (configuredId) {
+    let source = 'legacy_constant';
+    try {
+      if (typeof getConfigResolutionMeta_ === 'function') {
+        const m = getConfigResolutionMeta_('SPREADSHEET_ID');
+        if (m && m.source === 'script_property') source = 'script_property';
+      }
+    } catch (_) {}
+    return { id: configuredId, source: source, hasValue: true };
+  }
+=======
   if (configuredId) return configuredId;
+>>>>>>> main
 
   try {
     const active = SpreadsheetApp.getActiveSpreadsheet();
     if (active && typeof active.getId === 'function') {
       const activeId = String(active.getId() || '').trim();
+<<<<<<< codex/conduct-repository-legibility-audit-ix1qab
+      if (activeId) return { id: activeId, source: 'active_spreadsheet', hasValue: true };
+    }
+  } catch (_) {}
+
+  return { id: '', source: 'missing', hasValue: false };
+}
+
+function getSpreadsheetId_() {
+  const meta = getSpreadsheetResolution_();
+  if (meta.hasValue) return meta.id;
+  throw new Error('Missing required config: SPREADSHEET_ID');
+}
+
+function logRuntimeDiagnostic_(label, data) {
+  try {
+    Logger.log('[DIAG] ' + label + ' ' + JSON.stringify(data || {}));
+  } catch (_) {
+    try { Logger.log('[DIAG] ' + label); } catch (_) {}
+  }
+}
+
+function getRuntimeDiagnostics_() {
+  const spreadsheetMeta = getSpreadsheetResolution_();
+  let rootMeta = { source: 'missing', hasValue: false };
+  try {
+    rootMeta = typeof getConfigResolutionMeta_ === 'function'
+      ? getConfigResolutionMeta_('ROOT_FOLDER_ID')
+      : { source: 'missing', hasValue: false };
+  } catch (_) {}
+
+  let canOpenSpreadsheet = false;
+  try {
+    if (spreadsheetMeta.hasValue) {
+      canOpenSpreadsheet = !!SpreadsheetApp.openById(spreadsheetMeta.id);
+    }
+  } catch (_) {
+    canOpenSpreadsheet = false;
+  }
+
+  let canAccessRootFolder = false;
+  try {
+    if (rootMeta.hasValue) {
+      const folderId = String(configGet_('ROOT_FOLDER_ID') || '').trim();
+      if (folderId) canAccessRootFolder = !!DriveApp.getFolderById(folderId);
+    }
+  } catch (_) {
+    canAccessRootFolder = false;
+  }
+
+  let authMeta = { source: 'missing', hasValue: false };
+  try {
+    authMeta = typeof getConfigResolutionMeta_ === 'function'
+      ? getConfigResolutionMeta_('AUTH_USERS_JSON')
+      : { source: 'missing', hasValue: false };
+  } catch (_) {}
+
+  return {
+    success: true,
+    hasSpreadsheetIdResolved: !!spreadsheetMeta.hasValue,
+    spreadsheetIdSource: spreadsheetMeta.source || 'missing',
+    hasRootFolderIdResolved: !!rootMeta.hasValue,
+    rootFolderIdSource: rootMeta.source || 'missing',
+    canOpenSpreadsheet: !!canOpenSpreadsheet,
+    canAccessRootFolder: !!canAccessRootFolder,
+    hasAuthConfig: !!authMeta.hasValue,
+    authConfigSource: authMeta.source || 'missing',
+  };
+}
+=======
       if (activeId) return activeId;
     }
   } catch (_) {}
 
   throw new Error('Missing required config: SPREADSHEET_ID');
 }
+>>>>>>> main
 
 function getSheet_() {
   const ss = SpreadsheetApp.openById(getSpreadsheetId_());

@@ -221,3 +221,32 @@ test('partner activity action resolves spreadsheet config via legacy fallback wh
   assert.equal(out.success, true);
   assert.equal(openedId, 'LEGACY_SPREADSHEET_ID');
 });
+
+
+test('runtimeDiagnostics action returns safe metadata only', () => {
+  const ctx = boot();
+  const out = ctx.routeAction_('runtimeDiagnostics', {}, {});
+  assert.equal(out.success, true);
+  assert.equal(typeof out.hasSpreadsheetIdResolved, 'boolean');
+  assert.equal(typeof out.spreadsheetIdSource, 'string');
+  assert.equal(typeof out.hasRootFolderIdResolved, 'boolean');
+  assert.equal(typeof out.rootFolderIdSource, 'string');
+  assert.equal(typeof out.canOpenSpreadsheet, 'boolean');
+  assert.equal(typeof out.canAccessRootFolder, 'boolean');
+  assert.equal(typeof out.hasAuthConfig, 'boolean');
+  assert.equal('spreadsheetId' in out, false);
+  assert.equal('rootFolderId' in out, false);
+  assert.equal('authUsersJson' in out, false);
+});
+
+test('router catch preserves backend error message for getDelta failures', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  ctx.getSheet_ = () => {
+    throw new Error('Diagnostic failure from getDelta');
+  };
+  const out = ctx.routeAction_('getDelta', { token: login.token }, {});
+  assert.equal(out.success, false);
+  assert.equal(out.error.code, 'INTERNAL_ERROR');
+  assert.equal(out.error.message, 'Diagnostic failure from getDelta');
+});

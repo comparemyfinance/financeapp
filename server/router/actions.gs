@@ -68,6 +68,42 @@ function handleHealthCheck_(_ctx) {
   return { success: true, status: 'healthy' };
 }
 
+function logActionFailureDiagnostic_(action, err) {
+  const msg = err && err.message ? String(err.message) : String(err || 'Unknown error');
+  const stack = err && err.stack ? String(err.stack) : '';
+  let configMeta = {};
+  try {
+    if (action === 'getDelta' || action === 'getPartnerActivitySummary') {
+      const ss = typeof getSpreadsheetResolution_ === 'function' ? getSpreadsheetResolution_() : { source: 'missing', hasValue: false };
+      configMeta.spreadsheetIdSource = ss.source || 'missing';
+      configMeta.hasSpreadsheetIdResolved = !!ss.hasValue;
+    }
+    if (action === 'searchFolders' || action === 'getFolderFiles') {
+      const root = typeof getConfigResolutionMeta_ === 'function'
+        ? getConfigResolutionMeta_('ROOT_FOLDER_ID')
+        : { source: 'missing', hasValue: false };
+      configMeta.rootFolderIdSource = root.source || 'missing';
+      configMeta.hasRootFolderIdResolved = !!root.hasValue;
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof logRuntimeDiagnostic_ === 'function') {
+      logRuntimeDiagnostic_('action_failure', { action: action, message: msg, configMeta: configMeta });
+    }
+  } catch (_) {}
+
+  try {
+    if (stack && typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+      Logger.log('[DIAG] action_failure_stack ' + action + ' ' + stack);
+    }
+  } catch (_) {}
+}
+
+function handleRuntimeDiagnostics_(_ctx) {
+  return safeObj_(() => getRuntimeDiagnostics_());
+}
+
 // ------------------------ Auth handlers
 function handleAuthLogin_(ctx) {
   const u = ctx.payload && ctx.payload.username;
@@ -102,7 +138,14 @@ function handleGetFinanceNavigatorSoftScore_(ctx) {
 
 // ------------------------ Deals handlers
 function handleGetPartnerActivitySummary_(_ctx) {
-  return safeObj_(() => getPartnerActivitySummary_());
+  return safeObj_(() => {
+    try {
+      return getPartnerActivitySummary_();
+    } catch (err) {
+      logActionFailureDiagnostic_('getPartnerActivitySummary', err);
+      throw err;
+    }
+  });
 }
 
 function handleLockAction_(ctx) {
@@ -111,9 +154,14 @@ function handleLockAction_(ctx) {
 }
 
 function handleGetDelta_(_ctx) {
-  const sheet = getSheet_();
-  const data = getRowsData_(sheet);
-  return { success: true, data: data };
+  try {
+    const sheet = getSheet_();
+    const data = getRowsData_(sheet);
+    return { success: true, data: data };
+  } catch (err) {
+    logActionFailureDiagnostic_('getDelta', err);
+    throw err;
+  }
 }
 
 function handleSave_(ctx) {
@@ -145,7 +193,14 @@ function handleSearchFolders_(ctx) {
       : ctx.legacy.query != null
         ? ctx.legacy.query
         : '';
-  return safeObj_(() => searchClientFolders_(q));
+  return safeObj_(() => {
+    try {
+      return searchClientFolders_(q);
+    } catch (err) {
+      logActionFailureDiagnostic_('searchFolders', err);
+      throw err;
+    }
+  });
 }
 
 function handleGetFolderFiles_(ctx) {
@@ -155,7 +210,14 @@ function handleGetFolderFiles_(ctx) {
       hint: 'Send payload.folderId (or payload.id / payload.folder.id)',
     });
   }
-  return safeObj_(() => getFolderFiles_(folderId));
+  return safeObj_(() => {
+    try {
+      return getFolderFiles_(folderId);
+    } catch (err) {
+      logActionFailureDiagnostic_('getFolderFiles', err);
+      throw err;
+    }
+  });
 }
 
 // ------------------------ Jigsaw handlers
@@ -172,6 +234,7 @@ const PUBLIC_ACTION_HANDLERS_ = {
   authLogin: handleAuthLogin_,
   authStatus: handleAuthStatus_,
   authLogout: handleAuthLogout_,
+  runtimeDiagnostics: handleRuntimeDiagnostics_,
 };
 
 const PROTECTED_ACTION_HANDLERS_ = {
@@ -209,6 +272,7 @@ function routeAction_(action, payload, fullRequest) {
     return makeError_('UNKNOWN_ACTION', 'Unknown action: ' + ctx.rawAction);
   } catch (err) {
     console.error('routeAction_ error', ctx.rawAction, err);
+    logActionFailureDiagnostic_(ctx.rawAction, err);
     return makeError_(
       'INTERNAL_ERROR',
       err && err.message ? String(err.message) : 'Server error',
