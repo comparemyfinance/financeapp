@@ -2188,7 +2188,7 @@
           );
         const LENDER_BROKER_IDS = new Set(["jigsaw", "carmoney", "cf247"]);
         const isLenderBrokerProduct = (product) =>
-          LENDER_BROKER_IDS.has(getLenderIdForProduct(product));
+          LENDER_BROKER_IDS.has(getLenderIdForProduct(product).replace(/\s+/g, ""));
         const formatApr = (n) => {
           const num = parseFloat(n);
           if (!Number.isFinite(num)) return "";

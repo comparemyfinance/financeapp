@@ -141,6 +141,13 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
         #pse #products-table tbody tr { background-color: #F7F9F5; cursor: pointer; transition: all 0.3s; }
         #pse #products-table tbody tr:hover { background-color: #D8E4C6; }
         #pse #products-table tbody tr.selected-row { background-color: #cde2b4; box-shadow: 0 0 0 2px #004225; transform: scale(1.01); }
+        #pse #products-table tbody tr.lender-broker-row { background-color: #f3ecff; }
+        #pse #products-table tbody tr.lender-broker-row:hover { background-color: #e8ddff; }
+        #pse #products-table tbody tr.lender-broker-row.selected-row { background-color: #ddd0ff; box-shadow: 0 0 0 2px #5b3fa3; }
+        #lenderAppModal .lender-app-modal-panel { max-height: min(90vh, 860px); }
+        #lenderAppModal .lender-app-modal-header { position: sticky; top: 0; z-index: 20; }
+        #lenderAppModal .lender-app-modal-body { overflow-y: auto; min-height: 0; }
+        #lenderAppModal #lenderAppPayloadJson { max-height: none; }
         #pse .placeholder-text { color: #777; text-align: center; padding: 50px 20px; background-color: #f8f9fa; border-radius: 8px; border: 2px dashed #D8E4C6; min-height: 300px; display: flex; align-items: center; justify-content: center; flex-grow: 1; }
         #pse #comparison-container { display: flex; flex-direction: column; flex-grow: 1; gap: 25px; }
         @media (min-width: 768px) and (max-width: 1023px) { #pse .main-comparison-area { grid-template-columns: 1fr 1fr; grid-template-areas: "current proposed" "summary summary"; } #pse #current-agreement-col { grid-area: current; } #pse #proposed-agreement-col { grid-area: proposed; } #pse #summary-col { grid-area: summary; } }
@@ -3510,6 +3517,8 @@ const initializePSE = () => {
                 .replace(/\s+/g, ' ')
                 .trim();
             const getLenderIdForProduct = (product) => normalizeLenderName(product && (product.lenderId || product.lenderKey || product.lender));
+            const LENDER_BROKER_IDS = new Set(['jigsaw', 'carmoney', 'cf247']);
+            const isLenderBrokerProduct = (product) => LENDER_BROKER_IDS.has(getLenderIdForProduct(product).replace(/\s+/g, ''));
             const formatApr = (n) => {
                 const num = parseFloat(n);
                 if (!Number.isFinite(num)) return '';
@@ -3629,7 +3638,8 @@ const initializePSE = () => {
                             return `<div class="inline-flex items-center gap-1"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getSoftScorePillClass(p.acceptanceRating)}" title="Estimated likelihood based on eligibility response and client profile.">${ratingLabel} - ${ratingScore}%</span>${showApply ? `<button type="button" data-product-index="${idx}" class="lender-apply-btn ml-1 rounded bg-green-600 text-white text-xs font-semibold px-2 py-0.5 hover:bg-green-700">Apply</button>` : ''}</div>`;
                           })()
                         : '<span class="text-xs text-gray-500">—</span>';
-                    return `<tr data-product-index="${idx}" class="${idx === selectedProductIndex ? 'selected-row' : ''}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
+                    const rowClasses = [idx === selectedProductIndex ? 'selected-row' : '', isLenderBrokerProduct(p) ? 'lender-broker-row' : ''].filter(Boolean).join(' ');
+                    return `<tr data-product-index="${idx}" class="${rowClasses}"><td>${p.lender}</td><td class="ps-edit-cell ps-edit-cell--rate"><input type="number" step="0.01" class="ps-edit-input" data-field="apr" value="${toFixed2(effectiveApr)}" data-product-index="${idx}"><span class="ps-edit-suffix">%</span>${aprSourceTag}</td><td class="balloon-input-cell ps-edit-cell">£<input type="number" step="1" class="balloon-input" value="${p.calculatedBalloonPayment.toFixed(0)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--term"><input type="number" step="1" class="ps-edit-input" data-field="term" value="${p.term ?? financeDetails.remainingTerm}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="monthly" value="${toFixed2(p.calculatedMonthlyPayment)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="total" value="${toFixed2(p.totalPayable)}" data-product-index="${idx}"></td><td class="ps-edit-cell ps-edit-cell--money">£<input type="number" step="0.01" class="ps-edit-input" data-field="commission" value="${toFixed2(p.calculatedCommission)}" data-product-index="${idx}"></td><td>${rating}</td></tr>`;
                 }).join('');
                 setHtml('results-container', `<table id="products-table"><thead><tr><th data-results-sort="lender" role="button" title="Sort">Lender${getSortIndicator('lender')}</th><th data-results-sort="apr" role="button" title="Sort">Rate${getSortIndicator('apr')}</th><th data-results-sort="balloon" role="button" title="Sort">Balloon (GFV)${getSortIndicator('balloon')}</th><th data-results-sort="term" role="button" title="Sort">Term${getSortIndicator('term')}</th><th data-results-sort="monthly" role="button" title="Sort">Monthly${getSortIndicator('monthly')}</th><th data-results-sort="total" role="button" title="Sort">Total${getSortIndicator('total')}</th><th data-results-sort="commission" role="button" title="Sort">Commission${getSortIndicator('commission')}</th><th data-results-sort="softScore" role="button" title="Sort">PQ-Score${getSortIndicator('softScore')}</th></tr></thead><tbody>${rows}</tbody></table>`);
             };
@@ -3738,14 +3748,36 @@ const initializePSE = () => {
             const ensureLenderAppModal = () => {
                 let modal = getEl('lenderAppModal');
                 if (modal) return modal;
-                const html = `<div class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-[60] p-4" id="lenderAppModal"><div class="bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col"><div class="relative flex items-center gap-3 p-4 border-b sticky top-0 bg-white z-40"><img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/><h2 class="text-xl font-bold truncate pr-28 min-w-0" id="lenderAppTitle">Lender Application</h2><div class="absolute right-4 top-4 flex items-center gap-2 z-50"><button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button"><span>Close</span><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span></button></div></div><div class="p-6 space-y-6 modal-content modal-body-scroll"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Lender</div><div class="font-semibold" id="lenderAppLender">—</div></div></div><div class="bg-white border rounded-lg"><div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div><pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto max-h-[45vh] bg-gray-50">Loading…</pre></div></div><div class="flex items-center justify-end p-4 border-t gap-2"><button type="button" id="lenderAppSaveBtn" class="bg-[#004225] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#00331e]">Save Draft</button></div></div></div>`;
+                const html = `<div class="fixed inset-0 bg-black/60 flex items-start justify-center hidden z-[60] p-4 overflow-y-auto" id="lenderAppModal"><div class="lender-app-modal-panel bg-white rounded-lg shadow-xl w-full max-w-6xl text-gray-800 flex flex-col overflow-hidden my-auto"><div class="lender-app-modal-header flex items-center justify-between gap-3 p-4 border-b bg-white"><div class="min-w-0 flex items-center gap-3"><img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/><h2 class="text-xl font-bold truncate min-w-0" id="lenderAppTitle">Lender Application</h2></div><div class="flex items-center gap-2 shrink-0"><button type="button" id="lenderAppValidateBtn" class="bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg hover:bg-blue-700">Validate</button><button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button"><span>Close</span><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span></button></div></div><div class="lender-app-modal-body p-6 space-y-6 modal-content modal-body-scroll flex-1"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Client</div><div class="font-semibold" id="lenderAppClientName">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">VRN</div><div class="font-semibold" id="lenderAppVrn">—</div></div><div class="bg-gray-50 rounded-lg border p-3"><div class="text-xs text-gray-500">Lender</div><div class="font-semibold" id="lenderAppLender">—</div></div></div><div class="bg-white border rounded-lg"><div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div><pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto bg-gray-50">Loading…</pre></div></div></div></div>`;
                 document.body.insertAdjacentHTML('beforeend', html);
                 modal = getEl('lenderAppModal');
                 const closeBtn = getEl('closeLenderAppModal');
                 if (closeBtn) on(closeBtn, 'click', () => modal.classList.add('hidden'));
                 on(modal, 'click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
-                const saveBtn = getEl('lenderAppSaveBtn');
-                if (saveBtn) on(saveBtn, 'click', () => showToast('Lender app draft saved (placeholder).', 'success'));
+                const validateBtn = getEl('lenderAppValidateBtn');
+                if (validateBtn) on(validateBtn, 'click', async () => {
+                    const modalState = window.appState.lenderAppModal || {};
+                    const selectedLender = modalState.selectedLender || 'Lender';
+                    const selectedPayload = modalState.payloadJson || null;
+                    if (!(window.App && typeof App.apiCall === 'function')) return showToast(`${selectedLender} validation unavailable: API client missing`, 'error');
+                    let token = '';
+                    try { token = (window.CMFSession ? window.CMFSession.readToken() : ''); } catch (e) {}
+                    validateBtn.disabled = true;
+                    validateBtn.classList.add('opacity-60', 'cursor-not-allowed');
+                    try {
+                        const dealPayload = (selectedPayload && (selectedPayload.deal || selectedPayload.dnsPayload || selectedPayload.raw)) || selectedPayload || {};
+                        const res = await App.apiCall('POST', { action: 'validateLenderApplication', payload: { token, selectedLender, deal: dealPayload } });
+                        const ok = !!(res && res.success);
+                        const statusMessage = (res && res.statusMessage) || `${selectedLender} ${ok ? 'validation successful' : 'validation failed'}`;
+                        showToast(statusMessage, ok ? 'success' : 'error');
+                    } catch (err) {
+                        const msg = (err && err.message) || `${selectedLender} validation failed`;
+                        showToast(msg, 'error');
+                    } finally {
+                        validateBtn.disabled = false;
+                        validateBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    }
+                });
                 return modal;
             };
             const getLenderLogoUrl = (lenderName) => {
@@ -3758,6 +3790,7 @@ const initializePSE = () => {
                 if (!p) return;
                 const modal = ensureLenderAppModal();
                 const lender = p.lender || 'Lender';
+                window.appState.lenderAppModal = { selectedLender: lender, payloadJson: null };
                 setTxt('lenderAppTitle', `Lender Application — ${lender}`);
                 setTxt('lenderAppLender', lender);
                 setTxt('lenderAppVrn', (getVal('vrn') || '—').toString().trim() || '—');
@@ -3765,19 +3798,27 @@ const initializePSE = () => {
                 setTxt('lenderAppClientName', fullName || '—');
                 const logo = getEl('lenderAppLogo');
                 if (logo) logo.src = getLenderLogoUrl(lender);
+                const validateBtn = getEl('lenderAppValidateBtn');
+                if (validateBtn) { validateBtn.disabled = true; validateBtn.classList.add('opacity-60', 'cursor-not-allowed'); }
                 modal.classList.remove('hidden');
                 const pre = getEl('lenderAppPayloadJson');
                 if (pre) pre.textContent = 'Loading active client payload…';
                 const vrn = (getVal('vrn') || '').toString().trim();
                 if (!vrn || typeof window.fetchVrnPayloadFromSheet !== 'function') {
                     if (pre) pre.textContent = JSON.stringify({ message: 'VRN/payload helper unavailable', vrn }, null, 2);
+                    const headerValidateBtn = getEl('lenderAppValidateBtn');
+                    if (headerValidateBtn) { headerValidateBtn.disabled = false; headerValidateBtn.classList.remove('opacity-60', 'cursor-not-allowed'); }
                     return;
                 }
                 try {
                     const payloadJson = await window.fetchVrnPayloadFromSheet(vrn);
+                    window.appState.lenderAppModal.payloadJson = payloadJson;
                     if (pre) pre.textContent = JSON.stringify(payloadJson, null, 2);
                 } catch (err) {
                     if (pre) pre.textContent = JSON.stringify({ error: String(err && err.message ? err.message : err) }, null, 2);
+                } finally {
+                    const headerValidateBtn = getEl('lenderAppValidateBtn');
+                    if (headerValidateBtn) { headerValidateBtn.disabled = false; headerValidateBtn.classList.remove('opacity-60', 'cursor-not-allowed'); }
                 }
             };
 
