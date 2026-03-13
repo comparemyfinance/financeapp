@@ -228,6 +228,14 @@ function handleSubmitJigsaw_(ctx) {
   return safeObj_(() => submitJigsawAction_(ctx.payload));
 }
 
+function handleValidateLenderApplication_(ctx) {
+  return safeObj_(() => validateLenderApplication_(ctx.payload || {}));
+}
+
+function handleSubmitLenderApplication_(ctx) {
+  return safeObj_(() => submitLenderApplication_(ctx.payload || {}));
+}
+
 // ------------------------ Visible dispatch registry
 const PUBLIC_ACTION_HANDLERS_ = {
   healthCheck: handleHealthCheck_,
@@ -251,6 +259,8 @@ const PROTECTED_ACTION_HANDLERS_ = {
   getDelta: handleGetDelta_,
   validateJigsaw: handleValidateJigsaw_,
   submitJigsaw: handleSubmitJigsaw_,
+  validateLenderApplication: handleValidateLenderApplication_,
+  submitLenderApplication: handleSubmitLenderApplication_,
   save: handleSave_,
   delete: handleDelete_,
   batchUpdate: handleBatchUpdate_,
