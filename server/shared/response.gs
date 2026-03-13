@@ -41,7 +41,12 @@ function safeObj_(fn) {
     return out;
   } catch (err) {
     console.error('safeObj_ error', err);
-    return makeError_('INTERNAL_ERROR', 'Server error');
+    const rawMessage = err && err.message ? String(err.message) : '';
+    const message = rawMessage || 'Server error';
+    const code = /^Missing required config:/i.test(message)
+      ? 'CONFIG_ERROR'
+      : 'INTERNAL_ERROR';
+    return makeError_(code, message);
   }
 }
 

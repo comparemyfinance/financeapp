@@ -139,7 +139,7 @@ test('auth login returns config error when AUTH_USERS_JSON is missing', () => {
   assert.equal(out.error.code, 'CONFIG_ERROR');
 });
 
-test('drive search returns internal error when ROOT_FOLDER_ID is missing', () => {
+test('drive search returns config error when ROOT_FOLDER_ID is missing', () => {
   const ctx = boot();
   const login = ctx.auth_login_plain_('kyle', 'CMF2025');
   ctx.PropertiesService.getScriptProperties().setProperties({
@@ -148,7 +148,8 @@ test('drive search returns internal error when ROOT_FOLDER_ID is missing', () =>
   }, true);
   const out = ctx.routeAction_('searchFolders', { token: login.token, query: 'x' }, {});
   assert.equal(out.success, false);
-  assert.equal(out.error.code, 'INTERNAL_ERROR');
+  assert.equal(out.error.code, 'CONFIG_ERROR');
+  assert.match(out.error.message, /Missing required config: ROOT_FOLDER_ID/);
 });
 
 
