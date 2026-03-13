@@ -101,7 +101,6 @@ function getSpreadsheetId_() {
     typeof configGet_ === 'function'
       ? String(configGet_('SPREADSHEET_ID', legacyId) || '').trim()
       : legacyId;
-<<<<<<< codex/conduct-repository-legibility-audit-a9uvo9
   if (configuredId) return configuredId;
 
   try {
@@ -113,12 +112,10 @@ function getSpreadsheetId_() {
   } catch (_) {}
 
   throw new Error('Missing required config: SPREADSHEET_ID');
-=======
   if (!configuredId) {
     throw new Error('Missing required config: SPREADSHEET_ID');
   }
   return configuredId;
->>>>>>> main
 }
 
 function getSheet_() {
