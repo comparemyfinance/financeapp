@@ -150,3 +150,74 @@ test('drive search returns internal error when ROOT_FOLDER_ID is missing', () =>
   assert.equal(out.success, false);
   assert.equal(out.error.code, 'INTERNAL_ERROR');
 });
+
+
+test('configGet_ prefers Script Properties over legacy constants', () => {
+  const ctx = boot();
+  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
+  const out = ctx.configGet_('SPREADSHEET_ID');
+  assert.equal(out, 'TEST_SPREADSHEET_ID');
+});
+
+test('configGet_ falls back to legacy constants when Script Properties are missing', () => {
+  const ctx = boot();
+  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
+  ctx.ROOT_FOLDER_ID = 'LEGACY_ROOT_FOLDER_ID';
+  ctx.PropertiesService.getScriptProperties().setProperties({
+    AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' })
+  }, true);
+  assert.equal(ctx.configGet_('SPREADSHEET_ID'), 'LEGACY_SPREADSHEET_ID');
+  assert.equal(ctx.configGet_('ROOT_FOLDER_ID'), 'LEGACY_ROOT_FOLDER_ID');
+});
+
+test('getDelta resolves spreadsheet config via legacy fallback when Script Property is missing', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
+  ctx.PropertiesService.getScriptProperties().setProperties({
+    AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' }),
+    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID'
+  }, true);
+  let openedId = '';
+  ctx.SpreadsheetApp.openById = (id) => {
+    openedId = id;
+    return {
+      getSheetByName: () => ({
+        getLastColumn: () => 1,
+        getRange: () => ({ getValues: () => [['id']] }),
+        getLastRow: () => 1,
+        getDataRange: () => ({ getValues: () => [['id'], ['D1']] }),
+      }),
+    };
+  };
+  const out = ctx.routeAction_('getDelta', { token: login.token }, {});
+  assert.equal(out.success, true);
+  assert.equal(openedId, 'LEGACY_SPREADSHEET_ID');
+});
+
+test('partner activity action resolves spreadsheet config via legacy fallback when Script Property is missing', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  ctx.SPREADSHEET_ID = 'LEGACY_SPREADSHEET_ID';
+  ctx.PropertiesService.getScriptProperties().setProperties({
+    AUTH_USERS_JSON: JSON.stringify({ kyle: 'CMF2025' }),
+    ROOT_FOLDER_ID: 'TEST_ROOT_FOLDER_ID'
+  }, true);
+  let openedId = '';
+  ctx.SpreadsheetApp.openById = (id) => {
+    openedId = id;
+    return {
+      getSheetByName: () => ({
+        getDataRange: () => ({
+          getValues: () => [
+            ['referer', 'finance_company'],
+            ['Alice', 'Lender A']
+          ]
+        })
+      })
+    };
+  };
+  const out = ctx.routeAction_('getPartnerActivitySummary', { token: login.token }, {});
+  assert.equal(out.success, true);
+  assert.equal(openedId, 'LEGACY_SPREADSHEET_ID');
+});

@@ -112,10 +112,6 @@ function getSpreadsheetId_() {
   } catch (_) {}
 
   throw new Error('Missing required config: SPREADSHEET_ID');
-  if (!configuredId) {
-    throw new Error('Missing required config: SPREADSHEET_ID');
-  }
-  return configuredId;
 }
 
 function getSheet_() {

@@ -17,13 +17,34 @@ const CONFIG_DEFAULTS_ = {
   ROOT_FOLDER_ID: '',
 };
 
-function configGet_(key, fallback) {
-  const fb =
-    fallback !== undefined
-      ? fallback
-      : Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key)
-        ? CONFIG_DEFAULTS_[key]
+function getLegacyConfigFallback_(key) {
+  try {
+    if (key === 'SPREADSHEET_ID') {
+      return typeof SPREADSHEET_ID !== 'undefined' ? String(SPREADSHEET_ID || '').trim() : '';
+    }
+    if (key === 'SHEET_NAME') {
+      return typeof SHEET_NAME !== 'undefined' ? String(SHEET_NAME || '').trim() : '';
+    }
+    if (key === 'PARTNER_ACTIVITY_SHEET_NAME') {
+      return typeof PARTNER_ACTIVITY_SHEET_NAME !== 'undefined'
+        ? String(PARTNER_ACTIVITY_SHEET_NAME || '').trim()
         : '';
+    }
+    if (key === 'ROOT_FOLDER_ID') {
+      return typeof ROOT_FOLDER_ID !== 'undefined' ? String(ROOT_FOLDER_ID || '').trim() : '';
+    }
+  } catch (_) {}
+  return '';
+}
+
+
+function configGet_(key, fallback) {
+  const fallbackDefault =
+    Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, key)
+      ? CONFIG_DEFAULTS_[key]
+      : '';
+  const legacyFallback = getLegacyConfigFallback_(key);
+  const fb = fallback !== undefined ? fallback : (legacyFallback || fallbackDefault);
   let propVal = '';
   try {
     propVal = PropertiesService.getScriptProperties().getProperty(key) || '';

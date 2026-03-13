@@ -5606,6 +5606,25 @@ const App = {
                             .replace(/"/g, "&quot;")
                             .replace(/'/g, "&#039;");
                     },
+                    // Error normalization helper for structured backend envelopes.
+                    normalizeErrorMessage(err, fallback) {
+                        const fb = fallback || 'Server error';
+                        if (!err) return fb;
+                        if (typeof err === 'string') return err;
+                        if (err.error && typeof err.error === 'object' && typeof err.error.message === 'string' && err.error.message.trim()) {
+                            return err.error.message.trim();
+                        }
+                        if (typeof err.message === 'string' && err.message.trim()) {
+                            return err.message.trim();
+                        }
+                        try {
+                            const txt = JSON.stringify(err);
+                            return txt && txt !== '{}' ? txt : fb;
+                        } catch (_) {
+                            return fb;
+                        }
+                    },
+
 
                     applyApiAutofillFields(formData, opts = {}) {
                         const fd = formData || {};
@@ -6077,7 +6096,9 @@ if (dataObj && dataObj.success === false) {
 
                               console.error('API Error:', dataObj.error, dataObj);
 
-                              reject(new Error(dataObj.error || 'Server error'));
+                              const msg = (App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(dataObj, 'Server error') : 'Server error';
+
+                              reject(new Error(msg));
 
                             } else {
 
@@ -6140,7 +6161,7 @@ if (dataObj && dataObj.success === false) {
 
                   const out = await r.json();
 
-                  if (out && out.success === false) throw new Error(out.error || 'Server error');
+                  if (out && out.success === false) throw new Error((App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(out, 'Server error') : 'Server error');
 
                   return out;
 
