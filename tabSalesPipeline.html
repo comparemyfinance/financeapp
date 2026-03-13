@@ -2311,27 +2311,86 @@ Open the console for full details.`);
               return safe;
             },
 
-            readSessionToken() {
-              try {
-                return localStorage.getItem("CMF_AUTH_TOKEN") || "";
-              } catch (_e) {
-                return "";
-              }
+            getSessionUtil() {
+              if (window.CMFSession) return window.CMFSession;
+              const KEY = "CMF_AUTH_TOKEN";
+              const EXP_KEY = "CMF_AUTH_TOKEN_EXP";
+              window.CMFSession = {
+                readToken() {
+                  try {
+                    return localStorage.getItem(KEY) || "";
+                  } catch (_e) {
+                    return "";
+                  }
+                },
+                writeToken(token, ttlSeconds) {
+                  try {
+                    localStorage.setItem(KEY, token == null ? "" : String(token));
+                    if (ttlSeconds && Number(ttlSeconds) > 0) {
+                      localStorage.setItem(
+                        EXP_KEY,
+                        String(Date.now() + Number(ttlSeconds) * 1000),
+                      );
+                    }
+                  } catch (_e) {}
+                },
+                clearToken() {
+                  try {
+                    localStorage.removeItem(KEY);
+                    localStorage.removeItem(EXP_KEY);
+                  } catch (_e) {}
+                },
+                isFresh() {
+                  try {
+                    const t = this.readToken();
+                    if (!t) return false;
+                    const raw = localStorage.getItem(EXP_KEY);
+                    if (!raw) return true;
+                    const exp = Number(raw || 0);
+                    return !!exp && Date.now() < exp;
+                  } catch (_e) {
+                    return !!this.readToken();
+                  }
+                },
+                authPayload(base) {
+                  const out =
+                    base && typeof base === "object" ? { ...base } : {};
+                  const t = this.readToken();
+                  if (t && !out.token) out.token = t;
+                  return out;
+                },
+                onUnauthenticated(message) {
+                  this.clearToken();
+                  if (typeof showLogin === "function") {
+                    showLogin(message || "Session expired. Please sign in again.");
+                  }
+                },
+              };
+              return window.CMFSession;
             },
 
-            writeSessionToken(token) {
-              try {
-                localStorage.setItem(
-                  "CMF_AUTH_TOKEN",
-                  token == null ? "" : String(token),
-                );
-              } catch (_e) {}
+            readSessionToken() {
+              return this.getSessionUtil().readToken();
+            },
+
+            writeSessionToken(token, ttlSeconds) {
+              this.getSessionUtil().writeToken(token, ttlSeconds || 28800);
             },
 
             clearSessionToken() {
-              try {
-                localStorage.removeItem("CMF_AUTH_TOKEN");
-              } catch (_e) {}
+              this.getSessionUtil().clearToken();
+            },
+
+            isTokenFresh() {
+              return this.getSessionUtil().isFresh();
+            },
+
+            buildAuthPayload(base) {
+              return this.getSessionUtil().authPayload(base);
+            },
+
+            handleUnauthenticated(message) {
+              this.getSessionUtil().onUnauthenticated(message);
             },
 
             isAuthRequiredResponse(resp) {
@@ -3117,18 +3176,10 @@ Open the console for full details.`);
               return new Promise((resolve, reject) => {
                 let _payload = payload || {};
 
-                // --- Attach CMF auth token automatically (single token system) ---
-                try {
-                  const t =
-                    App.utils.readSessionToken();
-                  if (
-                    t &&
-                    _payload &&
-                    typeof _payload === "object" &&
-                    !_payload.token
-                  )
-                    _payload.token = t;
-                } catch (e) {}
+                // Build canonical auth payload (except authLogin)
+                if (action !== "authLogin") {
+                  _payload = App.utils.buildAuthPayload(_payload);
+                }
                 // Normalize payload shapes for certain actions
                 if (action === "getFolderFiles") {
                   if (typeof _payload === "string")
@@ -3159,13 +3210,17 @@ Open the console for full details.`);
                   }
                 }
 
-                // Attach auth token to every request except authLogin/authStatus
-                try {
-                  const token =
-                    action !== "authLogin" ? App.utils.readSessionToken() : "";
-                  if (token && _payload && typeof _payload === "object")
-                    _payload.token = token;
-                } catch (e) {}
+                if (
+                  action !== "authLogin" &&
+                  action !== "authStatus" &&
+                  !App.utils.isTokenFresh()
+                ) {
+                  App.utils.handleUnauthenticated(
+                    "Session expired. Please sign in again.",
+                  );
+                  reject(new Error("AUTH_REQUIRED"));
+                  return;
+                }
                 const request = { action: action, payload: _payload || {} };
 
                 google.script.run
@@ -3195,9 +3250,12 @@ Open the console for full details.`);
                           }
                         } catch (e) {}
 
-                        console.error("API Error:", dataObj.error, dataObj);
-
-                        reject(new Error(dataObj.error || "Server error"));
+                        const msg = App.utils.getApiErrorMessage(
+                          dataObj,
+                          "Server error",
+                        );
+                        console.error("API Error:", msg, dataObj);
+                        reject(new Error(msg));
                       } else {
                         resolve(dataObj);
                       }
@@ -7577,7 +7635,7 @@ Open the console for full details.`);
             const res = await callAction("authLogin", { username, password });
             if (!res || !res.success || !res.token)
               throw new Error(res?.error || "Login failed");
-            App.utils.writeSessionToken(res.token);
+            App.utils.writeSessionToken(res.token, 28800);
             hideLogin();
             return true;
           }

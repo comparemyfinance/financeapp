@@ -76,6 +76,7 @@ Local development workflow is:
 - Environment/runtime assumptions: `docs/ENVIRONMENT.md`
 - Test strategy and refactor gates: `docs/TEST_STRATEGY.md`
 - Ambiguity/dedup decisions: `docs/DEDUP_MAP.md`
+- Canonical auth/session flow: `docs/AUTH_FLOW.md`
 - Historical audit context: `docs/audit.md`, `docs/audit-report.md`
 
 ## Deployment secrets (GitHub)
