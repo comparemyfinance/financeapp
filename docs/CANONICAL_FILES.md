@@ -37,3 +37,7 @@ Use this map to avoid editing the wrong file.
 ## Transitional areas
 
 See `docs/KNOWN_AMBIGUITIES.md` for active duplicate/ambiguous surfaces and safe-edit guidance.
+
+## Frontend runtime quick map
+
+- For cold-session Product Source/lender-modal edit targeting, use `docs/LIVE_FRONTEND_RUNTIME_MAP.md`.
