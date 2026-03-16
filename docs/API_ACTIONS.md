@@ -17,6 +17,7 @@ This file documents the **current runtime action surface**.
 
 - Apps Script UI/internal calls: `google.script.run.handleWebClientRequest({ action, payload })`
 - HTTP calls: `POST` body with `{ action, payload }`, parsed by `doPost` and delegated to `routeAction_`
+- `doGet` serves the HTML shell. `?api=1` is not a public data export and now requires a valid auth token.
 
 ## Response envelope (current)
 
@@ -75,6 +76,9 @@ Router alias normalization in `normalizeAction_`:
 - `searchFolders`
 - `getFolderFiles`
 - `getDelta`
+- `getVrnData`
+- `saveVrnData`
+- `lookupVrnFinanceRecord`
 - `validateJigsaw`
 - `submitJigsaw`
 - `validateLenderApplication`
