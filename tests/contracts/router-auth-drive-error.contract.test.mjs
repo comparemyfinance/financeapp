@@ -306,3 +306,50 @@ test('searchFolders uses shared ROOT_FOLDER_ID resolver helper', () => {
   assert.equal(called, 1);
   assert.ok(Array.isArray(out.folders));
 });
+
+test('batchUpdate matches by sourceSheet fallback when id and vrn are missing', () => {
+  const ctx = boot();
+
+  const headers = ['id', 'vrn', 'sourceSheet', 'customerName'];
+  const rows = [['', '', 'SRC-42', 'Before']];
+  const writes = [];
+
+  function makeRange(row, col, numRows, numCols) {
+    return {
+      getValues: () => {
+        if (row === 1 && numRows === 1) return [headers.slice(col - 1, col - 1 + numCols)];
+        if (row >= 2) {
+          const start = row - 2;
+          return rows
+            .slice(start, start + numRows)
+            .map((r) => r.slice(col - 1, col - 1 + numCols));
+        }
+        return [[]];
+      },
+      setValues: (vals) => {
+        writes.push({ row, col, numRows, numCols, vals });
+        if (row >= 2 && numRows === 1 && vals && vals[0]) {
+          rows[row - 2] = vals[0].slice();
+        }
+        return true;
+      },
+      getValue: () => {
+        const data = this.getValues();
+        return data && data[0] ? data[0][0] : '';
+      },
+    };
+  }
+
+  const sheet = {
+    getLastColumn: () => headers.length,
+    getLastRow: () => rows.length + 1,
+    getRange: (row, col, numRows, numCols) => makeRange(row, col, numRows, numCols),
+  };
+
+  const out = ctx.batchUpdate_(sheet, [{ sourceSheet: 'SRC-42', customerName: 'After' }]);
+  assert.equal(out.success, true);
+  assert.equal(out.updated, 1);
+  assert.equal(out.skipped, 0);
+  assert.equal(writes.length, 1);
+  assert.equal(rows[0][3], 'After');
+});
