@@ -41,6 +41,7 @@ Key helpers:
 - `SPREADSHEET_ID`
 - `ROOT_FOLDER_ID`
 - `AUTH_USERS_JSON`
+- `ONEAUTO_API_KEY` _(server-side vehicle finance lookup)_
 - `JIGSAW_USERNAME` _(integration paths)_
 - `JIGSAW_PASSWORD` _(integration paths)_
 - `JIGSAW_SHARED_SECRET` _(webhook verification)_

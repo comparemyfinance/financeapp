@@ -3295,9 +3295,35 @@ Open the console for full details.`);
 
             if (!endpoint) throw new Error("Missing CONFIG.ENDPOINTS.CRM");
 
-            let requestPayload = payload || {};
-            if (action !== "authLogin") {
-              requestPayload = App.utils.buildAuthPayload(requestPayload);
+            if (method === "GET") {
+              const token = App.utils.readSessionToken();
+              if (!token) {
+                App.utils.handleUnauthenticated(
+                  "Session expired. Please sign in again.",
+                );
+                throw new Error("AUTH_REQUIRED");
+              }
+
+              const apiUrl = new URL(endpoint);
+              apiUrl.searchParams.set("api", "1");
+              apiUrl.searchParams.set("token", token);
+              const r = await fetch(apiUrl.toString(), { method: "GET" });
+              const dataObj = await r.json();
+              if (dataObj && dataObj.success === false) {
+                if (
+                  window.__cmfHandleAuthRequired &&
+                  window.__cmfHandleAuthRequired(dataObj)
+                ) {
+                  throw new Error("AUTH_REQUIRED");
+                }
+                const msg = App.utils.getApiErrorMessage(
+                  dataObj,
+                  "Server error",
+                );
+                throw new Error(msg);
+              }
+
+              return dataObj;
             }
 
             const r = await fetch(endpoint, {

@@ -13,6 +13,7 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
 | `SPREADSHEET_ID`       | Primary CRM spreadsheet ID used by backend reads/writes           | None (required)                          |
 | `ROOT_FOLDER_ID`       | Root Drive folder scope for client file search                    | None (required)                          |
 | `AUTH_USERS_JSON`      | JSON username/password map for auth login (e.g. `{"kyle":"..."}`) | None (required)                          |
+| `ONEAUTO_API_KEY`      | Server-side OneAuto / Experian vehicle finance lookup key         | None (required for VRN external lookup)  |
 | `JIGSAW_USERNAME`      | Jigsaw API username                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_PASSWORD`      | Jigsaw API password                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_SHARED_SECRET` | Webhook signature verification secret                             | None (required for webhook verification) |

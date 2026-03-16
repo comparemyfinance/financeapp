@@ -3416,6 +3416,13 @@ window.PAYLOAD_SUPPLIER_URL = CONFIG.ENDPOINTS.PAYLOAD;
         const setVal = (id, val) => { const el = getEl(id); if (el) el.value = val; };
         const setHtml = (id, html) => { const el = getEl(id); if (el) el.innerHTML = html; };
         const setTxt = (id, txt) => { const el = getEl(id); if (el) el.textContent = txt; };
+        const escapeHtml = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        }[ch]));
 
 // --- Currency/percent helpers ---
 const fmtGBP0 = new Intl.NumberFormat('en-GB', { style:'currency', currency:'GBP', minimumFractionDigits:0, maximumFractionDigits:0 });
@@ -4197,6 +4204,29 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
    - Calls fetchVrnPayloadFromSheet(vrn) and updates DOM fields
    ----------------------------------------------------------------------- */
 
+const postPseAction = async (action, payload = {}) => {
+                const requestPayload = { ...(payload || {}) };
+                try {
+                    const token = window.CMFSession ? window.CMFSession.readToken() : '';
+                    if (token && !requestPayload.token) requestPayload.token = token;
+                } catch (e) {}
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action, payload: requestPayload }),
+                });
+                const result = await response.json();
+                if (result && result.success === false) {
+                    if (window.__cmfHandleAuthRequired && window.__cmfHandleAuthRequired(result)) {
+                        throw new Error('AUTH_REQUIRED');
+                    }
+                    const message = result.error && typeof result.error === 'object'
+                        ? result.error.message
+                        : result.error;
+                    throw new Error(message || 'Server error');
+                }
+                return result;
+            };
+
 const handleVrnLookup = async () => {
                 // Show global Colin overlay while VRN lookup runs
                 const __ov = getEl('saveDealOverlay');
@@ -4227,9 +4257,7 @@ const handleVrnLookup = async () => {
                 }
 
                 try {
-                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
-                    const sheetResponse = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getVrnData', payload: { vrn, token } }) });
-                    const sheetResult = await sheetResponse.json();
+                    const sheetResult = await postPseAction('getVrnData', { vrn });
                     if (sheetResult.success && sheetResult.data) {
                         populateFormWithData(sheetResult.data, 'Vehicle found in our database!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + ' Finance details pre-filled.');
@@ -4242,19 +4270,12 @@ const handleVrnLookup = async () => {
                 }
                 setTxt('vrn-status', 'Not in database. Checking external API...');
                 try {
-                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
-                    const apiResponse = await fetch(GOOGLE_SCRIPT_URL, {
-                        method: 'POST',
-                        body: JSON.stringify({ action: 'lookupVrnFinanceRecord', payload: { vrn, token } })
-                    });
-                    const apiData = await apiResponse.json();
-                    if (apiData.success && apiData.data) {
-                        const vehicleData = apiData.data;
+                    const apiResult = await postPseAction('lookupOneAutoFinance', { vrn });
+                    if (apiResult.success && apiResult.data) {
+                        const vehicleData = apiResult.data;
                         populateFormWithData(vehicleData, 'Vehicle found via API!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + (vehicleData.finance ? ' Finance details pre-filled & saved.' : ' No finance record found. Saved vehicle details.'));
-                    } else {
-                        throw new Error((apiData.error && apiData.error.message) || apiData.error || 'Vehicle not found via API.');
-                    }
+                    } else { throw new Error('Vehicle not found via API.'); }
                 } catch (error) {
                     setTxt('vrn-status', `Error: ${error.message}`);
                     getEl('vrn-status').style.color = 'red';
@@ -4494,41 +4515,66 @@ const handleVrnLookup = async () => {
                   };
                   const formatCurrency = val => `£${(parseFloat(val) || 0).toFixed(2)}`;
                   const getSelectedText = el => (el && el.selectedIndex !== -1 && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
-                  const escapeHtml = (value) => String(value == null ? '' : value)
-                      .replace(/&/g, '&amp;')
-                      .replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;')
-                      .replace(/"/g, '&quot;')
-                      .replace(/'/g, '&#39;');
-                  const escapeWithBreaks = (value) => escapeHtml(value).replace(/\r?\n/g, '<br>');
+                  const safeText = (value, fallback = '') => {
+                      const raw = value == null ? '' : String(value);
+                      return escapeHtml(raw || fallback);
+                  };
+                  const safeMultiline = (value, fallback = '') => {
+                      const raw = value == null ? '' : String(value);
+                      return escapeHtml(raw || fallback).replace(/\r?\n/g, '<br>');
+                  };
                   const updateLetterPreview = () => {
                       const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
+                      const getSafe = (id) => safeText(get(id));
                       const d = {
-                    staffName: escapeHtml(get('ltr_staff-name')),
-                    letterDate: escapeHtml(formatDate(getVal('ltr_letter-date'))),
-                    illustrativeDate: escapeHtml(formatDate(window.sourceSheetReceivedDate || '')),
-                    refNum: escapeHtml(get('ltr_reference-number')),
-                    currentRemainingTerm: escapeHtml(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
-                    clientName: escapeHtml(get('ltr_client-name')),
-                    clientAddrHtml: ['ltr_client-address-street', 'ltr_client-address-town', 'ltr_client-address-postcode'].map(id => `<p>${escapeHtml(get(id))}</p>`).join(''),
-                    vrn: escapeHtml(getVal('vrn')?.toUpperCase() || '[VRN]'), vehicle: escapeHtml(`${getVal('vehicle-year')} ${getVal('vehicle-make')} ${getVal('vehicle-model')}`),
-                    currentLender: escapeHtml(get('ltr_current-lender')), currentFinanceType: escapeHtml(getSelectedText(getEl('ltr_current-finance-type'))), currentVehiclePrice: escapeHtml(formatCurrency(getVal('ltr_current-vehicle-price'))),
-                    currentDeposit: escapeHtml(formatCurrency(getVal('ltr_current-deposit'))), currentApr: escapeHtml(`${getVal('ltr_current-apr')}%`), currentTerm: escapeHtml(`${getVal('ltr_current-term')} months`),
-                    currentMonthlyPayment: escapeHtml(formatCurrency(getVal('ltr_current-monthly-payment'))), currentBalloon: escapeHtml(formatCurrency(getVal('ltr_current-balloon'))),
-                    currentAgreementStartDate: escapeHtml(formatDate(getVal('ltr_current-agreement-start-date'))), currentPaymentsMade: escapeHtml(getVal('ltr_current-payments-made')),
-                    currentSettlementFigure: escapeHtml(formatCurrency(window.illustratorResultsData.currentSettlementFigure)), currentAgreementNumber: escapeHtml(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
-                    newLenderName: escapeHtml(get('ltr_new-lender-name')), newTermType: escapeHtml(getSelectedText(getEl('ltr_new-term-type'))), newFinanceAmount: escapeHtml(formatCurrency(getVal('ltr_new-finance-amount'))), newAdditionalCash: escapeHtml(formatCurrency(getVal('ltr_new-additional-cash'))), newAmountToFinance: escapeHtml(formatCurrency(window.sourceSheetSettlementTotal || '')), newDeposit: escapeHtml(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
-                    newApr: escapeHtml(`${getVal('ltr_new-apr')}%`), newTerm: escapeHtml(`${getVal('ltr_new-term')} months`), newMonthlyPayment: escapeHtml(formatCurrency(getVal('ltr_new-monthly-payment'))), newBalloon: escapeHtml(formatCurrency(getVal('ltr_new-balloon'))),
-                    earlyRepaymentChargesPaid: escapeHtml(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
-                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${escapeHtml(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
-                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${escapeHtml(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
-                    freeTextNeeds: escapeWithBreaks(getVal('ltr_client-demands-needs') || ''), howMet: escapeWithBreaks(getVal('ltr_how-option-meets-needs') || '') || escapeHtml('[Client to specify...]'),
-                    termChoice: getVal('ltr_term-change-choice'), termExtReason: escapeHtml(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
-                    termRedReason: escapeHtml(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
-                    otherChoices: escapeWithBreaks(getVal('ltr_client-specific-choices-rationale') || '') || escapeHtml('No other specific choices noted.'),
-                    commission: escapeHtml(formatCurrency(window.illustratorResultsData.estimatedCommission)),
-                    coTrading: escapeHtml(get('ltr_company-trading-name')), coLegal: escapeHtml(get('ltr_company-legal-name')), coAddr1: escapeHtml(get('ltr_company-address1')), coAddr2: escapeHtml(get('ltr_company-address2')),
-                    coPostcode: escapeHtml(get('ltr_company-postcode')), coEmail: escapeHtml(get('ltr_company-email')), coFca: escapeHtml(get('ltr_company-fca-number')), coReg: escapeHtml(get('ltr_company-number')),
+                    staffName: getSafe('ltr_staff-name'),
+                    letterDate: safeText(formatDate(getVal('ltr_letter-date'))),
+                    illustrativeDate: safeText(formatDate(window.sourceSheetReceivedDate || '')),
+                    refNum: getSafe('ltr_reference-number'),
+                    currentRemainingTerm: safeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
+                    clientName: getSafe('ltr_client-name'),
+                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map((part) => safeText(part)).join('<br>'),
+                    vrn: safeText(getVal('vrn')?.toUpperCase() || '[VRN]'),
+                    vehicle: safeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`.trim()),
+                    currentLender: getSafe('ltr_current-lender'),
+                    currentFinanceType: safeText(getSelectedText(getEl('ltr_current-finance-type'))),
+                    currentVehiclePrice: safeText(formatCurrency(getVal('ltr_current-vehicle-price'))),
+                    currentDeposit: safeText(formatCurrency(getVal('ltr_current-deposit'))),
+                    currentApr: safeText(`${getVal('ltr_current-apr') || ''}%`),
+                    currentTerm: safeText(`${getVal('ltr_current-term') || ''} months`),
+                    currentMonthlyPayment: safeText(formatCurrency(getVal('ltr_current-monthly-payment'))),
+                    currentBalloon: safeText(formatCurrency(getVal('ltr_current-balloon'))),
+                    currentAgreementStartDate: safeText(formatDate(getVal('ltr_current-agreement-start-date'))),
+                    currentPaymentsMade: safeText(getVal('ltr_current-payments-made')),
+                    currentSettlementFigure: safeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)),
+                    currentAgreementNumber: safeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
+                    currentTotalPayable: '[Current total payable]',
+                    newLenderName: getSafe('ltr_new-lender-name'),
+                    newTermType: safeText(getSelectedText(getEl('ltr_new-term-type'))),
+                    newFinanceAmount: safeText(formatCurrency(getVal('ltr_new-finance-amount'))),
+                    newAdditionalCash: safeText(formatCurrency(getVal('ltr_new-additional-cash'))),
+                    newAmountToFinance: safeText(formatCurrency(window.sourceSheetSettlementTotal || '')),
+                    newDeposit: safeText(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
+                    newApr: safeText(`${getVal('ltr_new-apr') || ''}%`),
+                    newTerm: safeText(`${getVal('ltr_new-term') || ''} months`),
+                    newMonthlyPayment: safeText(formatCurrency(getVal('ltr_new-monthly-payment'))),
+                    newBalloon: safeText(formatCurrency(getVal('ltr_new-balloon'))),
+                    newTotalPayable: '[New total payable]',
+                    earlyRepaymentChargesPaid: safeText(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
+                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${safeText(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
+                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${safeText(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
+                    freeTextNeeds: safeMultiline(getVal('ltr_client-demands-needs')),
+                    howMet: safeMultiline(getVal('ltr_how-option-meets-needs'), '[Client to specify...]'),
+                    termChoice: getVal('ltr_term-change-choice'),
+                    termExtReason: safeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
+                    termRedReason: safeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
+                    otherChoices: safeMultiline(getVal('ltr_client-specific-choices-rationale'), 'No other specific choices noted.'),
+                    commission: safeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
+                    coTrading: getSafe('ltr_company-trading-name'), coLegal: getSafe('ltr_company-legal-name'), coAddr1: getSafe('ltr_company-address1'), coAddr2: getSafe('ltr_company-address2'),
+                    coPostcode: getSafe('ltr_company-postcode'), coEmail: getSafe('ltr_company-email'), coFca: getSafe('ltr_company-fca-number'), coReg: getSafe('ltr_company-number'),
+                    employmentSummary: safeText(getVal('ltr_employment-summary'), '[Summary, e.g. employed / self-employed / other]'),
+                    timeInEmployment: safeText(getVal('ltr_time-in-employment'), '[time in employment current]'),
+                    netIncomeMonthly: safeText(getVal('ltr_net-income-monthly'), '[net monthly income]'),
                 };
                 let termChangeHTML = '';
                 if (d.termChoice === 'extend' && d.termExtReason) termChangeHTML = `<p>You informed us that you wished to extend the term of your finance to ${d.newTerm}. You stated your reason for this decision was: ${d.termExtReason}.</p>`;
@@ -4576,6 +4622,8 @@ const illData = window.illustratorResultsData;
                     if (nTerm > cRemTerm) extendedTermInfo = `<li>If you have opted to extend the term of the agreement, this will impact the total cost to repay or own the vehicle outright should you wish to exercise your option to purchase.</li>`;
                     summaryHTML = `<p>Based on the illustration, the new finance option indicates ${points.length ? points.join(', and ') : 'no significant changes'}.</p>`;
                     if(illData.earlyRepaymentChargesPaid > 0) summaryHTML += `<p>The early repayment charges of <strong>${formatCurrency(illData.earlyRepaymentChargesPaid)}</strong> have been included in your new finance agreement.</p>`;
+                    d.currentTotalPayable = safeText(totalCurrent || '[Current total payable]');
+                    d.newTotalPayable = safeText(totalNew || '[New total payable]');
                 }
 
                 // Reference number placeholder (will be replaced/overridden when payload data is available)
@@ -4630,9 +4678,9 @@ We do not provide independent financial advice for consumer credit or credit bro
 
 <p><strong>Personal and financial information (summary)</strong></p>
 <ul class="letter-bullets bullets-2col">
-  <li>Employment: ${getVal('ltr_employment-summary') || '[Summary, e.g. employed / self-employed / other]'}</li>
-  <li>Time in employment: ${getVal('ltr_time-in-employment') || '[time in employment current]'}</li>
-  <li>Regular net income (monthly): ${getVal('ltr_net-income-monthly') || '[net monthly income]'}</li>
+  <li>Employment: ${d.employmentSummary}</li>
+  <li>Time in employment: ${d.timeInEmployment}</li>
+  <li>Regular net income (monthly): ${d.netIncomeMonthly}</li>
   <li>Known changes to circumstances: None declared</li>
 </ul>
 
@@ -6182,13 +6230,28 @@ if (dataObj && dataObj.success === false) {
 
                   if (!endpoint) throw new Error('Missing CONFIG.ENDPOINTS.CRM');
 
-                  let requestPayload = payload || {};
-                  try {
-                    const token = (action !== 'authLogin') ? (window.CMFSession ? window.CMFSession.readToken() : '') : '';
-                    if (token && requestPayload && typeof requestPayload === 'object' && !requestPayload.token) {
-                      requestPayload = { ...requestPayload, token };
+
+                  if (method === 'GET') {
+
+                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
+                    if (!token) {
+                      if (window.__cmfHandleAuthRequired) window.__cmfHandleAuthRequired({ authRequired: true, error: 'AUTH_REQUIRED' });
+                      throw new Error('AUTH_REQUIRED');
                     }
-                  } catch (e) {}
+
+                    const apiUrl = new URL(endpoint);
+                    apiUrl.searchParams.set('api', '1');
+                    apiUrl.searchParams.set('token', token);
+                    const r = await fetch(apiUrl.toString(), { method: 'GET' });
+                    const dataObj = await r.json();
+                    if (dataObj && dataObj.success === false) {
+                      if (window.__cmfHandleAuthRequired && window.__cmfHandleAuthRequired(dataObj)) throw new Error('AUTH_REQUIRED');
+                      const msg = (App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(dataObj, 'Server error') : 'Server error';
+                      throw new Error('[' + action + '] ' + msg);
+                    }
+                    return dataObj;
+
+                  }
 
 
                   const r = await fetch(endpoint, {
