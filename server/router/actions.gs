@@ -164,6 +164,26 @@ function handleGetDelta_(_ctx) {
   }
 }
 
+function handleGetVrnData_(ctx) {
+  const payload = (ctx && ctx.payload) || {};
+  return { success: true, data: getVrnData_(payload.vrn) };
+}
+
+function handleSaveVrnData_(ctx) {
+  const payload = (ctx && ctx.payload) || {};
+  const vrn = payload.vrn || '';
+  const data = Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+  return withLock_(15000, () => {
+    saveVrnData_(vrn, data);
+    return { success: true };
+  });
+}
+
+function handleLookupVrnFinanceRecord_(ctx) {
+  const payload = (ctx && ctx.payload) || {};
+  return safeObj_(() => lookupVrnFinanceRecord_(payload.vrn));
+}
+
 function handleSave_(ctx) {
   return withLock_(30000, () => {
     const sheet = getSheet_();
@@ -257,6 +277,9 @@ const PROTECTED_ACTION_HANDLERS_ = {
   searchFolders: handleSearchFolders_,
   getFolderFiles: handleGetFolderFiles_,
   getDelta: handleGetDelta_,
+  getVrnData: handleGetVrnData_,
+  saveVrnData: handleSaveVrnData_,
+  lookupVrnFinanceRecord: handleLookupVrnFinanceRecord_,
   validateJigsaw: handleValidateJigsaw_,
   submitJigsaw: handleSubmitJigsaw_,
   validateLenderApplication: handleValidateLenderApplication_,
