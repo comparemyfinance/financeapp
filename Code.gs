@@ -409,6 +409,16 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+function getApiTokenFromParams_(params) {
+  const source = params || {};
+  return String(
+    source.token ||
+    source.authToken ||
+    source.cmfAuthToken ||
+    '',
+  ).trim();
+}
+
 function doGet(e) {
   const params = (e && e.parameter) ? e.parameter : {};
   const wantsApiJson = (params.api === '1' || params.format === 'json');
@@ -421,6 +431,9 @@ function doGet(e) {
       .setTitle('CMF Refi Orchestrator')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
+
+  const auth = auth_check_token_(getApiTokenFromParams_(params));
+  if (!auth.success) return createJsonOutput_(auth);
 
   // GET /exec?api=1 -> return all deals as JSON (read-only)
   return withLock_(30000, () => {
@@ -994,6 +1007,88 @@ function saveVrnData_(vrn, data) {
     }
   }
   sh.appendRow([v.toUpperCase(), payload, now]);
+}
+
+function mapOneAutoVehicleData_(vrn, apiData) {
+  const result = apiData && apiData.result ? apiData.result : null;
+  if (!result) return null;
+  const financeItem =
+    result.finance_data_qty > 0 && result.finance_data_items
+      ? result.finance_data_items[0]
+      : null;
+
+  return {
+    vrn: String(vrn || '').trim().toUpperCase(),
+    make: result.dvla_manufacturer_desc || '',
+    model: result.dvla_model_desc || '',
+    year: result.manufactured_year || '',
+    finance_type: financeItem && financeItem.finance_type ? financeItem.finance_type : '',
+    finance_company: financeItem && financeItem.finance_company ? financeItem.finance_company : '',
+    finance_agreement_number:
+      financeItem && financeItem.finance_agreement_number ? financeItem.finance_agreement_number : '',
+    finance_start_date:
+      financeItem && financeItem.finance_start_date ? financeItem.finance_start_date : '',
+    finance_term_months:
+      financeItem && financeItem.finance_term_months ? financeItem.finance_term_months : '',
+    finance: financeItem,
+  };
+}
+
+function lookupOneAutoFinance_(vrn) {
+  const normalizedVrn = normVrn_(vrn || '');
+  if (!normalizedVrn) return makeError_('VALIDATION_ERROR', 'Missing or invalid VRN');
+
+  requireConfig_(['ONEAUTO_API_KEY']);
+  const apiKey = getProp_('ONEAUTO_API_KEY');
+  const url =
+    'https://api.oneautoapi.com/experian/financerecords/v3?vehicle_registration_mark=' +
+    encodeURIComponent(normalizedVrn);
+  const res = fetchWithTransientRetry_(
+    url,
+    {
+      method: 'get',
+      headers: { 'x-api-key': apiKey },
+      muteHttpExceptions: true,
+    },
+    3,
+  );
+  const status = res.getResponseCode();
+  const bodyText = res.getContentText();
+
+  if (status === 204) {
+    return makeError_('NOT_FOUND', 'Vehicle not found via API.');
+  }
+  if (status < 200 || status >= 300) {
+    return makeError_('EXTERNAL_API_ERROR', 'Vehicle lookup failed.', { status: status });
+  }
+
+  let apiData;
+  try {
+    apiData = JSON.parse(bodyText);
+  } catch (_e) {
+    return makeError_('EXTERNAL_API_ERROR', 'Vehicle lookup returned invalid JSON.');
+  }
+
+  if (!apiData || !apiData.success || !apiData.result) {
+    const message =
+      apiData &&
+      apiData.error &&
+      typeof apiData.error === 'object' &&
+      apiData.error.message
+        ? String(apiData.error.message)
+        : apiData && apiData.error
+          ? String(apiData.error)
+          : 'Vehicle not found via API.';
+    return makeError_('NOT_FOUND', message);
+  }
+
+  const vehicleData = mapOneAutoVehicleData_(normalizedVrn, apiData);
+  if (!vehicleData) {
+    return makeError_('NOT_FOUND', 'Vehicle not found via API.');
+  }
+
+  saveVrnData_(normalizedVrn, vehicleData);
+  return { success: true, data: vehicleData, source: 'oneauto' };
 }
 
 // ------------------------- Jigsaw auth/token
