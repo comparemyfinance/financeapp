@@ -96,3 +96,4 @@ Required for deploy workflow:
 - Keep Apps Script entry template as `Index.html` unless backend template loading changes too.
 - Prefer updating package scripts for checks rather than adding workflow-only one-off commands.
 - Do not commit credentials or new hardcoded secrets.
+  Codex local connection test

@@ -4645,7 +4645,7 @@ setHtml('ltr_letter-preview-content', `
 
 <div class="client-details mb-5">
   <p><strong>${d.clientName}</strong></p>
-  <p>${d.clientAddr.replace(/<br>/g, '</p><p>')}</p>
+  ${d.clientAddrHtml}
 </div>
 
 <p><strong>Re: Demands and Needs / Suitability Statement &ndash; Car Refinance Agreement</strong></p>
@@ -6258,7 +6258,7 @@ if (dataObj && dataObj.success === false) {
 
                     method: 'POST',
 
-                    body: JSON.stringify({ action, payload }),
+                    body: JSON.stringify({ action, payload: requestPayload }),
 
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
 
