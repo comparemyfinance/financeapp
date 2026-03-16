@@ -3295,16 +3295,15 @@ Open the console for full details.`);
 
             if (!endpoint) throw new Error("Missing CONFIG.ENDPOINTS.CRM");
 
-            if (method === "GET") {
-              const r = await fetch(endpoint + "?api=1", { method: "GET" });
-
-              return await r.json();
+            let requestPayload = payload || {};
+            if (action !== "authLogin") {
+              requestPayload = App.utils.buildAuthPayload(requestPayload);
             }
 
             const r = await fetch(endpoint, {
               method: "POST",
 
-              body: JSON.stringify({ action, payload }),
+              body: JSON.stringify({ action, payload: requestPayload }),
 
               headers: { "Content-Type": "text/plain;charset=utf-8" },
             });

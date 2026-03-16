@@ -306,3 +306,62 @@ test('searchFolders uses shared ROOT_FOLDER_ID resolver helper', () => {
   assert.equal(called, 1);
   assert.ok(Array.isArray(out.folders));
 });
+
+test('doGet api export requires auth token', () => {
+  const ctx = boot();
+  const out = JSON.parse(ctx.doGet({ parameter: { api: '1' } }).getContent());
+  assert.equal(out.success, false);
+  assert.equal(out.error.code, 'AUTH_REQUIRED');
+  assert.equal(out.authRequired, true);
+});
+
+test('doGet api export delegates to protected getDelta path when token is valid', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  ctx.getRowsData_ = () => [{ id: 'D1' }];
+  const out = JSON.parse(ctx.doGet({ parameter: { api: '1', token: login.token } }).getContent());
+  assert.equal(out.success, true);
+  assert.deepEqual(out.data, [{ id: 'D1' }]);
+});
+
+test('lookupVrnFinanceRecord is auth-gated and returns normalized vehicle data', () => {
+  const ctx = boot();
+  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
+  const unauth = ctx.routeAction_('lookupVrnFinanceRecord', { vrn: 'AB12CDE' }, {});
+  assert.equal(unauth.success, false);
+  assert.equal(unauth.error.code, 'AUTH_REQUIRED');
+
+  let saved = null;
+  ctx.saveVrnData_ = (vrn, data) => {
+    saved = { vrn, data };
+  };
+  ctx.UrlFetchApp.fetch = () => ({
+    getResponseCode: () => 200,
+    getContentText: () =>
+      JSON.stringify({
+        success: true,
+        result: {
+          dvla_manufacturer_desc: 'Ford',
+          dvla_model_desc: 'Fiesta',
+          manufactured_year: '2022',
+          finance_data_qty: 1,
+          finance_data_items: [
+            {
+              finance_type: 'HP',
+              finance_company: 'Test Finance',
+              finance_agreement_number: 'AG-1',
+              finance_start_date: '2024-01-01',
+              finance_term_months: '48',
+            },
+          ],
+        },
+      }),
+  });
+
+  const out = ctx.routeAction_('lookupVrnFinanceRecord', { token: login.token, vrn: 'ab12 cde' }, {});
+  assert.equal(out.success, true);
+  assert.equal(out.data.vrn, 'AB12CDE');
+  assert.equal(out.data.make, 'Ford');
+  assert.equal(saved.vrn, 'AB12CDE');
+  assert.equal(saved.data.finance_company, 'Test Finance');
+});
