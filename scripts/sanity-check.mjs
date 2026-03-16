@@ -1,16 +1,14 @@
+#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+const repoRoot = process.cwd();
 const requiredFiles = ['Code.gs', 'Index.html', 'appsscript.json'];
 
 const missingFiles = requiredFiles.filter((file) => !fs.existsSync(path.join(repoRoot, file)));
 
-if (missingFiles.length > 0) {
-  console.error(`Missing required project files: ${missingFiles.join(', ')}`);
+if (missingFiles.length) {
+  console.error(`Missing required files: ${missingFiles.join(', ')}`);
   process.exit(1);
 }
 
