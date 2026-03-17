@@ -454,6 +454,7 @@ function doGet(e) {
     const idx = loadIndex_(sheet, headers);
     return createJsonOutput_(idx.objects);
   });
+  return createJsonOutput_(result);
 }
 
 

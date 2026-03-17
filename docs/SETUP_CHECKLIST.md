@@ -17,6 +17,7 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
 | `JIGSAW_USERNAME`      | Jigsaw API username                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_PASSWORD`      | Jigsaw API password                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_SHARED_SECRET` | Webhook signature verification secret                             | None (required for webhook verification) |
+| `ONEAUTO_API_KEY`      | Server-side OneAuto/Experian VRN finance lookup key               | None (required for external VRN lookup)  |
 
 ## Optional properties
 
@@ -38,6 +39,7 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
    - `authLogin` works with credentials present in `AUTH_USERS_JSON`.
    - Drive search works (requires valid `ROOT_FOLDER_ID` and permissions).
    - Deal load/save works (requires valid `SPREADSHEET_ID`).
+   - External VRN finance lookup works if `ONEAUTO_API_KEY` is configured.
 4. If webhooks are enabled, verify signature validation with `JIGSAW_SHARED_SECRET`.
 
 ## Notes
