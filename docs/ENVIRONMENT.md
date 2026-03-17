@@ -64,6 +64,8 @@ Key helpers:
   - `CLASPRC_JSON_B64`
   - `CLASP_SCRIPT_ID`
   - `GAS_DEPLOYMENT_ID`
+- Web app access must remain `ANYONE_ANONYMOUS` in `appsscript.json` so the Apps Script URL can render the CRM login screen before app-level auth runs.
+- API/data exposure is protected in code by token-gated actions and the `doGet(api=1)` auth check, not by forcing Google sign-in at the deployment layer.
 
 ## Validation baseline
 
