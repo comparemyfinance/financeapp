@@ -37,6 +37,16 @@ test('standard lenders use placeholder provider model invariants', () => {
   assert.equal(cap.isLiveSubmission, false);
 });
 
+test('FINCLUSION inherits the standard placeholder capability model', () => {
+  const ctx = boot();
+  const cap = ctx.getLenderCapability_('FINCLUSION');
+
+  assert.equal(cap.displayName, 'FINCLUSION');
+  assert.equal(cap.validationProvider, 'JigsawRules');
+  assert.equal(cap.submissionProvider, 'SimulatedSuccess');
+  assert.equal(cap.isLiveSubmission, false);
+});
+
 test('provider resolver helpers preserve selected lender identity and map deterministically', () => {
   const ctx = boot();
 

@@ -614,17 +614,219 @@ function resolveSubmissionProvider_(selectedLender) {
   return getLenderCapability_(selectedLender).submissionProvider;
 }
 
+function isLenderPayloadObject_(candidate) {
+  return !!candidate && typeof candidate === "object" && !Array.isArray(candidate);
+}
+
+function looksLikeLenderDeal_(candidate) {
+  if (!isLenderPayloadObject_(candidate)) return false;
+
+  var signalKeys = [
+    "id",
+    "ID",
+    "firstName",
+    "lastName",
+    "surname",
+    "email",
+    "mobile",
+    "phone",
+    "vehicleReg",
+    "regNumber",
+    "registration",
+    "settlementFigure",
+    "financeType",
+  ];
+
+  for (var i = 0; i < signalKeys.length; i++) {
+    var value = candidate[signalKeys[i]];
+    if (value !== null && typeof value !== "undefined" && value !== "") return true;
+  }
+  return false;
+}
+
+function extractLenderDealFromCandidate_(candidate, depth) {
+  depth = Number(depth || 0);
+  if (depth > 4 || !isLenderPayloadObject_(candidate)) return null;
+
+  var nestedKeys = ["deal", "dnsPayload", "raw", "payload", "data", "rawPayload"];
+  for (var i = 0; i < nestedKeys.length; i++) {
+    var nested = candidate[nestedKeys[i]];
+    if (!isLenderPayloadObject_(nested)) continue;
+    if (looksLikeLenderDeal_(nested)) return nested;
+    var extracted = extractLenderDealFromCandidate_(nested, depth + 1);
+    if (extracted) return extracted;
+  }
+
+  return looksLikeLenderDeal_(candidate) ? candidate : null;
+}
+
+function extractLenderApplicationDeal_(payload) {
+  return extractLenderDealFromCandidate_(payload || {}, 0);
+}
+
+function extractLenderApplicationDraft_(payload) {
+  if (isLenderPayloadObject_(payload) && isLenderPayloadObject_(payload.draft)) {
+    return payload.draft;
+  }
+  if (
+    isLenderPayloadObject_(payload) &&
+    isLenderPayloadObject_(payload.rawPayload) &&
+    isLenderPayloadObject_(payload.rawPayload.draft)
+  ) {
+    return payload.rawPayload.draft;
+  }
+  return null;
+}
+
+function normalizeLenderApplicationContext_(payload) {
+  payload = payload || {};
+  return {
+    selectedLender: String(
+      payload.selectedLender || payload.lender || payload.lenderName || "",
+    ).trim(),
+    deal: extractLenderApplicationDeal_(payload),
+    draft: extractLenderApplicationDraft_(payload),
+    rawPayload: payload,
+  };
+}
+
+function makeLenderApplicationStep_(key, label, status, message, providerId) {
+  var step = {
+    key: String(key || ""),
+    label: String(label || ""),
+    status: String(status || "pending"),
+  };
+  if (message) step.message = String(message);
+  if (providerId) step.providerId = String(providerId);
+  return step;
+}
+
+function getLenderOperatorMessage_(result, fallbackMessage) {
+  if (result && result.operatorMessage) return String(result.operatorMessage);
+  if (result && result.message) return String(result.message);
+  return String(fallbackMessage || "");
+}
+
+function normalizeProviderResult_(providerId, stage, result, fallbackMessage) {
+  var normalized = {};
+  var source = result || {};
+  var keys = Object.keys(source);
+  for (var i = 0; i < keys.length; i++) normalized[keys[i]] = source[keys[i]];
+
+  normalized.providerId = normalized.providerId || String(providerId || "");
+  normalized.stage = normalized.stage || String(stage || "");
+  normalized.operatorMessage = getLenderOperatorMessage_(normalized, fallbackMessage);
+  normalized.stepStatus = normalized.success ? "completed" : "failed";
+  return normalized;
+}
+
+function buildValidationSteps_(providerId, providerResult) {
+  var message = getLenderOperatorMessage_(providerResult, "Validation completed");
+  return [
+    makeLenderApplicationStep_(
+      "payload",
+      "Payload received",
+      "completed",
+      "Application payload available for validation",
+    ),
+    makeLenderApplicationStep_(
+      "validate",
+      "Validation via " + String(providerId || "provider"),
+      providerResult && providerResult.success ? "completed" : "failed",
+      message,
+      providerId,
+    ),
+  ];
+}
+
+function buildSubmissionSteps_(validationResult, submissionProvider, providerResult) {
+  var steps = [
+    makeLenderApplicationStep_(
+      "payload",
+      "Payload received",
+      "completed",
+      "Application payload ready for submission",
+    ),
+  ];
+
+  if (validationResult && validationResult.success) {
+    steps.push(
+      makeLenderApplicationStep_(
+        "validate",
+        "Validation via " + String(validationResult.validationProvider || "provider"),
+        "completed",
+        getLenderOperatorMessage_(validationResult.result, validationResult.statusMessage),
+        validationResult.validationProvider,
+      ),
+    );
+    steps.push(
+      makeLenderApplicationStep_(
+        "submit",
+        "Submission via " + String(submissionProvider || "provider"),
+        providerResult && providerResult.success ? "completed" : "failed",
+        getLenderOperatorMessage_(providerResult, "Submission completed"),
+        submissionProvider,
+      ),
+    );
+    return steps;
+  }
+
+  steps.push(
+    makeLenderApplicationStep_(
+      "validate",
+      "Validation via " + String(
+        (validationResult && validationResult.validationProvider) || "provider",
+      ),
+      "failed",
+      getLenderOperatorMessage_(validationResult, "Validation failed"),
+      validationResult && validationResult.validationProvider,
+    ),
+  );
+  steps.push(
+    makeLenderApplicationStep_(
+      "submit",
+      "Submission via " + String(submissionProvider || "provider"),
+      "blocked",
+      "Submission blocked until validation passes",
+      submissionProvider,
+    ),
+  );
+  return steps;
+}
+
+function makeLenderApplicationErrorResponse_(code, message) {
+  return {
+    success: false,
+    code: code,
+    message: message,
+    statusMessage: message,
+    operatorMessage: message,
+    steps: [
+      makeLenderApplicationStep_(
+        "request",
+        "Request rejected",
+        "failed",
+        message,
+      ),
+    ],
+  };
+}
 
 function validateWithProvider_(providerId, payload) {
   var provider = String(providerId || "").trim();
   if (provider === "JigsawRules") {
-    return validateWithJigsawRulesPlaceholder_(payload || {});
+    return normalizeProviderResult_(
+      provider,
+      "validate",
+      validateWithJigsawRulesPlaceholder_(payload || {}),
+      "Validation completed",
+    );
   }
-  return {
+  return normalizeProviderResult_(provider, "validate", {
     success: false,
     code: "UNKNOWN_VALIDATION_PROVIDER",
     message: "Unsupported validation provider: " + provider,
-  };
+  });
 }
 
 function submitWithProvider_(providerId, payload) {
@@ -632,43 +834,40 @@ function submitWithProvider_(providerId, payload) {
   if (provider === "JigsawLive") {
     // Guardrail placeholder: only selected lender Jigsaw may ever use this provider.
     if (String(payload && payload.selectedLender || "") !== "Jigsaw") {
-      return {
+      return normalizeProviderResult_(provider, "submit", {
         success: false,
         code: "LIVE_PROVIDER_BLOCKED",
         message: "Only Jigsaw can use JigsawLive submission provider",
-      };
+      });
     }
-    return {
+    return normalizeProviderResult_(provider, "submit", {
       success: false,
       code: "SUBMIT_NOT_ACTIVE",
       message: "Submit is not active in Product Source modal yet",
-    };
+    });
   }
   if (provider === "SimulatedSuccess") {
-    return {
+    return normalizeProviderResult_(provider, "submit", {
       success: true,
       mode: "placeholder",
       message: "Simulated submit success",
-    };
+    });
   }
-  return {
+  return normalizeProviderResult_(provider, "submit", {
     success: false,
     code: "UNKNOWN_SUBMISSION_PROVIDER",
     message: "Unsupported submission provider: " + provider,
-  };
+  });
 }
 
 function validateLenderApplication_(payload) {
-  payload = payload || {};
-  var selectedLender = String(
-    payload.selectedLender || payload.lender || payload.lenderName || "",
-  ).trim();
+  var context = normalizeLenderApplicationContext_(payload);
+  var selectedLender = context.selectedLender;
   if (!selectedLender) {
-    return {
-      success: false,
-      code: "VALIDATION_ERROR",
-      message: "selectedLender is required",
-    };
+    return makeLenderApplicationErrorResponse_(
+      "VALIDATION_ERROR",
+      "selectedLender is required",
+    );
   }
 
   var capability = getLenderCapability_(selectedLender);
@@ -676,25 +875,28 @@ function validateLenderApplication_(payload) {
   var providerResult = validateWithProvider_(validationProvider, {
     selectedLender: selectedLender,
     capability: capability,
-    deal: payload.deal || null,
-    draft: payload.draft || null,
-    rawPayload: payload,
+    deal: context.deal,
+    draft: context.draft,
+    rawPayload: context.rawPayload,
   });
+  var statusMessage = providerResult.success
+    ? selectedLender + " validation successful"
+    : selectedLender + " validation failed";
 
   return {
     success: !!providerResult.success,
     selectedLender: selectedLender,
     validationProvider: validationProvider,
     submissionProvider: capability.submissionProvider,
-    statusMessage: providerResult.success
-      ? selectedLender + " validation successful"
-      : selectedLender + " validation failed",
+    statusMessage: statusMessage,
+    operatorMessage: getLenderOperatorMessage_(providerResult, statusMessage),
+    steps: buildValidationSteps_(validationProvider, providerResult),
     result: providerResult,
   };
 }
 
 function validateWithJigsawRulesPlaceholder_(ctx) {
-  var deal = ctx && (ctx.deal || null);
+  var deal = extractLenderApplicationDeal_(ctx);
   if (!deal || typeof deal !== "object") {
     return {
       success: false,
@@ -715,21 +917,31 @@ function validateWithJigsawRulesPlaceholder_(ctx) {
 
 
 function submitLenderApplication_(payload) {
-  payload = payload || {};
-  var selectedLender = String(
-    payload.selectedLender || payload.lender || payload.lenderName || "",
-  ).trim();
+  var context = normalizeLenderApplicationContext_(payload);
+  var selectedLender = context.selectedLender;
   if (!selectedLender) {
-    return {
-      success: false,
-      code: "VALIDATION_ERROR",
-      message: "selectedLender is required",
-    };
+    return makeLenderApplicationErrorResponse_(
+      "VALIDATION_ERROR",
+      "selectedLender is required",
+    );
   }
 
   var capability = getLenderCapability_(selectedLender);
   var validationResult = validateLenderApplication_(payload);
   if (!validationResult.success) {
+    var blockedMessage = "Submission blocked until validation passes";
+    var blockedResult = normalizeProviderResult_(
+      capability.submissionProvider,
+      "submit",
+      {
+        success: false,
+        code: "SUBMIT_BLOCKED_BY_VALIDATION",
+        message: blockedMessage,
+        stepStatus: "blocked",
+      },
+      blockedMessage,
+    );
+    blockedResult.stepStatus = "blocked";
     return {
       success: false,
       stage: "validate",
@@ -737,7 +949,17 @@ function submitLenderApplication_(payload) {
       validationProvider: validationResult.validationProvider,
       submissionProvider: capability.submissionProvider,
       statusMessage: selectedLender + " submit blocked: validation failed",
+      operatorMessage: getLenderOperatorMessage_(
+        validationResult,
+        blockedMessage,
+      ),
+      steps: buildSubmissionSteps_(
+        validationResult,
+        capability.submissionProvider,
+        blockedResult,
+      ),
       validation: validationResult,
+      result: blockedResult,
     };
   }
 
@@ -745,19 +967,26 @@ function submitLenderApplication_(payload) {
   var providerResult = submitWithProvider_(submissionProvider, {
     selectedLender: selectedLender,
     capability: capability,
-    deal: payload.deal || null,
-    draft: payload.draft || null,
-    rawPayload: payload,
+    deal: context.deal,
+    draft: context.draft,
+    rawPayload: context.rawPayload,
   });
+  var statusMessage = providerResult.success
+    ? selectedLender + " submission successful"
+    : selectedLender + " submission failed";
 
   return {
     success: !!providerResult.success,
     selectedLender: selectedLender,
     validationProvider: validationResult.validationProvider,
     submissionProvider: submissionProvider,
-    statusMessage: providerResult.success
-      ? selectedLender + " submission successful"
-      : selectedLender + " submission failed",
+    statusMessage: statusMessage,
+    operatorMessage: getLenderOperatorMessage_(providerResult, statusMessage),
+    steps: buildSubmissionSteps_(
+      validationResult,
+      submissionProvider,
+      providerResult,
+    ),
     validation: validationResult,
     result: providerResult,
   };
@@ -1089,6 +1318,12 @@ function getLenderDefaults_() {
       apr: 22.25,
       commissionPct: 4,
       highlight: false,
+    },
+    {
+      lender: "FINCLUSION",
+      apr: 8.9,
+      commissionPct: 4,
+      highlight: true,
     },
     {
       lender: "Billing Finance",
