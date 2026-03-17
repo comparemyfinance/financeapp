@@ -109,6 +109,21 @@ for (const file of templates) {
       /rawGet\(raw,\s*\[['"]id['"],\s*['"]ID['"],\s*['"]Id['"],\s*['"]dealId['"],\s*['"]dealID['"],\s*['"]DealId['"]\]\)\s*\|\|[\s\S]{0,160}dp\.id[\s\S]{0,120}dp\.dealID[\s\S]{0,120}getActiveDealId\(\)/,
       'expected reference number precedence to be raw id, payload id, then active deal id fallback',
     );
+    assert.match(
+      html,
+      /setVal\(\s*['"]ltr_client-address-street['"][\s\S]{0,80}addressStreet[\s\S]{0,20}\)/,
+      'expected late client street mapping to preserve the resolved raw->fallback value',
+    );
+    assert.match(
+      html,
+      /setVal\(\s*['"]ltr_client-address-town['"][\s\S]{0,80}addressTown[\s\S]{0,20}\)/,
+      'expected late client town mapping to preserve the resolved raw->fallback value',
+    );
+    assert.match(
+      html,
+      /setVal\(\s*['"]ltr_client-address-postcode['"][\s\S]{0,80}addressPostcode[\s\S]{0,20}\)/,
+      'expected late client postcode mapping to preserve the resolved raw->fallback value',
+    );
   });
 
   test(`${file}: Product Source leaves manual-only DNS fields untouched`, () => {
@@ -146,6 +161,16 @@ for (const file of templates) {
       html,
       /lastName_currentPostcode/,
       'expected preview to stop using the old placeholder reference number',
+    );
+    assert.match(
+      html,
+      /const hasSelectedProductComparison[\s\S]{0,200}illData && illData\.newMonthlyPayment[\s\S]{0,120}illData && illData\.newTerm/,
+      'expected preview comparison block to require selected-product fields before calculating savings',
+    );
+    assert.doesNotMatch(
+      html,
+      /if\s*\(\s*illData\s*&&\s*Object\.keys\(illData\)\.length\s*>\s*0\s*\)/,
+      'expected preview to stop treating any non-empty illustration object as a complete comparison',
     );
   });
 }
