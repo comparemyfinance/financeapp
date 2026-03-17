@@ -98,3 +98,11 @@ test('finance navigator soft-score forces HIGH eligibility for Jigsaw/CarMoney/C
     assert.equal(offer.aprOffer, 1);
   });
 });
+
+test('listLenders includes FINCLUSION so backend lender defaults stay in parity with Product Source UI', () => {
+  const ctx = boot();
+  const out = ctx.listLenders_();
+
+  assert.ok(Array.isArray(out));
+  assert.ok(out.some((item) => item.lender === 'FINCLUSION'));
+});
