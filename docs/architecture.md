@@ -13,6 +13,8 @@ This project runs as a **Google Apps Script Web App** (V8 runtime).
 - Shared response/error helpers: `server/shared/response.gs`
 - Auth/session backend: `Auth.js`
 - Lender domain backend: `Lenderapi.gs`
+  - placeholder lender quotes / soft-score helpers
+  - outbound lender/provider integrations (currently Jigsaw validate/submit transport)
 
 ## Request flow
 

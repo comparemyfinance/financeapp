@@ -8,8 +8,529 @@
  *   - totalPayable = monthly * term + balloon
  *   - commission = settlementFigure * (commissionPct/100)
  *
- * NOTE: This is placeholder mode only; no live lender calls yet.
+ * NOTE:
+ * - Placeholder quote/soft-score behavior lives here.
+ * - Live outbound lender API adapters also live here, starting with Jigsaw
+ *   validate/submit transport.
  */
+
+// ------------------------- Jigsaw outbound config/logging
+
+// One-time setup helper (run manually from Apps Script editor)
+function setupJigsawUatProperties_() {
+  // WARNING: This overwrites existing Script Properties with the supplied values.
+  // Set your webhook shared secret before enabling webhooks.
+  configSetMany_({
+    JIGSAW_ENV: "UAT",
+    JIGSAW_USERNAME: "<<<SET_ME>>>",
+    JIGSAW_PASSWORD: "<<<SET_ME>>>",
+    JIGSAW_SHARED_SECRET: "<<<SET_ME>>>",
+  }, true);
+}
+
+function getJigsawBaseUrl_() {
+  var env = (getProp_("JIGSAW_ENV") || "uat").toString().trim().toLowerCase();
+  return env === "prod" || env === "production"
+    ? "https://gateway.jigsawfinance.com"
+    : "https://gateway-uat.jigsawfinance.com";
+}
+
+function getLogSheet_() {
+  var ss = SpreadsheetApp.openById(getSpreadsheetId_());
+  var sh = ss.getSheetByName(JIGSAW_LOG_SHEET);
+  var headers = [
+    "timestampUtc",
+    "event",
+    "dealId",
+    "introducerReference",
+    "jigsawReference",
+    "httpStatus",
+    "ok",
+    "message",
+    "request",
+    "response",
+  ];
+  if (!sh) sh = ss.insertSheet(JIGSAW_LOG_SHEET);
+  if (sh.getLastRow() === 0) sh.appendRow(headers);
+  if (sh.getLastRow() === 1) {
+    var row1 = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    var missing = headers.filter(function (header) {
+      return row1.indexOf(header) === -1;
+    });
+    if (missing.length) {
+      sh.getRange(1, sh.getLastColumn() + 1, 1, missing.length).setValues([missing]);
+    }
+  }
+  return sh;
+}
+
+function appendJigsawLog_(evt, ctx) {
+  try {
+    var sh = getLogSheet_();
+    var now = new Date();
+    var row = [
+      now.toISOString(),
+      evt || "",
+      (ctx && ctx.dealId) || "",
+      (ctx && ctx.introducerReference) || "",
+      (ctx && ctx.jigsawReference) || "",
+      (ctx && ctx.httpStatus) || "",
+      (ctx && ctx.ok) ? "true" : "false",
+      (ctx && ctx.message) || "",
+      (ctx && ctx.request) ? safeStringify_(ctx.request) : "",
+      (ctx && ctx.response) ? safeStringify_(ctx.response) : "",
+    ];
+    sh.appendRow(row);
+  } catch (err) {
+    // Never fail the primary request due to logging.
+    Logger.log("appendJigsawLog_ error: " + err);
+  }
+}
+
+function safeStringify_(o) {
+  try {
+    return JSON.stringify(o);
+  } catch (e) {
+    return String(o);
+  }
+}
+
+// ------------------------- Jigsaw outbound transport
+
+function getJigsawToken_() {
+  requireConfig_(["JIGSAW_USERNAME", "JIGSAW_PASSWORD"]);
+  var username = getProp_("JIGSAW_USERNAME");
+  var password = getProp_("JIGSAW_PASSWORD");
+  if (!username || !password) {
+    throw new Error("Missing JIGSAW_USERNAME / JIGSAW_PASSWORD in Script Properties");
+  }
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = "jigsaw_token_" + (getProp_("JIGSAW_ENV") || "uat");
+  var cached = cache.get(cacheKey);
+  if (cached) return cached;
+
+  var tokenUrl = getJigsawBaseUrl_() + "/Token";
+  var formBody =
+    "grant_type=password" +
+    "&username=" + encodeURIComponent(username) +
+    "&password=" + encodeURIComponent(password);
+
+  var res = fetchWithTransientRetry_(tokenUrl, {
+    method: "post",
+    contentType: "application/x-www-form-urlencoded",
+    payload: formBody,
+    muteHttpExceptions: true,
+  });
+
+  var status = res.getResponseCode();
+  var text = res.getContentText();
+  if (status < 200 || status >= 300) {
+    throw new Error("Jigsaw token request failed: HTTP " + status + " " + text);
+  }
+
+  var json = JSON.parse(text);
+  if (!json.access_token) throw new Error("Jigsaw token response missing access_token");
+
+  // Token expires quickly (~299s). Cache for a bit less.
+  var ttlSeconds = Math.max(60, Math.min(240, Number(json.expires_in || 240)));
+  cache.put(cacheKey, json.access_token, ttlSeconds);
+  return json.access_token;
+}
+
+function jigsawPostJson_(path, payloadObj) {
+  var url = getJigsawBaseUrl_() + path;
+  var token = getJigsawToken_();
+  var attempt = 0;
+
+  while (attempt < 2) {
+    attempt++;
+    var res = fetchWithTransientRetry_(
+      url,
+      {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payloadObj),
+        headers: { Authorization: "Bearer " + token },
+        muteHttpExceptions: true,
+      },
+      3,
+    );
+
+    var status = res.getResponseCode();
+    var bodyText = res.getContentText();
+
+    if ((status === 401 || status === 403) && attempt === 1) {
+      CacheService.getScriptCache().remove(
+        "jigsaw_token_" + (getProp_("JIGSAW_ENV") || "uat"),
+      );
+      token = getJigsawToken_();
+      continue;
+    }
+
+    return { status: status, bodyText: bodyText };
+  }
+
+  return { status: 500, bodyText: "Unexpected auth retry failure" };
+}
+
+// ------------------------- Jigsaw outbound actions
+
+function validateJigsawAction_(payload) {
+  var deal = payload && payload.deal ? payload.deal : payload;
+  var draft = payload && payload.draft ? payload.draft : null;
+  if (!deal) return { success: false, error: "Missing payload.deal" };
+
+  var referral = buildJigsawReferralFromDeal_(deal, draft);
+  var res = jigsawPostJson_("/api/validateJigsawReferral", referral);
+  var parsed = tryParseJson_(res.bodyText);
+
+  withLock_(15000, function () {
+    var sheet = getSheet_();
+    var dealId = String(deal.id || deal.ID || "").trim();
+    if (dealId) {
+      updateDealFields_(sheet, dealId, {
+        jigsawLastValidatedAt: new Date().toISOString(),
+        jigsawValidationStatus: res.status,
+        jigsawValidationResult: parsed,
+      });
+    }
+  });
+
+  appendJigsawLog_("validate", {
+    dealId: String(deal.id || ""),
+    introducerReference: String(referral.ReferrerRef || ""),
+    httpStatus: res.status,
+    ok: res.status >= 200 && res.status < 300,
+    message: res.status >= 200 && res.status < 300 ? "Validated" : "Validation failed",
+    request: referral,
+    response: parsed,
+  });
+
+  return {
+    success: res.status >= 200 && res.status < 300,
+    status: res.status,
+    data: parsed,
+  };
+}
+
+function submitJigsawAction_(payload) {
+  var deal = payload && payload.deal ? payload.deal : payload;
+  var draft = payload && payload.draft ? payload.draft : null;
+  if (!deal) return { success: false, error: "Missing payload.deal" };
+
+  var referral = buildJigsawReferralFromDeal_(deal, draft);
+  var alwaysValidate = boolProp_("JIGSAW_ALWAYS_VALIDATE_BEFORE_SUBMIT", true);
+
+  if (alwaysValidate) {
+    var validationResponse = jigsawPostJson_("/api/validateJigsawReferral", referral);
+    var validationParsed = tryParseJson_(validationResponse.bodyText);
+    if (!(validationResponse.status >= 200 && validationResponse.status < 300)) {
+      appendJigsawLog_("submit_blocked_by_validation", {
+        dealId: String(deal.id || ""),
+        introducerReference: String(referral.ReferrerRef || ""),
+        httpStatus: validationResponse.status,
+        ok: false,
+        message: "Submit blocked by validation errors",
+        request: referral,
+        response: validationParsed,
+      });
+      return {
+        success: false,
+        stage: "validate",
+        status: validationResponse.status,
+        data: validationParsed,
+      };
+    }
+  }
+
+  var submitResponse = jigsawPostJson_("/api/submitJigsawReferral", referral);
+  var submitParsed = tryParseJson_(submitResponse.bodyText);
+
+  withLock_(20000, function () {
+    var sheet = getSheet_();
+    var dealId = String(deal.id || deal.ID || "").trim();
+    if (dealId) {
+      updateDealFields_(sheet, dealId, {
+        jigsawStatus: submitResponse.status >= 200 && submitResponse.status < 300 ? "Sent" : "Failed",
+        jigsawLastSubmittedAt: new Date().toISOString(),
+        jigsawSubmitStatus: submitResponse.status,
+        jigsawIntroducerReference: String(referral.ReferrerRef || ""),
+        jigsawLastSubmitResponse: submitParsed,
+      });
+    }
+  });
+
+  appendJigsawLog_("submit", {
+    dealId: String(deal.id || ""),
+    introducerReference: String(referral.ReferrerRef || ""),
+    httpStatus: submitResponse.status,
+    ok: submitResponse.status >= 200 && submitResponse.status < 300,
+    message: submitResponse.status >= 200 && submitResponse.status < 300 ? "Submitted" : "Submission failed",
+    request: referral,
+    response: submitParsed,
+  });
+
+  return {
+    success: submitResponse.status >= 200 && submitResponse.status < 300,
+    status: submitResponse.status,
+    data: submitParsed,
+  };
+}
+
+function buildJigsawReferralFromDeal_(deal, draft) {
+  var d = deal || {};
+  var fd = d.formData && typeof d.formData === "object" ? d.formData : d;
+  var referrerRefRaw =
+    (draft && (draft.ReferrerRef || draft.referrerRef)) ||
+    d.jigsawIntroducerReference ||
+    d.referrerRef ||
+    d.id ||
+    d.ID ||
+    "";
+  var titleVal;
+  var genderVal;
+  var firstName;
+  var middleNames;
+  var lastName;
+  var dobIso;
+  var maritalStatus;
+  var dependants;
+  var drivingLicenceType;
+  var income;
+  var incomeFreq;
+  var mobile;
+  var email;
+  var currentAddr;
+  var totalMonthsAtCurrent;
+  var previousAddr;
+  var currentEmp;
+  var totalMonthsAtEmp;
+  var previousEmp;
+  var fairProcessingConfirmed;
+  var vehFin;
+  var referral;
+  var src;
+  var targetLender;
+  var missing = [];
+
+  var ReferrerRef = sanitizeIntroducerReference_(String(referrerRefRaw || ""));
+  ReferrerRef = ensureCmfReferrerRef_(ReferrerRef, d);
+
+  titleVal = mapTitle_(pick_(fd, ["title", "Title", "applicantTitle", "salutation"]));
+  genderVal = mapGender_(pick_(fd, ["gender", "Gender"]), titleVal);
+  firstName = str_(pick_(fd, ["firstName", "FirstName", "forename", "forename1"]));
+  middleNames = str_(pick_(fd, ["middleNames", "MiddleNames"]));
+  lastName = str_(pick_(fd, ["lastName", "LastName", "surname"]));
+  dobIso = normalizeDateIso_(pick_(fd, ["dob", "dateOfBirth", "DateOfBirth", "DOB"]));
+  maritalStatus = mapMaritalStatus_(pick_(fd, ["maritalStatus", "MaritalStatus"]));
+  dependants = num_(pick_(fd, ["dependants", "Dependants"]), 0);
+  drivingLicenceType = (function () {
+    var value = num_(
+      pick_(fd, [
+        "drivingLicenceType",
+        "drivingLicense",
+        "drivingLicence",
+        "DrivingLicenceType",
+        "DrivingLicence",
+      ]),
+      1,
+    );
+    if (!Number.isFinite(value)) return 1;
+    if (value < 1) return 1;
+    if (value > 5) return 5;
+    return value;
+  })();
+
+  income = num_(pick_(fd, ["income", "annualIncome", "Income"]), null);
+  incomeFreq = mapIncomeFrequencyType_(
+    pick_(fd, ["incomeFrequencyType", "incomeFrequency", "IncomeFrequencyType"]),
+    null,
+  );
+
+  if (income === null || income === undefined) {
+    var monthlyIncome = num_(
+      pick_(fd, [
+        "monthlyTakeHomePay",
+        "monthlyIncome",
+        "netMonthlyIncome",
+        "takeHomePayMonthly",
+      ]),
+      null,
+    );
+    if (monthlyIncome !== null && monthlyIncome !== undefined) {
+      income = monthlyIncome;
+      if (incomeFreq === null || incomeFreq === undefined) incomeFreq = 3;
+    }
+  }
+
+  if (incomeFreq === null || incomeFreq === undefined) incomeFreq = 0;
+
+  mobile = normalizeUkPhone_(pick_(fd, ["mobile", "Mobile", "phone", "Phone"]));
+  email = str_(pick_(fd, ["email", "Email"]));
+
+  currentAddr = buildResidentialAddress_(fd, "current");
+  totalMonthsAtCurrent =
+    num_(currentAddr.YearsAtAddress, 0) * 12 + num_(currentAddr.MonthsAtAddress, 0);
+  previousAddr = totalMonthsAtCurrent < 36 ? buildResidentialAddress_(fd, "previous") : null;
+
+  currentEmp = buildEmployment_(fd, "current");
+  totalMonthsAtEmp =
+    num_(currentEmp.YearsInEmployment, 0) * 12 + num_(currentEmp.MonthsInEmployment, 0);
+  previousEmp = totalMonthsAtEmp < 36 ? buildEmployment_(fd, "previous") : null;
+
+  if (totalMonthsAtCurrent < 1) {
+    throw new Error("CurrentAddress: YearsAtAddress/MonthsAtAddress must total at least 1 month.");
+  }
+  if (totalMonthsAtCurrent < 36) {
+    var prevMonths;
+    if (!previousAddr) {
+      throw new Error("PreviousAddress is required when current address is less than 36 months.");
+    }
+    prevMonths = num_(previousAddr.YearsAtAddress, 0) * 12 + num_(previousAddr.MonthsAtAddress, 0);
+    if (prevMonths < 1) {
+      throw new Error("PreviousAddress: YearsAtAddress/MonthsAtAddress must total at least 1 month.");
+    }
+    if (totalMonthsAtCurrent + prevMonths < 36) {
+      throw new Error(
+        "Address history must cover at least 36 months (current + previous). Increase previous address duration or provide additional history.",
+      );
+    }
+  }
+
+  if (totalMonthsAtEmp < 1) {
+    throw new Error("CurrentEmployment: YearsInEmployment/MonthsInEmployment must total at least 1 month.");
+  }
+  if (totalMonthsAtEmp < 36) {
+    var prevEmpMonths;
+    if (!previousEmp) {
+      throw new Error("PreviousEmployment is required when current employment is less than 36 months.");
+    }
+    prevEmpMonths =
+      num_(previousEmp.YearsInEmployment, 0) * 12 +
+      num_(previousEmp.MonthsInEmployment, 0);
+    if (prevEmpMonths < 1) {
+      throw new Error("PreviousEmployment: YearsInEmployment/MonthsInEmployment must total at least 1 month.");
+    }
+    if (totalMonthsAtEmp + prevEmpMonths < 36) {
+      throw new Error(
+        "Employment history must cover at least 36 months (current + previous). Increase previous employment duration or provide additional history.",
+      );
+    }
+  }
+
+  fairProcessingConfirmed = computeFairProcessing_(fd);
+  vehFin = buildVehicleAndFinance_(fd, d);
+
+  referral = {
+    ReferrerRef: ReferrerRef,
+    ReferralType: 0,
+    IsBusiness: false,
+    MainApplicant: {
+      Title: titleVal,
+      Gender: genderVal,
+      FirstName: firstName,
+      MiddleNames: middleNames || null,
+      LastName: lastName,
+      DateOfBirth: dobIso,
+      MaritalStatus: maritalStatus,
+      Dependants: dependants,
+      DrivingLicenceType: drivingLicenceType,
+      DrivingLicence: drivingLicenceType,
+      Income: income,
+      IncomeFrequencyType: incomeFreq,
+      Mobile: mobile || null,
+      Email: email || null,
+      CurrentAddress: currentAddr,
+      PreviousAddress: previousAddr,
+      CurrentEmployment: currentEmp,
+      PreviousEmployment: previousEmp,
+      FairProcessingNoticeConfirmed: fairProcessingConfirmed,
+    },
+    VehicleAndFinance: vehFin,
+  };
+
+  src =
+    (draft && (draft.ProposalSource || draft.proposalSource)) || fd.proposalSource || null;
+  if (src && typeof src === "object") {
+    [
+      "Referrer",
+      "LandingPage",
+      "Campaign",
+      "Medium",
+      "Source",
+      "Gclid",
+      "Fbclid",
+      "IpAddress",
+      "UserAgent",
+    ].forEach(function (key) {
+      if (src[key] !== undefined && src[key] !== null && src[key] !== "") {
+        referral[key] = src[key];
+      }
+    });
+  }
+
+  targetLender = (draft && (draft.TargetLender || draft.targetLender)) || fd.targetLender;
+  if (targetLender !== undefined && targetLender !== null && targetLender !== "") {
+    referral.TargetLender = targetLender;
+  }
+
+  if (!referral.ReferrerRef) missing.push("ReferrerRef");
+  if (!referral.MainApplicant.FirstName) missing.push("MainApplicant.FirstName");
+  if (!referral.MainApplicant.LastName) missing.push("MainApplicant.LastName");
+  if (!referral.MainApplicant.DateOfBirth) missing.push("MainApplicant.DateOfBirth");
+  if (!referral.MainApplicant.Title) missing.push("MainApplicant.Title");
+  if (!referral.MainApplicant.Gender) missing.push("MainApplicant.Gender");
+  if (!referral.MainApplicant.MaritalStatus) missing.push("MainApplicant.MaritalStatus");
+  if (
+    !referral.MainApplicant.CurrentAddress ||
+    !referral.MainApplicant.CurrentAddress.PostalCode
+  ) {
+    missing.push("MainApplicant.CurrentAddress.PostalCode");
+  }
+  if (
+    !referral.VehicleAndFinance ||
+    !referral.VehicleAndFinance.VehicleDescription ||
+    !referral.VehicleAndFinance.VehicleDescription.VRM
+  ) {
+    missing.push("VehicleAndFinance.VehicleDescription.VRM");
+  }
+
+  if (missing.length) {
+    throw new Error("Missing required fields for Jigsaw: " + missing.join(", "));
+  }
+
+  return referral;
+}
+
+function tryParseJson_(txt) {
+  if (txt === undefined || txt === null) return null;
+  if (typeof txt !== "string") return txt;
+  var trimmed = txt.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {
+    return trimmed;
+  }
+}
+
+function sanitizeIntroducerReference_(s) {
+  var raw = String(s || "").trim();
+  var bytes;
+  var hex;
+  if (!raw) return "";
+  if (raw.length <= 40) return raw;
+  bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    raw,
+    Utilities.Charset.UTF_8,
+  );
+  hex = bytes.map(function (b) {
+    return ("0" + (b & 0xff).toString(16)).slice(-2);
+  }).join("");
+  return hex.slice(0, 40);
+}
 
 
 function getLenderCapabilities_() {
