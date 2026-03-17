@@ -444,12 +444,16 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  const auth = auth_check_token_(getApiTokenFromParams_(params));
+  // GET /exec?api=1 -> return all deals as JSON (read-only)
+  const auth = auth_check_token_(params.token);
   if (!auth.success) return createJsonOutput_(auth);
 
-  // GET /exec?api=1 -> return protected getDelta payload (read-only, no lock needed)
-  const out = safeObj_(() => handleGetDelta_({ payload: params, legacy: params, fullRequest: { parameter: params } }));
-  return createJsonOutput_(out);
+  return withLock_(30000, () => {
+    const sheet = getSheet_();
+    const headers = ensureHeaders_(sheet, []);
+    const idx = loadIndex_(sheet, headers);
+    return createJsonOutput_(idx.objects);
+  });
 }
 
 
