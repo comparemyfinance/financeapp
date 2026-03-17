@@ -583,27 +583,84 @@ function getLenderCapabilities_() {
   return capabilities;
 }
 
-function getLenderCapability_(selectedLender) {
-  var capabilities = getLenderCapabilities_();
-  var lenderName = String(selectedLender || "").trim();
+function getLenderAliasMap_() {
+  return {
+    jigsaw: "Jigsaw",
+    carmoney: "CarMoney",
+    cf247: "CF247",
+    finclusion: "FINCLUSION",
+    bnpparibas: "BNP Paribas Finance",
+    bnpparibasfinance: "BNP Paribas Finance",
+    motonovo: "Motonovo",
+    v12: "V12",
+    closebrothers: "Close Brothers",
+    creditagricole: "Credit Agricole",
+    northridge: "Northridge Finance",
+    northridgefinance: "Northridge Finance",
+    alphera: "Alphera",
+    zopa: "Zopa",
+    advantage: "Advantage Finance",
+    advantagefinance: "Advantage Finance",
+    automoney: "Automoney",
+    moneybarn: "Moneybarn",
+    moneyway: "Moneyway",
+    oodle: "Oodle",
+    lendable: "Lendable",
+    startline: "Startline Finance",
+    startlinefinance: "Startline Finance",
+    tandem: "Tandem",
+    billingfinance: "Billing Finance",
+  };
+}
 
-  if (capabilities[lenderName]) return capabilities[lenderName];
+function resolveCanonicalLenderName_(selectedLender) {
+  var lenderName = String(selectedLender || "").trim();
+  if (!lenderName) return "";
+
+  var capabilities = getLenderCapabilities_();
+  if (capabilities[lenderName]) return lenderName;
 
   var normalized = toLenderKey_(lenderName);
+  var aliasMap = getLenderAliasMap_();
+  if (aliasMap[normalized]) return aliasMap[normalized];
+
   var keys = Object.keys(capabilities);
   for (var i = 0; i < keys.length; i++) {
-    if (toLenderKey_(keys[i]) === normalized) return capabilities[keys[i]];
+    if (toLenderKey_(keys[i]) === normalized) return keys[i];
   }
 
-  return {
-    lenderId: lenderName || "Unknown",
-    displayName: lenderName || "Unknown",
+  return lenderName;
+}
+
+function getLenderProviderProfile_(selectedLender) {
+  var capabilities = getLenderCapabilities_();
+  var requestedLender = String(selectedLender || "").trim();
+  var canonicalLender = resolveCanonicalLenderName_(requestedLender);
+  var base = capabilities[canonicalLender] || {
+    lenderId: requestedLender || "Unknown",
+    displayName: requestedLender || "Unknown",
     validationProvider: "JigsawRules",
     submissionProvider: "SimulatedSuccess",
     supportsApply: true,
     supportsValidate: true,
     isLiveSubmission: false,
   };
+  var profile = {};
+  var keys = Object.keys(base);
+  for (var i = 0; i < keys.length; i++) profile[keys[i]] = base[keys[i]];
+
+  profile.requestedLender = requestedLender || canonicalLender || "Unknown";
+  profile.canonicalLender = canonicalLender || requestedLender || "Unknown";
+  profile.normalizedKey = toLenderKey_(profile.canonicalLender);
+  profile.aliasMatched =
+    !!requestedLender &&
+    !!canonicalLender &&
+    toLenderKey_(requestedLender) !== toLenderKey_(canonicalLender);
+  return profile;
+}
+
+function getLenderCapability_(selectedLender) {
+  return getLenderProviderProfile_(selectedLender);
 }
 
 function resolveValidationProvider_(selectedLender) {
@@ -994,8 +1051,9 @@ function submitLenderApplication_(payload) {
 
 function listLenders_() {
   return getLenderDefaults_().map(function (x) {
+    var profile = getLenderCapability_(x.lender);
     return {
-      lenderKey: toLenderKey_(x.lender),
+      lenderKey: profile.normalizedKey,
       lender: x.lender,
       apr: x.apr,
       commissionPct: x.commissionPct,
@@ -1020,7 +1078,8 @@ function getLenderQuote(payload) {
     return { success: false, error: "origLoan required" };
 
   var defaults = getLenderDefaults_();
-  var keyNorm = toLenderKey_(lenderKey);
+  var canonicalLender = resolveCanonicalLenderName_(lenderKey);
+  var keyNorm = toLenderKey_(canonicalLender || lenderKey);
   var lenderDef = null;
   for (var i = 0; i < defaults.length; i++) {
     if (toLenderKey_(defaults[i].lender) === keyNorm) {
@@ -1366,7 +1425,7 @@ function getFinanceNavigatorSoftScore(payload) {
     ? lendersFromPayload
     : defaults.map(function (def) {
         return {
-          lenderId: toLenderKey_(def.lender),
+          lenderId: getLenderCapability_(def.lender).normalizedKey,
           lenderName: def.lender,
           baseApr: def.apr,
         };
@@ -1389,9 +1448,12 @@ function getFinanceNavigatorSoftScore(payload) {
     clientScore,
   ].join("|");
   var offers = lenders.map(function (entry, idx) {
-    var lenderName = entry.lenderName || entry.lender || "";
+    var lenderName = resolveCanonicalLenderName_(
+      entry.lenderName || entry.lender || "",
+    ) || entry.lenderName || entry.lender || "";
     var lenderId = normalizeLenderId_(
-      entry.lenderId || entry.lenderKey || lenderName || "lender-" + idx,
+      getLenderCapability_(entry.lenderId || entry.lenderKey || lenderName || "lender-" + idx)
+        .normalizedKey || lenderName || "lender-" + idx,
     );
     var rand = seededNumber_(clientSeed + "|" + lenderId);
     var rand2 = seededNumber_(clientSeed + "|" + lenderId + "|a");
@@ -1411,7 +1473,7 @@ function getFinanceNavigatorSoftScore(payload) {
     var baseApr = toNumber_(entry.baseApr);
     if (!isFinite(baseApr)) {
       var found = defaults.filter(function (def) {
-        return toLenderKey_(def.lender) === lenderId;
+        return toLenderKey_(def.lender) === toLenderKey_(resolveCanonicalLenderName_(lenderId));
       })[0];
       baseApr = found ? found.apr : 12.9;
     }
