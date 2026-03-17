@@ -4240,11 +4240,13 @@ const handleVrnLookup = async () => {
                     setTxt('vrn-status', 'Could not check database. Proceeding to API.');
                 }
                 setTxt('vrn-status', 'Not in database. Checking external API...');
-                const apiKey = 'ICV6nKX6SM8Z8TUnDrRWW11TQfL4BVps9wzErC36';
-                try {
-                    const apiResponse = await fetch(`https://api.oneautoapi.com/experian/financerecords/v3?vehicle_registration_mark=${vrn}`, { headers: { 'x-api-key': apiKey } });
-                    if (!apiResponse.ok) throw new Error(`API Error: ${apiResponse.statusText}`);
+                    try {
+                    const apiResponse = await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'lookupVrnFinanceRecords', payload: { vrn } })
+                    });
                     const apiData = await apiResponse.json();
+                    if (!apiData.success || !apiData.result) throw new Error(apiData.error || 'Vehicle not found via API.');
                     if (apiData.success && apiData.result) {
                         const financeItem = (apiData.result.finance_data_qty > 0 && apiData.result.finance_data_items) ? apiData.result.finance_data_items[0] : null;
                         const vehicleData = {

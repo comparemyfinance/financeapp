@@ -977,6 +977,38 @@ function getVrnData_(vrn) {
   return null;
 }
 
+
+function lookupVrnFinanceRecords_(vrn) {
+  const v = normVrn_(vrn || '');
+  if (!v) throw new Error('Missing vrn');
+
+  const apiKey = getProp_('ONEAUTO_API_KEY');
+  if (!apiKey) throw new Error('Missing ONEAUTO_API_KEY in Script Properties');
+
+  const url = 'https://api.oneautoapi.com/experian/financerecords/v3?vehicle_registration_mark=' + encodeURIComponent(v);
+  const res = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: { 'x-api-key': apiKey },
+    muteHttpExceptions: true,
+  });
+
+  const status = res.getResponseCode();
+  if (status === 204) {
+    return { success: false, error: 'Vehicle not found (204 No Content).' };
+  }
+
+  const text = res.getContentText() || '';
+  if (status < 200 || status >= 300) {
+    throw new Error('API error: ' + status + (text ? ' ' + text : ''));
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    throw new Error('Invalid OneAuto response');
+  }
+}
+
 function saveVrnData_(vrn, data) {
   const v = normVrn_(vrn || '');
   if (!v) throw new Error('Missing vrn');
