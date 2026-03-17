@@ -36,6 +36,7 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
    npm test
    ```
 3. In Apps Script runtime, verify:
+   - The deployed web app URL loads the CRM login screen while signed out.
    - `authLogin` works with credentials present in `AUTH_USERS_JSON`.
    - Drive search works (requires valid `ROOT_FOLDER_ID` and permissions).
    - Deal load/save works (requires valid `SPREADSHEET_ID`).
@@ -47,3 +48,4 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
 - Do not store production secrets in source code.
 - Setup helpers may write placeholder values only; replace placeholders before use.
 - Any new required property must be added here and to `docs/ENVIRONMENT.md`.
+- Keep `appsscript.json` web app access at `ANYONE_ANONYMOUS`; this app uses its own login screen and token auth after the initial page load.

@@ -37,6 +37,37 @@ test('standard lenders use placeholder provider model invariants', () => {
   assert.equal(cap.isLiveSubmission, false);
 });
 
+test('FINCLUSION inherits the standard placeholder capability model', () => {
+  const ctx = boot();
+  const cap = ctx.getLenderCapability_('FINCLUSION');
+
+  assert.equal(cap.displayName, 'FINCLUSION');
+  assert.equal(cap.validationProvider, 'JigsawRules');
+  assert.equal(cap.submissionProvider, 'SimulatedSuccess');
+  assert.equal(cap.isLiveSubmission, false);
+});
+
+test('provider profile resolves common alias names to canonical lenders deterministically', () => {
+  const ctx = boot();
+
+  const bnp = ctx.getLenderCapability_('BNP Paribas');
+  assert.equal(bnp.displayName, 'BNP Paribas Finance');
+  assert.equal(bnp.canonicalLender, 'BNP Paribas Finance');
+  assert.equal(bnp.aliasMatched, true);
+
+  const northridge = ctx.getLenderCapability_('Northridge');
+  assert.equal(northridge.displayName, 'Northridge Finance');
+  assert.equal(northridge.canonicalLender, 'Northridge Finance');
+
+  const startline = ctx.getLenderCapability_('Startline');
+  assert.equal(startline.displayName, 'Startline Finance');
+  assert.equal(startline.canonicalLender, 'Startline Finance');
+
+  const advantage = ctx.getLenderCapability_('Advantage');
+  assert.equal(advantage.displayName, 'Advantage Finance');
+  assert.equal(advantage.canonicalLender, 'Advantage Finance');
+});
+
 test('provider resolver helpers preserve selected lender identity and map deterministically', () => {
   const ctx = boot();
 
@@ -49,6 +80,7 @@ test('provider resolver helpers preserve selected lender identity and map determ
   const unknown = ctx.getLenderCapability_('Future Lender');
   assert.equal(unknown.lenderId, 'Future Lender');
   assert.equal(unknown.displayName, 'Future Lender');
+  assert.equal(unknown.canonicalLender, 'Future Lender');
   assert.equal(unknown.validationProvider, 'JigsawRules');
   assert.equal(unknown.submissionProvider, 'SimulatedSuccess');
 });

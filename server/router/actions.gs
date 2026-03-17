@@ -104,6 +104,11 @@ function handleRuntimeDiagnostics_(_ctx) {
   return safeObj_(() => getRuntimeDiagnostics_());
 }
 
+function handleLookupVrnFinanceRecords_(ctx) {
+  const vrn = ctx && ctx.payload && ctx.payload.vrn;
+  return safeObj_(() => lookupVrnFinanceRecords_(vrn));
+}
+
 // ------------------------ Auth handlers
 function handleAuthLogin_(ctx) {
   const u = ctx.payload && ctx.payload.username;
@@ -255,6 +260,7 @@ const PUBLIC_ACTION_HANDLERS_ = {
   authStatus: handleAuthStatus_,
   authLogout: handleAuthLogout_,
   runtimeDiagnostics: handleRuntimeDiagnostics_,
+  lookupVrnFinanceRecords: handleLookupVrnFinanceRecords_,
 };
 
 const PROTECTED_ACTION_HANDLERS_ = {
