@@ -114,19 +114,21 @@ If required config is missing, handlers should preserve specific safe messages s
   - Auth: protected.
   - Request payload (current minimum):
     - `selectedLender` (required)
-    - `deal` (required placeholder payload source)
+    - one supported payload source: `deal`, `dnsPayload`, `raw`, or a wrapped payload containing one of those objects
   - Response includes:
     - `selectedLender`
     - `validationProvider`
     - `submissionProvider`
     - `statusMessage`
+    - `operatorMessage`
+    - `steps`
     - `result`
 
 - `submitLenderApplication`
   - Auth: protected.
   - Request payload (current minimum):
     - `selectedLender` (required)
-    - `deal` (required placeholder payload source)
+    - one supported payload source: `deal`, `dnsPayload`, `raw`, or a wrapped payload containing one of those objects
   - Behavior:
     - re-runs validation through provider dispatch before attempting submission provider.
     - non-Jigsaw lenders use simulated success provider after validation passes.
@@ -136,6 +138,8 @@ If required config is missing, handlers should preserve specific safe messages s
     - `validationProvider`
     - `submissionProvider`
     - `statusMessage`
+    - `operatorMessage`
+    - `steps`
     - `validation`
     - `result`
 
