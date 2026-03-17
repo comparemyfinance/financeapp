@@ -106,3 +106,59 @@ test('listLenders includes FINCLUSION so backend lender defaults stay in parity 
   assert.ok(Array.isArray(out));
   assert.ok(out.some((item) => item.lender === 'FINCLUSION'));
 });
+
+test('getLenderQuote accepts common lender aliases used by UI labels and future provider mappings', () => {
+  const ctx = boot();
+  const sharedPayload = {
+    settlementFigure: 10000,
+    remainingTerm: 48,
+    origLoan: 12000,
+  };
+
+  const bnp = ctx.getLenderQuote({ ...sharedPayload, lender: 'BNP Paribas' });
+  assert.equal(bnp.success, true);
+  assert.equal(bnp.quoteOutputs.lender, 'BNP Paribas Finance');
+
+  const northridge = ctx.getLenderQuote({
+    ...sharedPayload,
+    lender: 'Northridge',
+  });
+  assert.equal(northridge.success, true);
+  assert.equal(northridge.quoteOutputs.lender, 'Northridge Finance');
+
+  const startline = ctx.getLenderQuote({
+    ...sharedPayload,
+    lender: 'Startline',
+  });
+  assert.equal(startline.success, true);
+  assert.equal(startline.quoteOutputs.lender, 'Startline Finance');
+});
+
+test('backend provider registry accepts lender labels already surfaced in modal logos and UI copy', () => {
+  const ctx = boot();
+  const lenderNames = [
+    'Finclusion',
+    'Alphera',
+    'Moneybarn',
+    'Moneyway',
+    'Startline',
+    'Oodle',
+    'Tandem',
+    'Zopa',
+    'V12',
+    'Credit Agricole',
+    'Close Brothers',
+    'Northridge',
+    'Lendable',
+    'BNP Paribas',
+    'Motonovo',
+    'Advantage',
+  ];
+
+  lenderNames.forEach((name) => {
+    const cap = ctx.getLenderCapability_(name);
+    assert.notEqual(cap.displayName, 'Unknown');
+    assert.equal(cap.supportsApply, true);
+    assert.equal(cap.supportsValidate, true);
+  });
+});
