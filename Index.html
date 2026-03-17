@@ -4269,10 +4269,30 @@ const handleVrnLookup = async () => {
                     setTxt('vrn-status', 'Could not check database. Proceeding to API.');
                 }
                 setTxt('vrn-status', 'Not in database. Checking external API...');
-                try {
-                    const apiResult = await postPseAction('lookupOneAutoFinance', { vrn });
-                    if (apiResult.success && apiResult.data) {
-                        const vehicleData = apiResult.data;
+                    try {
+                    const apiResponse = await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'lookupVrnFinanceRecords', payload: { vrn } })
+                    });
+                    const apiData = await apiResponse.json();
+                    if (!apiData.success || !apiData.result) throw new Error(apiData.error || 'Vehicle not found via API.');
+                    if (apiData.success && apiData.result) {
+                        const financeItem = (apiData.result.finance_data_qty > 0 && apiData.result.finance_data_items) ? apiData.result.finance_data_items[0] : null;
+                        const vehicleData = {
+                            vrn: vrn,
+                            make: apiData.result.dvla_manufacturer_desc || '',
+                            model: apiData.result.dvla_model_desc || '',
+                            year: apiData.result.manufactured_year || '',
+                            finance_type: financeItem?.finance_type || '',
+                            finance_company: financeItem?.finance_company || '',
+                            finance_agreement_number: financeItem?.finance_agreement_number || '',
+                            finance_start_date: financeItem?.finance_start_date || '',
+                            finance_term_months: financeItem?.finance_term_months || '',
+                            finance: financeItem
+                        };
+                        try {
+                             await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'saveVrnData', payload: vehicleData }) });
+                        } catch(e) { console.error("Failed to save new VRN data to sheet:", e); }
                         populateFormWithData(vehicleData, 'Vehicle found via API!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + (vehicleData.finance ? ' Finance details pre-filled & saved.' : ' No finance record found. Saved vehicle details.'));
                     } else { throw new Error('Vehicle not found via API.'); }
