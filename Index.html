@@ -95,7 +95,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
         :root { --british-racing-green: #004225; --pale-green: #F0FFF0; --pale-green-darker: #e6f5e6; --gold-orange: #FF8C00; }
         body { font-family: 'Poppins', sans-serif; overflow: hidden; }
@@ -526,7 +526,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   /* UI tweaks */
   .logout-icon{ color:#dc2626 !important; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js" type="module"></script><style>
+<style>
 .kanban-card, .kanban-card * { box-sizing: border-box; }
 
 /* Tighter vertical rhythm inside Kanban cards */
@@ -6070,7 +6070,12 @@ buildDraft({ dealId, deal, formData }) {
                 },
                 bindEvents() {
                     const debounce = (func, delay) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => func.apply(this, args), delay); }; };
-                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => { this.ui.switchView(tab.dataset.view); this.loadData(); }));
+                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => {
+                        const targetView = tab.dataset.view;
+                        this.ui.switchView(targetView);
+                        if (this.state.isInitialDataLoading) return;
+                        if (this.state.hasCompletedInitialLoad && targetView === 'pipeline') this.loadData();
+                    }));
                     on(getEl('addStageBtn'), 'click', () => this.ui.addStageInput());
                     on(getEl('saveStages'), 'click', () => this.handlers.saveStages());
                     on(getEl('cancelStages'), 'click', () => this.ui.closeModal('manageStages'));
@@ -7918,7 +7923,7 @@ col.querySelector('.deal-list').appendChild(cardEl);
                         const { contactsList } = App.elements;
                         const { key: sortKey, direction } = App.state.sortState;
                         contactsList.innerHTML = '';
-                        let dealsToRender = deals || App.state.deals;
+                        let dealsToRender = Array.isArray(deals) ? [...deals] : [...(App.state.deals || [])];
                         if (!dealsToRender.length) return contactsList.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-8">No contacts found.</td></tr>`;
                         dealsToRender.sort((a, b) => {
                             const valA = a[sortKey], valB = b[sortKey];
