@@ -423,6 +423,9 @@ function doGet(e) {
   }
 
   // GET /exec?api=1 -> return all deals as JSON (read-only)
+  const auth = auth_check_token_(params.token);
+  if (!auth.success) return createJsonOutput_(auth);
+
   return withLock_(30000, () => {
     const sheet = getSheet_();
     const headers = ensureHeaders_(sheet, []);
