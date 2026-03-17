@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { collectBehavioralTestFiles } from '../../scripts/run-behavioral-tests.mjs';
 
@@ -16,6 +17,16 @@ test('smoke: sanity script required files exist', () => {
     const fullPath = path.join(repoRoot, file);
     assert.doesNotThrow(() => fs.accessSync(fullPath, fs.constants.F_OK), `${file} should exist for sanity validation`);
   }
+});
+
+test('smoke: sanity script runs successfully via node on this platform', () => {
+  const result = spawnSync(process.execPath, ['scripts/sanity-check.mjs'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /Sanity check passed\./);
 });
 
 test('smoke: behavioral test runner resolves concrete test files', () => {

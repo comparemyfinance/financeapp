@@ -350,7 +350,15 @@ function loadIndex_(sheet, headers) {
   const SRC_COL = hmap['sourceSheet'] || null;
   const lastRow = sheet.getLastRow();
   const lastCol = headers.length;
-  const result = { headers, hmap, idToRow: new Map(), vrnToRow: new Map(), rows: [], objects: [] };
+  const result = {
+    headers,
+    hmap,
+    idToRow: new Map(),
+    vrnToRow: new Map(),
+    sourceSheetToRow: new Map(),
+    rows: [],
+    objects: []
+  };
   if (lastRow <= 1) return result;
   const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   result.objects = rowsToObjects_(headers, values);
@@ -367,6 +375,10 @@ function loadIndex_(sheet, headers) {
     if (vrnIdx !== null) {
       const vrn = normVrn_(values[i][vrnIdx]);
       if (vrn) result.vrnToRow.set(vrn, 2 + i);
+    }
+    if (srcIdx !== null) {
+      const src = String(values[i][srcIdx] || '').trim();
+      if (src) result.sourceSheetToRow.set(src, 2 + i);
     }
   }
   return result;
