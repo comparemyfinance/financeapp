@@ -3516,6 +3516,52 @@ const initializePSE = () => {
             const i = (v) => parseInt(v, 10) || 0;
             const toFixed2 = (n) => n.toFixed(2);
             const roundUpToTenth = (n) => Math.ceil(n * 10) / 10;
+            const normalizeFinanceTypeValue = (value) => {
+                const rawValue = String(value || '').trim();
+                if (!rawValue) return '';
+                const upper = rawValue.toUpperCase();
+                if (upper.includes('PCP')) return 'PCP';
+                if (upper.includes('HP') || upper.includes('HIRE PURCHASE')) return 'HP';
+                return rawValue;
+            };
+            const normalizeDateInputValue = (value) => {
+                const rawValue = String(value || '').trim();
+                if (!rawValue) return '';
+                const isoMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+                const dmyMatch = rawValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (dmyMatch) {
+                    const [, day, month, year] = dmyMatch;
+                    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+                const parsed = new Date(rawValue);
+                if (Number.isNaN(parsed.getTime())) return '';
+                return parsed.toISOString().split('T')[0];
+            };
+            const calculatePaymentsMade = (startDate, originalTermMonths, remainingTermMonths) => {
+                const normalizedStartDate = normalizeDateInputValue(startDate);
+                if (normalizedStartDate) {
+                    const parsedStartDate = new Date(normalizedStartDate);
+                    if (!Number.isNaN(parsedStartDate.getTime())) {
+                        const now = new Date();
+                        let monthDiff = ((now.getFullYear() - parsedStartDate.getFullYear()) * 12) + (now.getMonth() - parsedStartDate.getMonth());
+                        if (now.getDate() < parsedStartDate.getDate()) monthDiff -= 1;
+                        return Math.max(0, monthDiff);
+                    }
+                }
+                if (Number.isFinite(originalTermMonths) && Number.isFinite(remainingTermMonths)) {
+                    return Math.max(0, Math.round(originalTermMonths - remainingTermMonths));
+                }
+                return '';
+            };
+            const getActiveDealId = () => {
+                try {
+                    const activeDeal = window.App?.state?.currentDeal || window.App?.state?.selectedDeal || null;
+                    return getVal('dealId') || window.App?.utils?.getDealId?.(activeDeal) || activeDeal?.id || activeDeal?.dealId || '';
+                } catch (e) {
+                    return getVal('dealId') || '';
+                }
+            };
             const normalizeLenderName = (name) => (name || '')
                 .toString()
                 .toLowerCase()
@@ -3982,24 +4028,42 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
                     el.value = val;
                     el.dataset.manuallySet = 'true';
                 };
+                const setIfExists = (id, value) => {
+                    if (!getEl(id)) return;
+                    setVal(id, value == null ? '' : value);
+                };
 
                 // Client fields (VRN section)
                 if (dp.client) {
+                    const rawFirstName = rawGet(raw, ['firstName', 'first name', 'First Name']);
+                    const rawLastName = rawGet(raw, ['lastName', 'last name', 'Last Name']);
+                    const addressStreet = [
+                        rawGet(raw, ['currentAddressLine1']),
+                        rawGet(raw, ['currentAddressLine2']),
+                    ].filter(Boolean).join(', ') || [
+                        dp.client.address && dp.client.address.address1,
+                        dp.client.address && dp.client.address.address2,
+                    ].filter(Boolean).join(', ');
+                    const addressTown = rawGet(raw, ['currentCity']) || (dp.client.address && dp.client.address.town) || '';
+                    const addressPostcode = rawGet(raw, ['currentPostcode']) || dp.client.postcode || (dp.client.address && dp.client.address.postcode) || '';
+                    const clientName = [dp.client.firstName, dp.client.lastName].filter(Boolean).join(' ').trim() || [rawFirstName, rawLastName].filter(Boolean).join(' ').trim();
+                    const clientEmail = dp.client.email || rawGet(raw, ['email', 'Email']) || '';
                     if (dp.client.firstName !== undefined) setVal('ps_client_firstName', dp.client.firstName || '');
                     if (dp.client.lastName !== undefined) setVal('ps_client_lastName', dp.client.lastName || '');
-                    const pc = (dp.client.postcode || (dp.client.address && dp.client.address.postcode) || '');
+                    const pc = addressPostcode;
                     if (pc !== undefined) setVal('ps_client_currentPostcode', pc || '');
 
                     // Letter creator client fields
-                    const street = [dp.client.address && dp.client.address.address1, dp.client.address && dp.client.address.address2].filter(Boolean).join(', ');
-                    if (getEl('ltr_client-name')) setVal('ltr_client-name', [dp.client.firstName, dp.client.lastName].filter(Boolean).join(' ').trim());
-                    if (getEl('ltr_client-email')) setVal('ltr_client-email', dp.client.email || '');
-                    if (getEl('ltr_client-phone')) setVal('ltr_client-phone', dp.client.phone || '');
-                    if (getEl('ltr_client-address')) setVal('ltr_client-address', [street, dp.client.address && dp.client.address.town, dp.client.address && dp.client.address.postcode].filter(Boolean).join(', '));
+                    setIfExists('ltr_client-name', clientName);
+                    setIfExists('ltr_client-email', clientEmail);
+                    setIfExists('ltr_client-address-street', addressStreet);
+                    setIfExists('ltr_client-address-town', addressTown);
+                    setIfExists('ltr_client-address-postcode', addressPostcode);
                 }
 
                 // Reference number
-                // Reference number forced from Source Sheet 'id' in openCustomerModal(); do not override from deals payload.
+                const referenceNumber = rawGet(raw, ['id', 'ID', 'Id', 'dealId', 'dealID', 'DealId']) || dp.id || dp.ID || dp.dealId || dp.dealID || getActiveDealId() || '';
+                setIfExists('ltr_reference-number', referenceNumber);
 
                 // Employment / income (new inputs)
                 if (dp.affordability) {
@@ -4035,7 +4099,7 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
                 } catch (e) {
                     // no-op
                 }
-if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.affordability.netIncomeMonthly ?? '');
+                if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.affordability.netIncomeMonthly ?? '');
                 }
 
                 // Settlement total -> Finance Amount (Settlement inc.ERC)(£)
@@ -4075,10 +4139,8 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
                     const _ssTerm = (_ssTermRaw != null) ? Math.round(_ssTermRaw) : (remTermN != null ? Math.round(remTermN) : null);
                     if (_ssTerm != null && Number.isFinite(_ssTerm)) {
                         window.sourceSheetTerm = _ssTerm;
-                        if (getEl('ltr_current-term')) setVal('ltr_current-term', String(_ssTerm));
                     } else {
                         window.sourceSheetTerm = '';
-                        if (getEl('ltr_current-term')) setVal('ltr_current-term', '');
                     }
                 } catch (e) {
                     // no-op
@@ -4150,10 +4212,8 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
                     if (ftRaw.trim() === '') {
                         setVal('finance-type', '');
                     } else {
-                        const t = ftRaw.toUpperCase();
-                        if (t.includes('PCP')) setVal('finance-type', 'PCP');
-                        else if (t.includes('HP') || t.includes('HIRE PURCHASE')) setVal('finance-type', 'HP');
-                        else setVal('finance-type', ftRaw);
+                        const normalizedFinanceType = normalizeFinanceTypeValue(ftRaw);
+                        setVal('finance-type', normalizedFinanceType || ftRaw);
                     }
                     if (typeof handleFinanceTypeChange === 'function') handleFinanceTypeChange();
                 }
@@ -4173,7 +4233,7 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
                 const nmi = rawGet(raw, ['monthlyTakeHomePay']);
                 const nmiN = toNum(nmi);
                 setVal('ltr_net-income-monthly', nmiN != null ? toFixed2(nmiN) : (nmi || ''));
-// Best-effort vehicle/current finance fill from raw row (if your sheet has these columns)
+                // Best-effort vehicle/current finance fill from raw row (if your sheet has these columns)
                 const make = rawGet(raw, ['make', 'vehicle make']);
                 const model = rawGet(raw, ['model', 'vehicle model']);
                 const year = rawGet(raw, ['year', 'vehicle year', 'registration year']);
@@ -4189,12 +4249,61 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
                 if (lender && (!getVal('finance-company') || getVal('finance-company').trim() === '')) setVal('finance-company', lender);
                 if (agrNo && (!getVal('agreement-number') || getVal('agreement-number').trim() === '')) setVal('agreement-number', agrNo);
                 if (finType && (!getVal('finance-type') || getVal('finance-type').trim() === '')) {
-                    const t = finType.toString().toUpperCase();
-                    if (t.includes('PCP')) setVal('finance-type', 'PCP');
-                    else if (t.includes('HP') || t.includes('HIRE PURCHASE')) setVal('finance-type', 'HP');
-                    else setVal('finance-type', finType);
+                    const normalizedFinType = normalizeFinanceTypeValue(finType);
+                    if (normalizedFinType) setVal('finance-type', normalizedFinType);
                     if (typeof handleFinanceTypeChange === 'function') handleFinanceTypeChange();
                 }
+
+                const agreementStartDate = normalizeDateInputValue(
+                    getVal('agreement-start-date') ||
+                    dp.agreementStartDate ||
+                    dp.agreement_start_date ||
+                    dp.financeStartDate ||
+                    dp.finance_start_date ||
+                    rawGet(raw, ['agreementStartDate', 'agreement start date', 'Agreement Start Date', 'financeStartDate', 'finance start date', 'finance_start_date', 'start date']),
+                );
+                if (agreementStartDate) setVal('agreement-start-date', agreementStartDate);
+
+                const currentBalloon = dp.currentBalloon ?? dp.current_balloon ?? dp.balloon ?? dp.finalBalloon ?? dp.final_balloon ?? dp.gfv ?? dp.optionalFinalPayment ?? dp.optional_final_payment ?? rawGet(raw, ['original final balloon', 'current balloon', 'balloon', 'balloon/gfv', 'balloon payment', 'gfv', 'guaranteed future value', 'optional final payment', 'final balloon', 'final payment']);
+                const currentBalloonN = toNum(currentBalloon);
+                if (currentBalloonN != null && getEl('original-final-balloon')) {
+                    setVal('original-final-balloon', toFixed2(currentBalloonN));
+                }
+
+                const normalizedCurrentFinanceType = normalizeFinanceTypeValue(getVal('finance-type') || financeType || finType);
+                const originalTermMonths = oTermN != null && Number.isFinite(oTermN) ? Math.round(oTermN) : i(getVal('original-term')) || null;
+                const paymentsMade = calculatePaymentsMade(
+                    agreementStartDate,
+                    originalTermMonths,
+                    remTermN != null && Number.isFinite(remTermN) ? Math.round(remTermN) : null,
+                );
+
+                setIfExists('ltr_current-lender', getVal('finance-company'));
+                setIfExists('ltr_current-finance-type', normalizedCurrentFinanceType);
+                setIfExists('ltr_current-vehicle-price', priceN != null ? toFixed2(priceN) : '');
+                setIfExists('ltr_current-deposit', depN != null ? toFixed2(depN) : '');
+                setIfExists('ltr_current-apr', aprN != null ? formatApr(aprN) : getVal('original-apr'));
+                setIfExists('ltr_current-term', originalTermMonths != null ? String(originalTermMonths) : '');
+                setIfExists('ltr_current-monthly-payment', oldPayN != null ? toFixed2(oldPayN) : '');
+                setIfExists('ltr_current-balloon', currentBalloonN != null ? toFixed2(currentBalloonN) : '');
+                setIfExists('ltr_current-agreement-start-date', agreementStartDate);
+                setIfExists('ltr_current-payments-made', paymentsMade);
+
+                window.illustratorResultsData = {
+                    ...(window.illustratorResultsData || {}),
+                    currentLender: getVal('finance-company') || lender || '',
+                    currentFinanceType: (normalizedCurrentFinanceType || getVal('finance-type') || '').toLowerCase(),
+                    currentVehiclePrice: priceN != null ? priceN : f(getVal('original-purchase-price')),
+                    currentDeposit: depN != null ? depN : f(getVal('deposit-paid')),
+                    currentApr: aprN != null ? aprN : f(getVal('original-apr')),
+                    currentTerm: originalTermMonths != null ? originalTermMonths : i(getVal('original-term')),
+                    currentMonthlyPayment: oldPayN != null ? oldPayN : f(getVal('monthly-payment-display')),
+                    currentBalloon: currentBalloonN != null ? currentBalloonN : f(getVal('original-final-balloon')),
+                    currentAgreementStartDate: agreementStartDate || getVal('agreement-start-date') || '',
+                    currentPaymentsMade: paymentsMade === '' ? 0 : paymentsMade,
+                    currentSettlementFigure: settlementN != null ? settlementN : f(window.illustratorResultsData?.currentSettlementFigure),
+                    currentAgreementNumber: getVal('agreement-number') || agreementNumber || '',
+                };
             };
 
             /* -----------------------------------------------------------------------
@@ -4332,7 +4441,8 @@ const handleVrnLookup = async () => {
                 const p = products[selectedProductIndex];
                 const sDate = new Date(getVal('agreement-start-date'));
                 const monthsPassed = (new Date().getFullYear() - sDate.getFullYear()) * 12 + (new Date().getMonth() - sDate.getMonth());
-                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: getEffectiveApr(p), newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
+                const selectedFinanceType = normalizeFinanceTypeValue(p?.financeType || p?.productType || p?.type || getVal('finance-type'));
+                window.illustratorResultsData = { currentLender: getVal('finance-company'), currentFinanceType: getVal('finance-type').toLowerCase(), currentVehiclePrice: f(getVal('original-purchase-price')), currentDeposit: f(getVal('deposit-paid')), currentApr: f(getVal('original-apr')), currentTerm: i(getVal('original-term')), currentMonthlyPayment: financeDetails.calculatedMonthlyPayment, currentBalloon: f(getVal('original-final-balloon')), currentAgreementStartDate: getVal('agreement-start-date'), currentPaymentsMade: monthsPassed, currentSettlementFigure: financeDetails.settlementFigure, currentAgreementNumber: getVal('agreement-number'), newLenderName: p.lender, newFinanceAmount: financeDetails.settlementFigure, newAdditionalCash: 0, newApr: getEffectiveApr(p), newTermType: selectedFinanceType, newTerm: financeDetails.remainingTerm, newMonthlyPayment: p.calculatedMonthlyPayment, newBalloon: p.calculatedBalloonPayment, earlyRepaymentChargesPaid: financeDetails.erc, estimatedCommission: p.calculatedCommission };
                 if (typeof window.prefillLetterCreator === 'function') window.prefillLetterCreator();
             };
             const solveForAPR = (p, t, pmt, b) => {
@@ -4523,17 +4633,18 @@ const handleVrnLookup = async () => {
                       const raw = value == null ? '' : String(value);
                       return escapeHtml(raw || fallback).replace(/\r?\n/g, '<br>');
                   };
-                  const updateLetterPreview = () => {
-                      const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
-                      const getSafe = (id) => safeText(get(id));
-                      const d = {
+                const updateLetterPreview = () => {
+                    const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
+                    const getSafe = (id) => safeText(get(id));
+                    const currentIllustration = window.illustratorResultsData || {};
+                    const d = {
                     staffName: getSafe('ltr_staff-name'),
                     letterDate: safeText(formatDate(getVal('ltr_letter-date'))),
                     illustrativeDate: safeText(formatDate(window.sourceSheetReceivedDate || '')),
                     refNum: getSafe('ltr_reference-number'),
                     currentRemainingTerm: safeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
                     clientName: getSafe('ltr_client-name'),
-                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map((part) => safeText(part)).join('<br>'),
+                    clientAddrHtml: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].filter((part) => String(part || '').trim() !== '').map((part) => `<p>${safeText(part)}</p>`).join(''),
                     vrn: safeText(getVal('vrn')?.toUpperCase() || '[VRN]'),
                     vehicle: safeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`.trim()),
                     currentLender: getSafe('ltr_current-lender'),
@@ -4546,8 +4657,8 @@ const handleVrnLookup = async () => {
                     currentBalloon: safeText(formatCurrency(getVal('ltr_current-balloon'))),
                     currentAgreementStartDate: safeText(formatDate(getVal('ltr_current-agreement-start-date'))),
                     currentPaymentsMade: safeText(getVal('ltr_current-payments-made')),
-                    currentSettlementFigure: safeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)),
-                    currentAgreementNumber: safeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
+                    currentSettlementFigure: safeText(formatCurrency(currentIllustration.currentSettlementFigure)),
+                    currentAgreementNumber: safeText(currentIllustration.currentAgreementNumber || '[Agreement Number]'),
                     currentTotalPayable: '[Current total payable]',
                     newLenderName: getSafe('ltr_new-lender-name'),
                     newTermType: safeText(getSelectedText(getEl('ltr_new-term-type'))),
@@ -4569,7 +4680,7 @@ const handleVrnLookup = async () => {
                     termExtReason: safeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
                     termRedReason: safeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
                     otherChoices: safeMultiline(getVal('ltr_client-specific-choices-rationale'), 'No other specific choices noted.'),
-                    commission: safeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
+                    commission: safeText(formatCurrency(currentIllustration.estimatedCommission)),
                     coTrading: getSafe('ltr_company-trading-name'), coLegal: getSafe('ltr_company-legal-name'), coAddr1: getSafe('ltr_company-address1'), coAddr2: getSafe('ltr_company-address2'),
                     coPostcode: getSafe('ltr_company-postcode'), coEmail: getSafe('ltr_company-email'), coFca: getSafe('ltr_company-fca-number'), coReg: getSafe('ltr_company-number'),
                     employmentSummary: safeText(getVal('ltr_employment-summary'), '[Summary, e.g. employed / self-employed / other]'),
@@ -4583,7 +4694,7 @@ const handleVrnLookup = async () => {
                 let demandsCombined = [d.primaryNeed, d.secondaryNeed, d.freeTextNeeds ? `Other stated needs/demands: <em>${d.freeTextNeeds}</em>` : ''].filter(Boolean).join('<br>');
                 if (!demandsCombined.trim()) demandsCombined = '<em>[Client\'s Stated Demands and Needs not specified]</em>';
 
-const illData = window.illustratorResultsData;
+                const illData = window.illustratorResultsData;
                 let summaryHTML = '', extendedTermInfo = '';
                 let monthlyChange = '', monthlyChangeDirection = '', totalCurrent = '', totalNew = '', totalDiff = '', termEffect = '';
                 if (illData && Object.keys(illData).length > 0) {
@@ -4626,22 +4737,13 @@ const illData = window.illustratorResultsData;
                     d.newTotalPayable = safeText(totalNew || '[New total payable]');
                 }
 
-                // Reference number placeholder (will be replaced/overridden when payload data is available)
-                // Format: lastName_currentPostcode (sanitised)
-                try {
-                  const ln = (document.getElementById('ps_client_lastName')?.value || '').trim() || (d.clientName || '').trim().split(' ').slice(-1)[0] || 'lastName';
-                  const pc = (document.getElementById('ps_client_currentPostcode')?.value || '').trim() || 'currentPostcode';
-                  d.referenceNumber = `${ln}_${pc}`.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_\-]/g, '');
-                } catch (e) {
-                  d.referenceNumber = 'lastName_currentPostcode';
-                }
-
-setHtml('ltr_letter-preview-content', `
+                setHtml('ltr_letter-preview-content', `
 
 <div class="letter-header-logo">
   <img class="letter-logo" src="https://lh3.googleusercontent.com/d/1KFrDqP6Er-Zaikrnh3vS7cNRZfihUn8I" alt="${d.coTrading} header" />
 </div>
 <p>${d.letterDate}</p>
+<p><strong>Reference:</strong> ${d.refNum}</p>
 
 <div class="client-details mb-5">
   <p><strong>${d.clientName}</strong></p>
@@ -4962,6 +5064,7 @@ I/We authorise Compare My Finance to obtain settlement figures and to arrange pa
                 setField('ltr_current-term', d.currentTerm); setField('ltr_current-monthly-payment', d.currentMonthlyPayment?.toFixed(2)); setField('ltr_current-balloon', d.currentBalloon);
                 setField('ltr_current-agreement-start-date', d.currentAgreementStartDate); setField('ltr_current-payments-made', d.currentPaymentsMade);
                 setField('ltr_new-lender-name', d.newLenderName); setField('ltr_new-finance-amount', d.newFinanceAmount?.toFixed(2)); setField('ltr_new-additional-cash', d.newAdditionalCash);
+                setField('ltr_new-term-type', normalizeFinanceTypeValue(d.newTermType || getVal('finance-type')), true);
                 setField('ltr_new-apr', d.newApr); setField('ltr_new-term', d.newTerm); setField('ltr_new-monthly-payment', d.newMonthlyPayment?.toFixed(2));
                 setField('ltr_new-balloon', d.newBalloon?.toFixed(2)); setField('ltr_early-repayment-charges-paid', d.earlyRepaymentChargesPaid?.toFixed(2));
                 setField('ltr_potential-commission', `£${d.estimatedCommission?.toFixed(2)}`);
@@ -8582,7 +8685,6 @@ return `<div><label for="${id}" class="block text-sm font-medium text-gray-700">
                                 if (window.sourceSheetTerm === undefined || window.sourceSheetTerm === null || window.sourceSheetTerm === '') {
                                     window.sourceSheetTerm = (dealData.term !== undefined && dealData.term !== null) ? dealData.term : '';
                                 }
-                                if (getEl('ltr_current-term')) setVal('ltr_current-term', window.sourceSheetTerm ? String(window.sourceSheetTerm) : '');
 
                                 // Reference Number should come from Source Sheet 'id' header (NOT referer)
                                 if (getEl('ltr_reference-number')) setVal('ltr_reference-number', dealData.id || '');
