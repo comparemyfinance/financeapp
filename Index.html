@@ -4504,34 +4504,37 @@ const handleVrnLookup = async () => {
                   };
                   const formatCurrency = val => `£${(parseFloat(val) || 0).toFixed(2)}`;
                   const getSelectedText = el => (el && el.selectedIndex !== -1 && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
+                  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+                  const asSafeText = (value) => escapeHtml(String(value ?? '').trim());
+                  const asSafeMultiline = (value) => asSafeText(value).replace(/\n/g, '<br>');
                   const updateLetterPreview = () => {
                       const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
                       const d = {
-                    staffName: get('ltr_staff-name'),
-                    letterDate: formatDate(getVal('ltr_letter-date')),
-                    illustrativeDate: formatDate(window.sourceSheetReceivedDate || ''),
-                    refNum: get('ltr_reference-number'),
-                    currentRemainingTerm: window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : '',
-                    clientName: get('ltr_client-name'),
-                    clientAddr: `${get('ltr_client-address-street')}<br>${get('ltr_client-address-town')}<br>${get('ltr_client-address-postcode')}`,
-                    vrn: getVal('vrn')?.toUpperCase() || '[VRN]', vehicle: `${getVal('vehicle-year')} ${getVal('vehicle-make')} ${getVal('vehicle-model')}`,
-                    currentLender: get('ltr_current-lender'), currentFinanceType: getSelectedText(getEl('ltr_current-finance-type')), currentVehiclePrice: formatCurrency(getVal('ltr_current-vehicle-price')),
-                    currentDeposit: formatCurrency(getVal('ltr_current-deposit')), currentApr: `${getVal('ltr_current-apr')}%`, currentTerm: `${getVal('ltr_current-term')} months`,
-                    currentMonthlyPayment: formatCurrency(getVal('ltr_current-monthly-payment')), currentBalloon: formatCurrency(getVal('ltr_current-balloon')),
-                    currentAgreementStartDate: formatDate(getVal('ltr_current-agreement-start-date')), currentPaymentsMade: getVal('ltr_current-payments-made'),
-                    currentSettlementFigure: formatCurrency(window.illustratorResultsData.currentSettlementFigure), currentAgreementNumber: window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]',
-                    newLenderName: get('ltr_new-lender-name'), newTermType: getSelectedText(getEl('ltr_new-term-type')), newFinanceAmount: formatCurrency(getVal('ltr_new-finance-amount')), newAdditionalCash: formatCurrency(getVal('ltr_new-additional-cash')), newAmountToFinance: formatCurrency(window.sourceSheetSettlementTotal || ''), newDeposit: formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || ''),
-                    newApr: `${getVal('ltr_new-apr')}%`, newTerm: `${getVal('ltr_new-term')} months`, newMonthlyPayment: formatCurrency(getVal('ltr_new-monthly-payment')), newBalloon: formatCurrency(getVal('ltr_new-balloon')),
-                    earlyRepaymentChargesPaid: formatCurrency(getVal('ltr_early-repayment-charges-paid')),
-                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${getSelectedText(getEl('ltr_primary-demand-need'))}.<br>` : '',
-                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${getSelectedText(getEl('ltr_secondary-demand-need'))}.<br>` : '',
-                    freeTextNeeds: getVal('ltr_client-demands-needs')?.replace(/\n/g, '<br>') || '', howMet: getVal('ltr_how-option-meets-needs')?.replace(/\n/g, '<br>') || '[Client to specify...]',
-                    termChoice: getVal('ltr_term-change-choice'), termExtReason: getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason')),
-                    termRedReason: getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason')),
-                    otherChoices: getVal('ltr_client-specific-choices-rationale')?.replace(/\n/g, '<br>') || 'No other specific choices noted.',
-                    commission: formatCurrency(window.illustratorResultsData.estimatedCommission),
-                    coTrading: get('ltr_company-trading-name'), coLegal: get('ltr_company-legal-name'), coAddr1: get('ltr_company-address1'), coAddr2: get('ltr_company-address2'),
-                    coPostcode: get('ltr_company-postcode'), coEmail: get('ltr_company-email'), coFca: get('ltr_company-fca-number'), coReg: get('ltr_company-number'),
+                    staffName: asSafeText(get('ltr_staff-name')),
+                    letterDate: asSafeText(formatDate(getVal('ltr_letter-date'))),
+                    illustrativeDate: asSafeText(formatDate(window.sourceSheetReceivedDate || '')),
+                    refNum: asSafeText(get('ltr_reference-number')),
+                    currentRemainingTerm: asSafeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
+                    clientName: asSafeText(get('ltr_client-name')),
+                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map(asSafeText).join('<br>'),
+                    vrn: asSafeText(getVal('vrn')?.toUpperCase() || '[VRN]'), vehicle: asSafeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`),
+                    currentLender: asSafeText(get('ltr_current-lender')), currentFinanceType: asSafeText(getSelectedText(getEl('ltr_current-finance-type'))), currentVehiclePrice: asSafeText(formatCurrency(getVal('ltr_current-vehicle-price'))),
+                    currentDeposit: asSafeText(formatCurrency(getVal('ltr_current-deposit'))), currentApr: asSafeText(`${getVal('ltr_current-apr')}%`), currentTerm: asSafeText(`${getVal('ltr_current-term')} months`),
+                    currentMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_current-monthly-payment'))), currentBalloon: asSafeText(formatCurrency(getVal('ltr_current-balloon'))),
+                    currentAgreementStartDate: asSafeText(formatDate(getVal('ltr_current-agreement-start-date'))), currentPaymentsMade: asSafeText(getVal('ltr_current-payments-made')),
+                    currentSettlementFigure: asSafeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)), currentAgreementNumber: asSafeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
+                    newLenderName: asSafeText(get('ltr_new-lender-name')), newTermType: asSafeText(getSelectedText(getEl('ltr_new-term-type'))), newFinanceAmount: asSafeText(formatCurrency(getVal('ltr_new-finance-amount'))), newAdditionalCash: asSafeText(formatCurrency(getVal('ltr_new-additional-cash'))), newAmountToFinance: asSafeText(formatCurrency(window.sourceSheetSettlementTotal || '')), newDeposit: asSafeText(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
+                    newApr: asSafeText(`${getVal('ltr_new-apr')}%`), newTerm: asSafeText(`${getVal('ltr_new-term')} months`), newMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_new-monthly-payment'))), newBalloon: asSafeText(formatCurrency(getVal('ltr_new-balloon'))),
+                    earlyRepaymentChargesPaid: asSafeText(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
+                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${asSafeText(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
+                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${asSafeText(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
+                    freeTextNeeds: asSafeMultiline(getVal('ltr_client-demands-needs')), howMet: asSafeMultiline(getVal('ltr_how-option-meets-needs') || '[Client to specify...]'),
+                    termChoice: getVal('ltr_term-change-choice'), termExtReason: asSafeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
+                    termRedReason: asSafeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
+                    otherChoices: asSafeMultiline(getVal('ltr_client-specific-choices-rationale') || 'No other specific choices noted.'),
+                    commission: asSafeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
+                    coTrading: asSafeText(get('ltr_company-trading-name')), coLegal: asSafeText(get('ltr_company-legal-name')), coAddr1: asSafeText(get('ltr_company-address1')), coAddr2: asSafeText(get('ltr_company-address2')),
+                    coPostcode: asSafeText(get('ltr_company-postcode')), coEmail: asSafeText(get('ltr_company-email')), coFca: asSafeText(get('ltr_company-fca-number')), coReg: asSafeText(get('ltr_company-number')),
                 };
                 let termChangeHTML = '';
                 if (d.termChoice === 'extend' && d.termExtReason) termChangeHTML = `<p>You informed us that you wished to extend the term of your finance to ${d.newTerm}. You stated your reason for this decision was: ${d.termExtReason}.</p>`;
