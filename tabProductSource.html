@@ -3096,62 +3096,64 @@
             setVal(id, value == null ? "" : value);
           };
 
+          const rawFirstName = rawGet(raw, [
+            "firstName",
+            "first name",
+            "First Name",
+          ]);
+          const rawLastName = rawGet(raw, [
+            "lastName",
+            "last name",
+            "Last Name",
+          ]);
+          const addressStreet =
+            [
+              rawGet(raw, ["currentAddressLine1"]),
+              rawGet(raw, ["currentAddressLine2"]),
+            ]
+              .filter(Boolean)
+              .join(", ") ||
+            [
+              dp.client && dp.client.address && dp.client.address.address1,
+              dp.client && dp.client.address && dp.client.address.address2,
+            ]
+              .filter(Boolean)
+              .join(", ");
+          const addressTown =
+            rawGet(raw, ["currentCity"]) ||
+            (dp.client && dp.client.address && dp.client.address.town) ||
+            "";
+          const addressPostcode =
+            rawGet(raw, ["currentPostcode"]) ||
+            (dp.client && dp.client.postcode) ||
+            (dp.client && dp.client.address && dp.client.address.postcode) ||
+            "";
+          const clientName =
+            [
+              dp.client && dp.client.firstName,
+              dp.client && dp.client.lastName,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .trim() ||
+            [rawFirstName, rawLastName].filter(Boolean).join(" ").trim();
+          const clientEmail =
+            (dp.client && dp.client.email) || rawGet(raw, ["email", "Email"]) || "";
+
           // Client fields (VRN section)
           if (dp.client) {
-            const rawFirstName = rawGet(raw, [
-              "firstName",
-              "first name",
-              "First Name",
-            ]);
-            const rawLastName = rawGet(raw, [
-              "lastName",
-              "last name",
-              "Last Name",
-            ]);
-            const addressStreet =
-              [
-                rawGet(raw, ["currentAddressLine1"]),
-                rawGet(raw, ["currentAddressLine2"]),
-              ]
-                .filter(Boolean)
-                .join(", ") ||
-              [
-                dp.client.address && dp.client.address.address1,
-                dp.client.address && dp.client.address.address2,
-              ]
-                .filter(Boolean)
-                .join(", ");
-            const addressTown =
-              rawGet(raw, ["currentCity"]) ||
-              (dp.client.address && dp.client.address.town) ||
-              "";
-            const addressPostcode =
-              rawGet(raw, ["currentPostcode"]) ||
-              dp.client.postcode ||
-              (dp.client.address && dp.client.address.postcode) ||
-              "";
-            const clientName =
-              [dp.client.firstName, dp.client.lastName]
-                .filter(Boolean)
-                .join(" ")
-                .trim() ||
-              [rawFirstName, rawLastName].filter(Boolean).join(" ").trim();
-            const clientEmail =
-              dp.client.email || rawGet(raw, ["email", "Email"]) || "";
             if (dp.client.firstName !== undefined)
               setVal("ps_client_firstName", dp.client.firstName || "");
             if (dp.client.lastName !== undefined)
               setVal("ps_client_lastName", dp.client.lastName || "");
             const pc = addressPostcode;
             if (pc !== undefined) setVal("ps_client_currentPostcode", pc || "");
-
-            // Letter creator client fields
-            setIfExists("ltr_client-name", clientName);
-            setIfExists("ltr_client-email", clientEmail);
-            setIfExists("ltr_client-address-street", addressStreet);
-            setIfExists("ltr_client-address-town", addressTown);
-            setIfExists("ltr_client-address-postcode", addressPostcode);
           }
+          setIfExists("ltr_client-name", clientName);
+          setIfExists("ltr_client-email", clientEmail);
+          setIfExists("ltr_client-address-street", addressStreet);
+          setIfExists("ltr_client-address-town", addressTown);
+          setIfExists("ltr_client-address-postcode", addressPostcode);
 
           // Reference number
           const referenceNumber =
@@ -3471,14 +3473,14 @@
           // [client-address-street] = currentAddressLine1
           setVal(
             "ltr_client-address-street",
-            rawGet(raw, ["currentAddressLine1"]) || "",
+            addressStreet,
           );
           // [client-address-town] = currentCity
-          setVal("ltr_client-address-town", rawGet(raw, ["currentCity"]) || "");
+          setVal("ltr_client-address-town", addressTown);
           // [client-address-postcode] = currentPostcode
           setVal(
             "ltr_client-address-postcode",
-            rawGet(raw, ["currentPostcode"]) || "",
+            addressPostcode,
           );
           // [net monthly income] = monthlyTakeHomePay
           const nmi = rawGet(raw, ["monthlyTakeHomePay"]);
@@ -4408,7 +4410,10 @@
             totalNew = "",
             totalDiff = "",
             termEffect = "";
-          if (illData && Object.keys(illData).length > 0) {
+          const hasSelectedProductComparison =
+            Number.isFinite(parseFloat(illData && illData.newMonthlyPayment)) &&
+            parseInt(illData && illData.newTerm, 10) > 0;
+          if (hasSelectedProductComparison) {
             const cMonthly = parseFloat(illData.currentMonthlyPayment) || 0,
               nMonthly = parseFloat(illData.newMonthlyPayment) || 0;
             const cRemTerm =
