@@ -12,6 +12,8 @@ This file documents the **current runtime action surface**.
   - `routeAction_`
   - `PUBLIC_ACTION_HANDLERS_`
   - `PROTECTED_ACTION_HANDLERS_`
+- Canonical lender/provider action implementation:
+  - `Lenderapi.gs` for outbound lender/provider domain behavior including `validateJigsaw`, `submitJigsaw`, lender placeholders, and soft-score helpers
 
 ## Canonical transport
 
@@ -103,6 +105,7 @@ If required config is missing, handlers should preserve specific safe messages s
 ## Editing rules
 
 - Add/modify action ownership in: `server/router/actions.gs`
+- Change outbound lender/provider action implementation in: `Lenderapi.gs`
 - Update this file whenever action names, aliases, auth gating, or error behavior changes.
 
 ## Lender validation (additive, current)

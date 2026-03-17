@@ -12,7 +12,7 @@ Use this map to avoid editing the wrong file.
 - **Config access and required config resolution:** `server/shared/config.gs`
 - **Error/response envelope helpers:** `server/shared/response.gs`
 - **Auth/session backend:** `Auth.js`
-- **Lender domain behavior:** `Lenderapi.gs`
+- **Lender domain behavior + outbound lender/provider integrations:** `Lenderapi.gs`
 
 ## Frontend canonical ownership (current)
 
@@ -32,6 +32,7 @@ Use this map to avoid editing the wrong file.
 - Change config resolution behavior -> `server/shared/config.gs`
 - Change error envelope behavior -> `server/shared/response.gs`
 - Change Apps Script entry transport behavior -> `Code.gs`
+- Change outbound lender/provider behavior (`validateJigsaw`, `submitJigsaw`, placeholder lender adapters) -> `Lenderapi.gs`
 - Change shared frontend auth/API wrapper behavior -> `Index.html`
 
 ## Transitional areas
