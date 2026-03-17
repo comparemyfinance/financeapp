@@ -31,6 +31,18 @@ This project runs as a **Google Apps Script Web App** (V8 runtime).
 - Feature templates: `tab*.html`
 - Current reality: both `Index.html` and `tabSalesPipeline.html` still contain substantial API/session logic; canonical/delegated guidance is in `docs/CANONICAL_FILES.md` and `docs/KNOWN_AMBIGUITIES.md`.
 
+## Product Source DNS mapping
+
+- Canonical runtime owner: `Index.html` for Product Source DNS auto-mapping and letter preview wiring.
+- Mirrored compatibility runtime: `tabProductSource.html` must stay behaviorally aligned with the `Index.html` Product Source mapping helpers.
+- Field precedence for client and current-agreement DNS values:
+  - Source-sheet `raw` payload values first when present.
+  - `dnsPayload` normalized fields as fallback.
+  - Active deal id fallback only for `ltr_reference-number` when source-sheet/deal payload ids are absent.
+- Selected product mapping fills new-agreement DNS values only, including `ltr_new-term-type`.
+- `window.sourceSheetReceivedDate` and `window.sourceSheetTerm` are preview-only sources for illustrative date and remaining-term wording.
+- `ltr_current-term` must remain the original agreement term, not the remaining term.
+
 ## Platform dependencies
 
 - Google Sheets
