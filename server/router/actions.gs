@@ -169,6 +169,18 @@ function handleGetDelta_(_ctx) {
   }
 }
 
+function handleGetVrnData_(ctx) {
+  const vrn = ctx.payload && ctx.payload.vrn;
+  if (!vrn) return makeError_('VALIDATION_ERROR', 'Missing payload.vrn');
+  return safeObj_(() => ({ success: true, data: getVrnData_(vrn) }));
+}
+
+function handleLookupOneAutoFinance_(ctx) {
+  const vrn = ctx.payload && ctx.payload.vrn;
+  if (!vrn) return makeError_('VALIDATION_ERROR', 'Missing payload.vrn');
+  return safeObj_(() => lookupOneAutoFinance_(vrn));
+}
+
 function handleSave_(ctx) {
   return withLock_(30000, () => {
     const sheet = getSheet_();
@@ -263,6 +275,8 @@ const PROTECTED_ACTION_HANDLERS_ = {
   searchFolders: handleSearchFolders_,
   getFolderFiles: handleGetFolderFiles_,
   getDelta: handleGetDelta_,
+  getVrnData: handleGetVrnData_,
+  lookupOneAutoFinance: handleLookupOneAutoFinance_,
   validateJigsaw: handleValidateJigsaw_,
   submitJigsaw: handleSubmitJigsaw_,
   validateLenderApplication: handleValidateLenderApplication_,

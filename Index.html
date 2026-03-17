@@ -95,7 +95,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
         :root { --british-racing-green: #004225; --pale-green: #F0FFF0; --pale-green-darker: #e6f5e6; --gold-orange: #FF8C00; }
         body { font-family: 'Poppins', sans-serif; overflow: hidden; }
@@ -526,7 +526,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   /* UI tweaks */
   .logout-icon{ color:#dc2626 !important; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js" type="module"></script><style>
+<style>
 .kanban-card, .kanban-card * { box-sizing: border-box; }
 
 /* Tighter vertical rhythm inside Kanban cards */
@@ -3416,6 +3416,13 @@ window.PAYLOAD_SUPPLIER_URL = CONFIG.ENDPOINTS.PAYLOAD;
         const setVal = (id, val) => { const el = getEl(id); if (el) el.value = val; };
         const setHtml = (id, html) => { const el = getEl(id); if (el) el.innerHTML = html; };
         const setTxt = (id, txt) => { const el = getEl(id); if (el) el.textContent = txt; };
+        const escapeHtml = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        }[ch]));
 
 // --- Currency/percent helpers ---
 const fmtGBP0 = new Intl.NumberFormat('en-GB', { style:'currency', currency:'GBP', minimumFractionDigits:0, maximumFractionDigits:0 });
@@ -4197,6 +4204,29 @@ if (getEl('ltr_net-income-monthly')) setVal('ltr_net-income-monthly', dp.afforda
    - Calls fetchVrnPayloadFromSheet(vrn) and updates DOM fields
    ----------------------------------------------------------------------- */
 
+const postPseAction = async (action, payload = {}) => {
+                const requestPayload = { ...(payload || {}) };
+                try {
+                    const token = window.CMFSession ? window.CMFSession.readToken() : '';
+                    if (token && !requestPayload.token) requestPayload.token = token;
+                } catch (e) {}
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action, payload: requestPayload }),
+                });
+                const result = await response.json();
+                if (result && result.success === false) {
+                    if (window.__cmfHandleAuthRequired && window.__cmfHandleAuthRequired(result)) {
+                        throw new Error('AUTH_REQUIRED');
+                    }
+                    const message = result.error && typeof result.error === 'object'
+                        ? result.error.message
+                        : result.error;
+                    throw new Error(message || 'Server error');
+                }
+                return result;
+            };
+
 const handleVrnLookup = async () => {
                 // Show global Colin overlay while VRN lookup runs
                 const __ov = getEl('saveDealOverlay');
@@ -4227,8 +4257,7 @@ const handleVrnLookup = async () => {
                 }
 
                 try {
-                    const sheetResponse = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getVrnData', payload: { vrn } }) });
-                    const sheetResult = await sheetResponse.json();
+                    const sheetResult = await postPseAction('getVrnData', { vrn });
                     if (sheetResult.success && sheetResult.data) {
                         populateFormWithData(sheetResult.data, 'Vehicle found in our database!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + ' Finance details pre-filled.');
@@ -4266,7 +4295,7 @@ const handleVrnLookup = async () => {
                         } catch(e) { console.error("Failed to save new VRN data to sheet:", e); }
                         populateFormWithData(vehicleData, 'Vehicle found via API!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + (vehicleData.finance ? ' Finance details pre-filled & saved.' : ' No finance record found. Saved vehicle details.'));
-                    } else { throw new Error(apiData.error || 'Vehicle not found via API.'); }
+                    } else { throw new Error('Vehicle not found via API.'); }
                 } catch (error) {
                     setTxt('vrn-status', `Error: ${error.message}`);
                     getEl('vrn-status').style.color = 'red';
@@ -4506,34 +4535,38 @@ const handleVrnLookup = async () => {
                   };
                   const formatCurrency = val => `£${(parseFloat(val) || 0).toFixed(2)}`;
                   const getSelectedText = el => (el && el.selectedIndex !== -1 && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
+                  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+                  const asSafeText = (value) => escapeHtml(String(value ?? '').trim());
+                  const asSafeMultiline = (value) => asSafeText(value).replace(/\n/g, '<br>');
                   const updateLetterPreview = () => {
                       const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
+                      const getSafe = (id) => safeText(get(id));
                       const d = {
-                    staffName: get('ltr_staff-name'),
-                    letterDate: formatDate(getVal('ltr_letter-date')),
-                    illustrativeDate: formatDate(window.sourceSheetReceivedDate || ''),
-                    refNum: get('ltr_reference-number'),
-                    currentRemainingTerm: window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : '',
-                    clientName: get('ltr_client-name'),
-                    clientAddr: `${get('ltr_client-address-street')}<br>${get('ltr_client-address-town')}<br>${get('ltr_client-address-postcode')}`,
-                    vrn: getVal('vrn')?.toUpperCase() || '[VRN]', vehicle: `${getVal('vehicle-year')} ${getVal('vehicle-make')} ${getVal('vehicle-model')}`,
-                    currentLender: get('ltr_current-lender'), currentFinanceType: getSelectedText(getEl('ltr_current-finance-type')), currentVehiclePrice: formatCurrency(getVal('ltr_current-vehicle-price')),
-                    currentDeposit: formatCurrency(getVal('ltr_current-deposit')), currentApr: `${getVal('ltr_current-apr')}%`, currentTerm: `${getVal('ltr_current-term')} months`,
-                    currentMonthlyPayment: formatCurrency(getVal('ltr_current-monthly-payment')), currentBalloon: formatCurrency(getVal('ltr_current-balloon')),
-                    currentAgreementStartDate: formatDate(getVal('ltr_current-agreement-start-date')), currentPaymentsMade: getVal('ltr_current-payments-made'),
-                    currentSettlementFigure: formatCurrency(window.illustratorResultsData.currentSettlementFigure), currentAgreementNumber: window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]',
-                    newLenderName: get('ltr_new-lender-name'), newTermType: getSelectedText(getEl('ltr_new-term-type')), newFinanceAmount: formatCurrency(getVal('ltr_new-finance-amount')), newAdditionalCash: formatCurrency(getVal('ltr_new-additional-cash')), newAmountToFinance: formatCurrency(window.sourceSheetSettlementTotal || ''), newDeposit: formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || ''),
-                    newApr: `${getVal('ltr_new-apr')}%`, newTerm: `${getVal('ltr_new-term')} months`, newMonthlyPayment: formatCurrency(getVal('ltr_new-monthly-payment')), newBalloon: formatCurrency(getVal('ltr_new-balloon')),
-                    earlyRepaymentChargesPaid: formatCurrency(getVal('ltr_early-repayment-charges-paid')),
-                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${getSelectedText(getEl('ltr_primary-demand-need'))}.<br>` : '',
-                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${getSelectedText(getEl('ltr_secondary-demand-need'))}.<br>` : '',
-                    freeTextNeeds: getVal('ltr_client-demands-needs')?.replace(/\n/g, '<br>') || '', howMet: getVal('ltr_how-option-meets-needs')?.replace(/\n/g, '<br>') || '[Client to specify...]',
-                    termChoice: getVal('ltr_term-change-choice'), termExtReason: getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason')),
-                    termRedReason: getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason')),
-                    otherChoices: getVal('ltr_client-specific-choices-rationale')?.replace(/\n/g, '<br>') || 'No other specific choices noted.',
-                    commission: formatCurrency(window.illustratorResultsData.estimatedCommission),
-                    coTrading: get('ltr_company-trading-name'), coLegal: get('ltr_company-legal-name'), coAddr1: get('ltr_company-address1'), coAddr2: get('ltr_company-address2'),
-                    coPostcode: get('ltr_company-postcode'), coEmail: get('ltr_company-email'), coFca: get('ltr_company-fca-number'), coReg: get('ltr_company-number'),
+                    staffName: asSafeText(get('ltr_staff-name')),
+                    letterDate: asSafeText(formatDate(getVal('ltr_letter-date'))),
+                    illustrativeDate: asSafeText(formatDate(window.sourceSheetReceivedDate || '')),
+                    refNum: asSafeText(get('ltr_reference-number')),
+                    currentRemainingTerm: asSafeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
+                    clientName: asSafeText(get('ltr_client-name')),
+                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map(asSafeText).join('<br>'),
+                    vrn: asSafeText(getVal('vrn')?.toUpperCase() || '[VRN]'), vehicle: asSafeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`),
+                    currentLender: asSafeText(get('ltr_current-lender')), currentFinanceType: asSafeText(getSelectedText(getEl('ltr_current-finance-type'))), currentVehiclePrice: asSafeText(formatCurrency(getVal('ltr_current-vehicle-price'))),
+                    currentDeposit: asSafeText(formatCurrency(getVal('ltr_current-deposit'))), currentApr: asSafeText(`${getVal('ltr_current-apr')}%`), currentTerm: asSafeText(`${getVal('ltr_current-term')} months`),
+                    currentMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_current-monthly-payment'))), currentBalloon: asSafeText(formatCurrency(getVal('ltr_current-balloon'))),
+                    currentAgreementStartDate: asSafeText(formatDate(getVal('ltr_current-agreement-start-date'))), currentPaymentsMade: asSafeText(getVal('ltr_current-payments-made')),
+                    currentSettlementFigure: asSafeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)), currentAgreementNumber: asSafeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
+                    newLenderName: asSafeText(get('ltr_new-lender-name')), newTermType: asSafeText(getSelectedText(getEl('ltr_new-term-type'))), newFinanceAmount: asSafeText(formatCurrency(getVal('ltr_new-finance-amount'))), newAdditionalCash: asSafeText(formatCurrency(getVal('ltr_new-additional-cash'))), newAmountToFinance: asSafeText(formatCurrency(window.sourceSheetSettlementTotal || '')), newDeposit: asSafeText(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
+                    newApr: asSafeText(`${getVal('ltr_new-apr')}%`), newTerm: asSafeText(`${getVal('ltr_new-term')} months`), newMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_new-monthly-payment'))), newBalloon: asSafeText(formatCurrency(getVal('ltr_new-balloon'))),
+                    earlyRepaymentChargesPaid: asSafeText(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
+                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${asSafeText(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
+                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${asSafeText(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
+                    freeTextNeeds: asSafeMultiline(getVal('ltr_client-demands-needs')), howMet: asSafeMultiline(getVal('ltr_how-option-meets-needs') || '[Client to specify...]'),
+                    termChoice: getVal('ltr_term-change-choice'), termExtReason: asSafeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
+                    termRedReason: asSafeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
+                    otherChoices: asSafeMultiline(getVal('ltr_client-specific-choices-rationale') || 'No other specific choices noted.'),
+                    commission: asSafeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
+                    coTrading: asSafeText(get('ltr_company-trading-name')), coLegal: asSafeText(get('ltr_company-legal-name')), coAddr1: asSafeText(get('ltr_company-address1')), coAddr2: asSafeText(get('ltr_company-address2')),
+                    coPostcode: asSafeText(get('ltr_company-postcode')), coEmail: asSafeText(get('ltr_company-email')), coFca: asSafeText(get('ltr_company-fca-number')), coReg: asSafeText(get('ltr_company-number')),
                 };
                 let termChangeHTML = '';
                 if (d.termChoice === 'extend' && d.termExtReason) termChangeHTML = `<p>You informed us that you wished to extend the term of your finance to ${d.newTerm}. You stated your reason for this decision was: ${d.termExtReason}.</p>`;
@@ -4581,6 +4614,8 @@ const illData = window.illustratorResultsData;
                     if (nTerm > cRemTerm) extendedTermInfo = `<li>If you have opted to extend the term of the agreement, this will impact the total cost to repay or own the vehicle outright should you wish to exercise your option to purchase.</li>`;
                     summaryHTML = `<p>Based on the illustration, the new finance option indicates ${points.length ? points.join(', and ') : 'no significant changes'}.</p>`;
                     if(illData.earlyRepaymentChargesPaid > 0) summaryHTML += `<p>The early repayment charges of <strong>${formatCurrency(illData.earlyRepaymentChargesPaid)}</strong> have been included in your new finance agreement.</p>`;
+                    d.currentTotalPayable = safeText(totalCurrent || '[Current total payable]');
+                    d.newTotalPayable = safeText(totalNew || '[New total payable]');
                 }
 
                 // Reference number placeholder (will be replaced/overridden when payload data is available)
@@ -4602,7 +4637,7 @@ setHtml('ltr_letter-preview-content', `
 
 <div class="client-details mb-5">
   <p><strong>${d.clientName}</strong></p>
-  <p>${d.clientAddr.replace(/<br>/g, '</p><p>')}</p>
+  ${d.clientAddrHtml}
 </div>
 
 <p><strong>Re: Demands and Needs / Suitability Statement &ndash; Car Refinance Agreement</strong></p>
@@ -4635,9 +4670,9 @@ We do not provide independent financial advice for consumer credit or credit bro
 
 <p><strong>Personal and financial information (summary)</strong></p>
 <ul class="letter-bullets bullets-2col">
-  <li>Employment: ${getVal('ltr_employment-summary') || '[Summary, e.g. employed / self-employed / other]'}</li>
-  <li>Time in employment: ${getVal('ltr_time-in-employment') || '[time in employment current]'}</li>
-  <li>Regular net income (monthly): ${getVal('ltr_net-income-monthly') || '[net monthly income]'}</li>
+  <li>Employment: ${d.employmentSummary}</li>
+  <li>Time in employment: ${d.timeInEmployment}</li>
+  <li>Regular net income (monthly): ${d.netIncomeMonthly}</li>
   <li>Known changes to circumstances: None declared</li>
 </ul>
 
@@ -6027,7 +6062,12 @@ buildDraft({ dealId, deal, formData }) {
                 },
                 bindEvents() {
                     const debounce = (func, delay) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => func.apply(this, args), delay); }; };
-                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => { this.ui.switchView(tab.dataset.view); this.loadData(); }));
+                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => {
+                        const targetView = tab.dataset.view;
+                        this.ui.switchView(targetView);
+                        if (this.state.isInitialDataLoading) return;
+                        if (this.state.hasCompletedInitialLoad && targetView === 'pipeline') this.loadData();
+                    }));
                     on(getEl('addStageBtn'), 'click', () => this.ui.addStageInput());
                     on(getEl('saveStages'), 'click', () => this.handlers.saveStages());
                     on(getEl('cancelStages'), 'click', () => this.ui.closeModal('manageStages'));
@@ -6190,9 +6230,23 @@ if (dataObj && dataObj.success === false) {
 
                   if (method === 'GET') {
 
-                    const r = await fetch(endpoint + '?api=1', { method: 'GET' });
+                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
+                    if (!token) {
+                      if (window.__cmfHandleAuthRequired) window.__cmfHandleAuthRequired({ authRequired: true, error: 'AUTH_REQUIRED' });
+                      throw new Error('AUTH_REQUIRED');
+                    }
 
-                    return await r.json();
+                    const apiUrl = new URL(endpoint);
+                    apiUrl.searchParams.set('api', '1');
+                    apiUrl.searchParams.set('token', token);
+                    const r = await fetch(apiUrl.toString(), { method: 'GET' });
+                    const dataObj = await r.json();
+                    if (dataObj && dataObj.success === false) {
+                      if (window.__cmfHandleAuthRequired && window.__cmfHandleAuthRequired(dataObj)) throw new Error('AUTH_REQUIRED');
+                      const msg = (App && App.utils && App.utils.normalizeErrorMessage) ? App.utils.normalizeErrorMessage(dataObj, 'Server error') : 'Server error';
+                      throw new Error('[' + action + '] ' + msg);
+                    }
+                    return dataObj;
 
                   }
 
@@ -6201,7 +6255,7 @@ if (dataObj && dataObj.success === false) {
 
                     method: 'POST',
 
-                    body: JSON.stringify({ action, payload }),
+                    body: JSON.stringify({ action, payload: requestPayload }),
 
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
 
@@ -7861,7 +7915,7 @@ col.querySelector('.deal-list').appendChild(cardEl);
                         const { contactsList } = App.elements;
                         const { key: sortKey, direction } = App.state.sortState;
                         contactsList.innerHTML = '';
-                        let dealsToRender = deals || App.state.deals;
+                        let dealsToRender = Array.isArray(deals) ? [...deals] : [...(App.state.deals || [])];
                         if (!dealsToRender.length) return contactsList.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-8">No contacts found.</td></tr>`;
                         dealsToRender.sort((a, b) => {
                             const valA = a[sortKey], valB = b[sortKey];
