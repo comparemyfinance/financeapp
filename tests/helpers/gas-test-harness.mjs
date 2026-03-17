@@ -32,6 +32,7 @@ export function createGasContext() {
   scriptProperties.set('ROOT_FOLDER_ID', 'TEST_ROOT_FOLDER_ID');
   scriptProperties.set('JIGSAW_USERNAME', 'TEST_USER');
   scriptProperties.set('JIGSAW_PASSWORD', 'TEST_PASS');
+  scriptProperties.set('ONEAUTO_API_KEY', 'TEST_ONEAUTO_KEY');
   const ctx = {
     console,
     Date,

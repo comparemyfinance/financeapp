@@ -350,7 +350,15 @@ function loadIndex_(sheet, headers) {
   const SRC_COL = hmap['sourceSheet'] || null;
   const lastRow = sheet.getLastRow();
   const lastCol = headers.length;
-  const result = { headers, hmap, idToRow: new Map(), vrnToRow: new Map(), rows: [], objects: [] };
+  const result = {
+    headers,
+    hmap,
+    idToRow: new Map(),
+    vrnToRow: new Map(),
+    sourceSheetToRow: new Map(),
+    rows: [],
+    objects: []
+  };
   if (lastRow <= 1) return result;
   const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   result.objects = rowsToObjects_(headers, values);
@@ -367,6 +375,10 @@ function loadIndex_(sheet, headers) {
     if (vrnIdx !== null) {
       const vrn = normVrn_(values[i][vrnIdx]);
       if (vrn) result.vrnToRow.set(vrn, 2 + i);
+    }
+    if (srcIdx !== null) {
+      const src = String(values[i][srcIdx] || '').trim();
+      if (src) result.sourceSheetToRow.set(src, 2 + i);
     }
   }
   return result;
@@ -407,6 +419,16 @@ function mergeInto_(existingObj, patchObj) {
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function getApiTokenFromParams_(params) {
+  const source = params || {};
+  return String(
+    source.token ||
+    source.authToken ||
+    source.cmfAuthToken ||
+    '',
+  ).trim();
 }
 
 function doGet(e) {
@@ -465,12 +487,33 @@ function getPartnerActivitySummary_() {
     throw new Error('Sheet "' + PARTNER_ACTIVITY_SHEET_NAME + '" not found.');
   }
 
-  const values = sheet.getDataRange().getValues();
-  if (!values || values.length <= 1) {
-    return { success: true, data: [] };
+  const hasBoundsApi = (
+    typeof sheet.getLastRow === 'function' &&
+    typeof sheet.getLastColumn === 'function' &&
+    typeof sheet.getRange === 'function'
+  );
+  let headers = [];
+  let dataRowCount = 0;
+  let refererValues = [];
+  let financeCompanyValues = [];
+
+  if (hasBoundsApi) {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    if (lastRow <= 1 || lastCol <= 0) {
+      return { success: true, data: [] };
+    }
+    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || '').trim());
+    dataRowCount = lastRow - 1;
+  } else {
+    const values = sheet.getDataRange().getValues();
+    if (!values || values.length <= 1) {
+      return { success: true, data: [] };
+    }
+    headers = values[0].map(h => String(h || '').trim());
+    dataRowCount = values.length - 1;
   }
 
-  const headers = values[0].map(h => String(h || '').trim());
   const headerLookup = headers.map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
 
   const findHeaderIndex = candidates => {
@@ -490,13 +533,21 @@ function getPartnerActivitySummary_() {
     throw new Error('Column for finance_company not found in "' + PARTNER_ACTIVITY_SHEET_NAME + '".');
   }
 
+  if (hasBoundsApi) {
+    refererValues = sheet.getRange(2, refererIdx + 1, dataRowCount, 1).getValues();
+    financeCompanyValues = sheet.getRange(2, financeCompanyIdx + 1, dataRowCount, 1).getValues();
+  } else {
+    const values = sheet.getDataRange().getValues();
+    refererValues = values.slice(1).map(row => [row && row[refererIdx]]);
+    financeCompanyValues = values.slice(1).map(row => [row && row[financeCompanyIdx]]);
+  }
+
   const totalsByReferer = {};
 
-  for (var r = 1; r < values.length; r++) {
-    const row = values[r] || [];
-    const refererRaw = row[refererIdx];
+  for (var r = 0; r < dataRowCount; r++) {
+    const refererRaw = refererValues[r] && refererValues[r][0];
     const referer = String(refererRaw || '').trim() || 'Unknown Referer';
-    const financeCompany = row[financeCompanyIdx];
+    const financeCompany = financeCompanyValues[r] && financeCompanyValues[r][0];
 
     if (!totalsByReferer[referer]) {
       totalsByReferer[referer] = {
@@ -717,8 +768,12 @@ function batchUpdate_(sheet, deals) {
     // No inserts allowed
     if (!row) { skipped++; return; }
 
-    const vals = sheet.getRange(row, 1, 1, headers.length).getValues()[0];
-    const existing = rowsToObjects_(headers, [vals])[0];
+    const existingFromIndex =
+      idx && idx.objects && idx.objects[row - 2] ? idx.objects[row - 2] : null;
+    const existing = existingFromIndex || rowsToObjects_(
+      headers,
+      [sheet.getRange(row, 1, 1, headers.length).getValues()[0]],
+    )[0];
 
     const merged = mergeInto_(existing, d);
 
@@ -728,11 +783,28 @@ function batchUpdate_(sheet, deals) {
     else merged.id = vrn;
 
     const rowVals = objectToRow_(headers, merged);
-    updates.push({ row, values: rowVals });
+    updates.push({ row, values: rowVals, seq: updates.length });
   });
 
-  updates.sort((a, b) => a.row - b.row);
-  updates.forEach(u => sheet.getRange(u.row, 1, 1, headers.length).setValues([u.values]));
+  updates.sort((a, b) => {
+    if (a.row !== b.row) return a.row - b.row;
+    return a.seq - b.seq;
+  });
+
+  for (let i = 0; i < updates.length; ) {
+    const startRow = updates[i].row;
+    const batchValues = [updates[i].values];
+    let endRow = startRow;
+    i += 1;
+    while (i < updates.length) {
+      const next = updates[i];
+      if (next.row !== endRow + 1) break;
+      batchValues.push(next.values);
+      endRow = next.row;
+      i += 1;
+    }
+    sheet.getRange(startRow, 1, batchValues.length, headers.length).setValues(batchValues);
+  }
 
   return { success: true, created: 0, updated: updates.length, skipped };
 }
@@ -997,6 +1069,88 @@ function saveVrnData_(vrn, data) {
     }
   }
   sh.appendRow([v.toUpperCase(), payload, now]);
+}
+
+function mapOneAutoVehicleData_(vrn, apiData) {
+  const result = apiData && apiData.result ? apiData.result : null;
+  if (!result) return null;
+  const financeItem =
+    result.finance_data_qty > 0 && result.finance_data_items
+      ? result.finance_data_items[0]
+      : null;
+
+  return {
+    vrn: String(vrn || '').trim().toUpperCase(),
+    make: result.dvla_manufacturer_desc || '',
+    model: result.dvla_model_desc || '',
+    year: result.manufactured_year || '',
+    finance_type: financeItem && financeItem.finance_type ? financeItem.finance_type : '',
+    finance_company: financeItem && financeItem.finance_company ? financeItem.finance_company : '',
+    finance_agreement_number:
+      financeItem && financeItem.finance_agreement_number ? financeItem.finance_agreement_number : '',
+    finance_start_date:
+      financeItem && financeItem.finance_start_date ? financeItem.finance_start_date : '',
+    finance_term_months:
+      financeItem && financeItem.finance_term_months ? financeItem.finance_term_months : '',
+    finance: financeItem,
+  };
+}
+
+function lookupOneAutoFinance_(vrn) {
+  const normalizedVrn = normVrn_(vrn || '');
+  if (!normalizedVrn) return makeError_('VALIDATION_ERROR', 'Missing or invalid VRN');
+
+  requireConfig_(['ONEAUTO_API_KEY']);
+  const apiKey = getProp_('ONEAUTO_API_KEY');
+  const url =
+    'https://api.oneautoapi.com/experian/financerecords/v3?vehicle_registration_mark=' +
+    encodeURIComponent(normalizedVrn);
+  const res = fetchWithTransientRetry_(
+    url,
+    {
+      method: 'get',
+      headers: { 'x-api-key': apiKey },
+      muteHttpExceptions: true,
+    },
+    3,
+  );
+  const status = res.getResponseCode();
+  const bodyText = res.getContentText();
+
+  if (status === 204) {
+    return makeError_('NOT_FOUND', 'Vehicle not found via API.');
+  }
+  if (status < 200 || status >= 300) {
+    return makeError_('EXTERNAL_API_ERROR', 'Vehicle lookup failed.', { status: status });
+  }
+
+  let apiData;
+  try {
+    apiData = JSON.parse(bodyText);
+  } catch (_e) {
+    return makeError_('EXTERNAL_API_ERROR', 'Vehicle lookup returned invalid JSON.');
+  }
+
+  if (!apiData || !apiData.success || !apiData.result) {
+    const message =
+      apiData &&
+      apiData.error &&
+      typeof apiData.error === 'object' &&
+      apiData.error.message
+        ? String(apiData.error.message)
+        : apiData && apiData.error
+          ? String(apiData.error)
+          : 'Vehicle not found via API.';
+    return makeError_('NOT_FOUND', message);
+  }
+
+  const vehicleData = mapOneAutoVehicleData_(normalizedVrn, apiData);
+  if (!vehicleData) {
+    return makeError_('NOT_FOUND', 'Vehicle not found via API.');
+  }
+
+  saveVrnData_(normalizedVrn, vehicleData);
+  return { success: true, data: vehicleData, source: 'oneauto' };
 }
 
 // ------------------------- Jigsaw auth/token
