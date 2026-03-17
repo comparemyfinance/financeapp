@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "Tooling for formatting and CI checks",
   "scripts": {
-    "dev": "live-server",
     "sanity": "node scripts/sanity-check.mjs",
     "format": "prettier --write \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "format:check": "prettier --check \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",

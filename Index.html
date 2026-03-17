@@ -95,7 +95,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
         :root { --british-racing-green: #004225; --pale-green: #F0FFF0; --pale-green-darker: #e6f5e6; --gold-orange: #FF8C00; }
         body { font-family: 'Poppins', sans-serif; overflow: hidden; }
@@ -526,7 +526,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
   /* UI tweaks */
   .logout-icon{ color:#dc2626 !important; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js" type="module"></script><style>
+<style>
 .kanban-card, .kanban-card * { box-sizing: border-box; }
 
 /* Tighter vertical rhythm inside Kanban cards */
@@ -4409,10 +4409,30 @@ const handleVrnLookup = async () => {
                     setTxt('vrn-status', 'Could not check database. Proceeding to API.');
                 }
                 setTxt('vrn-status', 'Not in database. Checking external API...');
-                try {
-                    const apiResult = await postPseAction('lookupOneAutoFinance', { vrn });
-                    if (apiResult.success && apiResult.data) {
-                        const vehicleData = apiResult.data;
+                    try {
+                    const apiResponse = await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'lookupVrnFinanceRecords', payload: { vrn } })
+                    });
+                    const apiData = await apiResponse.json();
+                    if (!apiData.success || !apiData.result) throw new Error(apiData.error || 'Vehicle not found via API.');
+                    if (apiData.success && apiData.result) {
+                        const financeItem = (apiData.result.finance_data_qty > 0 && apiData.result.finance_data_items) ? apiData.result.finance_data_items[0] : null;
+                        const vehicleData = {
+                            vrn: vrn,
+                            make: apiData.result.dvla_manufacturer_desc || '',
+                            model: apiData.result.dvla_model_desc || '',
+                            year: apiData.result.manufactured_year || '',
+                            finance_type: financeItem?.finance_type || '',
+                            finance_company: financeItem?.finance_company || '',
+                            finance_agreement_number: financeItem?.finance_agreement_number || '',
+                            finance_start_date: financeItem?.finance_start_date || '',
+                            finance_term_months: financeItem?.finance_term_months || '',
+                            finance: financeItem
+                        };
+                        try {
+                             await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'saveVrnData', payload: vehicleData }) });
+                        } catch(e) { console.error("Failed to save new VRN data to sheet:", e); }
                         populateFormWithData(vehicleData, 'Vehicle found via API!');
                         setTxt('vrn-status', getEl('vrn-status').textContent + (vehicleData.finance ? ' Finance details pre-filled & saved.' : ' No finance record found. Saved vehicle details.'));
                     } else { throw new Error('Vehicle not found via API.'); }
@@ -4655,66 +4675,38 @@ const handleVrnLookup = async () => {
                   };
                   const formatCurrency = val => `£${(parseFloat(val) || 0).toFixed(2)}`;
                   const getSelectedText = el => (el && el.selectedIndex !== -1 && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
-                  const safeText = (value, fallback = '') => {
-                      const raw = value == null ? '' : String(value);
-                      return escapeHtml(raw || fallback);
-                  };
-                  const safeMultiline = (value, fallback = '') => {
-                      const raw = value == null ? '' : String(value);
-                      return escapeHtml(raw || fallback).replace(/\r?\n/g, '<br>');
-                  };
+                  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+                  const asSafeText = (value) => escapeHtml(String(value ?? '').trim());
+                  const asSafeMultiline = (value) => asSafeText(value).replace(/\n/g, '<br>');
                   const updateLetterPreview = () => {
                       const get = (id) => getVal(id) || `[${id.split('_').slice(1).join(' ')}]`;
                       const getSafe = (id) => safeText(get(id));
                       const d = {
-                    staffName: getSafe('ltr_staff-name'),
-                    letterDate: safeText(formatDate(getVal('ltr_letter-date'))),
-                    illustrativeDate: safeText(formatDate(window.sourceSheetReceivedDate || '')),
-                    refNum: getSafe('ltr_reference-number'),
-                    currentRemainingTerm: safeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
-                    clientName: getSafe('ltr_client-name'),
-                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map((part) => safeText(part)).join('<br>'),
-                    vrn: safeText(getVal('vrn')?.toUpperCase() || '[VRN]'),
-                    vehicle: safeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`.trim()),
-                    currentLender: getSafe('ltr_current-lender'),
-                    currentFinanceType: safeText(getSelectedText(getEl('ltr_current-finance-type'))),
-                    currentVehiclePrice: safeText(formatCurrency(getVal('ltr_current-vehicle-price'))),
-                    currentDeposit: safeText(formatCurrency(getVal('ltr_current-deposit'))),
-                    currentApr: safeText(`${getVal('ltr_current-apr') || ''}%`),
-                    currentTerm: safeText(`${getVal('ltr_current-term') || ''} months`),
-                    currentMonthlyPayment: safeText(formatCurrency(getVal('ltr_current-monthly-payment'))),
-                    currentBalloon: safeText(formatCurrency(getVal('ltr_current-balloon'))),
-                    currentAgreementStartDate: safeText(formatDate(getVal('ltr_current-agreement-start-date'))),
-                    currentPaymentsMade: safeText(getVal('ltr_current-payments-made')),
-                    currentSettlementFigure: safeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)),
-                    currentAgreementNumber: safeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
-                    currentTotalPayable: '[Current total payable]',
-                    newLenderName: getSafe('ltr_new-lender-name'),
-                    newTermType: safeText(getSelectedText(getEl('ltr_new-term-type'))),
-                    newFinanceAmount: safeText(formatCurrency(getVal('ltr_new-finance-amount'))),
-                    newAdditionalCash: safeText(formatCurrency(getVal('ltr_new-additional-cash'))),
-                    newAmountToFinance: safeText(formatCurrency(window.sourceSheetSettlementTotal || '')),
-                    newDeposit: safeText(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
-                    newApr: safeText(`${getVal('ltr_new-apr') || ''}%`),
-                    newTerm: safeText(`${getVal('ltr_new-term') || ''} months`),
-                    newMonthlyPayment: safeText(formatCurrency(getVal('ltr_new-monthly-payment'))),
-                    newBalloon: safeText(formatCurrency(getVal('ltr_new-balloon'))),
-                    newTotalPayable: '[New total payable]',
-                    earlyRepaymentChargesPaid: safeText(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
-                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${safeText(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
-                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${safeText(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
-                    freeTextNeeds: safeMultiline(getVal('ltr_client-demands-needs')),
-                    howMet: safeMultiline(getVal('ltr_how-option-meets-needs'), '[Client to specify...]'),
-                    termChoice: getVal('ltr_term-change-choice'),
-                    termExtReason: safeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
-                    termRedReason: safeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
-                    otherChoices: safeMultiline(getVal('ltr_client-specific-choices-rationale'), 'No other specific choices noted.'),
-                    commission: safeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
-                    coTrading: getSafe('ltr_company-trading-name'), coLegal: getSafe('ltr_company-legal-name'), coAddr1: getSafe('ltr_company-address1'), coAddr2: getSafe('ltr_company-address2'),
-                    coPostcode: getSafe('ltr_company-postcode'), coEmail: getSafe('ltr_company-email'), coFca: getSafe('ltr_company-fca-number'), coReg: getSafe('ltr_company-number'),
-                    employmentSummary: safeText(getVal('ltr_employment-summary'), '[Summary, e.g. employed / self-employed / other]'),
-                    timeInEmployment: safeText(getVal('ltr_time-in-employment'), '[time in employment current]'),
-                    netIncomeMonthly: safeText(getVal('ltr_net-income-monthly'), '[net monthly income]'),
+                    staffName: asSafeText(get('ltr_staff-name')),
+                    letterDate: asSafeText(formatDate(getVal('ltr_letter-date'))),
+                    illustrativeDate: asSafeText(formatDate(window.sourceSheetReceivedDate || '')),
+                    refNum: asSafeText(get('ltr_reference-number')),
+                    currentRemainingTerm: asSafeText(window.sourceSheetTerm ? `${window.sourceSheetTerm} months` : ''),
+                    clientName: asSafeText(get('ltr_client-name')),
+                    clientAddr: [get('ltr_client-address-street'), get('ltr_client-address-town'), get('ltr_client-address-postcode')].map(asSafeText).join('<br>'),
+                    vrn: asSafeText(getVal('vrn')?.toUpperCase() || '[VRN]'), vehicle: asSafeText(`${getVal('vehicle-year') || ''} ${getVal('vehicle-make') || ''} ${getVal('vehicle-model') || ''}`),
+                    currentLender: asSafeText(get('ltr_current-lender')), currentFinanceType: asSafeText(getSelectedText(getEl('ltr_current-finance-type'))), currentVehiclePrice: asSafeText(formatCurrency(getVal('ltr_current-vehicle-price'))),
+                    currentDeposit: asSafeText(formatCurrency(getVal('ltr_current-deposit'))), currentApr: asSafeText(`${getVal('ltr_current-apr')}%`), currentTerm: asSafeText(`${getVal('ltr_current-term')} months`),
+                    currentMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_current-monthly-payment'))), currentBalloon: asSafeText(formatCurrency(getVal('ltr_current-balloon'))),
+                    currentAgreementStartDate: asSafeText(formatDate(getVal('ltr_current-agreement-start-date'))), currentPaymentsMade: asSafeText(getVal('ltr_current-payments-made')),
+                    currentSettlementFigure: asSafeText(formatCurrency(window.illustratorResultsData.currentSettlementFigure)), currentAgreementNumber: asSafeText(window.illustratorResultsData.currentAgreementNumber || '[Agreement Number]'),
+                    newLenderName: asSafeText(get('ltr_new-lender-name')), newTermType: asSafeText(getSelectedText(getEl('ltr_new-term-type'))), newFinanceAmount: asSafeText(formatCurrency(getVal('ltr_new-finance-amount'))), newAdditionalCash: asSafeText(formatCurrency(getVal('ltr_new-additional-cash'))), newAmountToFinance: asSafeText(formatCurrency(window.sourceSheetSettlementTotal || '')), newDeposit: asSafeText(formatCurrency(getVal('deposit-paid') || getVal('ltr_current-deposit') || '')),
+                    newApr: asSafeText(`${getVal('ltr_new-apr')}%`), newTerm: asSafeText(`${getVal('ltr_new-term')} months`), newMonthlyPayment: asSafeText(formatCurrency(getVal('ltr_new-monthly-payment'))), newBalloon: asSafeText(formatCurrency(getVal('ltr_new-balloon'))),
+                    earlyRepaymentChargesPaid: asSafeText(formatCurrency(getVal('ltr_early-repayment-charges-paid'))),
+                    primaryNeed: getEl('ltr_primary-demand-need')?.value ? `You stated your primary need was: ${asSafeText(getSelectedText(getEl('ltr_primary-demand-need')))}.<br>` : '',
+                    secondaryNeed: getEl('ltr_secondary-demand-need')?.value ? `Additionally, you mentioned a secondary need: ${asSafeText(getSelectedText(getEl('ltr_secondary-demand-need')))}.<br>` : '',
+                    freeTextNeeds: asSafeMultiline(getVal('ltr_client-demands-needs')), howMet: asSafeMultiline(getVal('ltr_how-option-meets-needs') || '[Client to specify...]'),
+                    termChoice: getVal('ltr_term-change-choice'), termExtReason: asSafeText(getVal('ltr_term-extension-reason') === 'Other' ? getVal('ltr_term-extension-reason-other') : getSelectedText(getEl('ltr_term-extension-reason'))),
+                    termRedReason: asSafeText(getVal('ltr_term-reduction-reason') === 'Other' ? getVal('ltr_term-reduction-reason-other') : getSelectedText(getEl('ltr_term-reduction-reason'))),
+                    otherChoices: asSafeMultiline(getVal('ltr_client-specific-choices-rationale') || 'No other specific choices noted.'),
+                    commission: asSafeText(formatCurrency(window.illustratorResultsData.estimatedCommission)),
+                    coTrading: asSafeText(get('ltr_company-trading-name')), coLegal: asSafeText(get('ltr_company-legal-name')), coAddr1: asSafeText(get('ltr_company-address1')), coAddr2: asSafeText(get('ltr_company-address2')),
+                    coPostcode: asSafeText(get('ltr_company-postcode')), coEmail: asSafeText(get('ltr_company-email')), coFca: asSafeText(get('ltr_company-fca-number')), coReg: asSafeText(get('ltr_company-number')),
                 };
                 let termChangeHTML = '';
                 if (d.termChoice === 'extend' && d.termExtReason) termChangeHTML = `<p>You informed us that you wished to extend the term of your finance to ${d.newTerm}. You stated your reason for this decision was: ${d.termExtReason}.</p>`;
@@ -6210,7 +6202,12 @@ buildDraft({ dealId, deal, formData }) {
                 },
                 bindEvents() {
                     const debounce = (func, delay) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => func.apply(this, args), delay); }; };
-                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => { this.ui.switchView(tab.dataset.view); this.loadData(); }));
+                    this.elements.navTabs.forEach(tab => on(tab, 'click', () => {
+                        const targetView = tab.dataset.view;
+                        this.ui.switchView(targetView);
+                        if (this.state.isInitialDataLoading) return;
+                        if (this.state.hasCompletedInitialLoad && targetView === 'pipeline') this.loadData();
+                    }));
                     on(getEl('addStageBtn'), 'click', () => this.ui.addStageInput());
                     on(getEl('saveStages'), 'click', () => this.handlers.saveStages());
                     on(getEl('cancelStages'), 'click', () => this.ui.closeModal('manageStages'));
@@ -8058,7 +8055,7 @@ col.querySelector('.deal-list').appendChild(cardEl);
                         const { contactsList } = App.elements;
                         const { key: sortKey, direction } = App.state.sortState;
                         contactsList.innerHTML = '';
-                        let dealsToRender = deals || App.state.deals;
+                        let dealsToRender = Array.isArray(deals) ? [...deals] : [...(App.state.deals || [])];
                         if (!dealsToRender.length) return contactsList.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-8">No contacts found.</td></tr>`;
                         dealsToRender.sort((a, b) => {
                             const valA = a[sortKey], valB = b[sortKey];

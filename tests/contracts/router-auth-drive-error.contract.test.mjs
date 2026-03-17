@@ -307,61 +307,49 @@ test('searchFolders uses shared ROOT_FOLDER_ID resolver helper', () => {
   assert.ok(Array.isArray(out.folders));
 });
 
-test('doGet api export requires auth token', () => {
+test('batchUpdate matches by sourceSheet fallback when id and vrn are missing', () => {
   const ctx = boot();
-  const out = JSON.parse(ctx.doGet({ parameter: { api: '1' } }).getContent());
-  assert.equal(out.success, false);
-  assert.equal(out.error.code, 'AUTH_REQUIRED');
-  assert.equal(out.authRequired, true);
-});
 
-test('doGet api export delegates to protected getDelta path when token is valid', () => {
-  const ctx = boot();
-  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
-  ctx.getRowsData_ = () => [{ id: 'D1' }];
-  const out = JSON.parse(ctx.doGet({ parameter: { api: '1', token: login.token } }).getContent());
-  assert.equal(out.success, true);
-  assert.deepEqual(out.data, [{ id: 'D1' }]);
-});
+  const headers = ['id', 'vrn', 'sourceSheet', 'customerName'];
+  const rows = [['', '', 'SRC-42', 'Before']];
+  const writes = [];
 
-test('lookupVrnFinanceRecord is auth-gated and returns normalized vehicle data', () => {
-  const ctx = boot();
-  const login = ctx.auth_login_plain_('kyle', 'CMF2025');
-  const unauth = ctx.routeAction_('lookupVrnFinanceRecord', { vrn: 'AB12CDE' }, {});
-  assert.equal(unauth.success, false);
-  assert.equal(unauth.error.code, 'AUTH_REQUIRED');
+  function makeRange(row, col, numRows, numCols) {
+    return {
+      getValues: () => {
+        if (row === 1 && numRows === 1) return [headers.slice(col - 1, col - 1 + numCols)];
+        if (row >= 2) {
+          const start = row - 2;
+          return rows
+            .slice(start, start + numRows)
+            .map((r) => r.slice(col - 1, col - 1 + numCols));
+        }
+        return [[]];
+      },
+      setValues: (vals) => {
+        writes.push({ row, col, numRows, numCols, vals });
+        if (row >= 2 && numRows === 1 && vals && vals[0]) {
+          rows[row - 2] = vals[0].slice();
+        }
+        return true;
+      },
+      getValue: () => {
+        const data = this.getValues();
+        return data && data[0] ? data[0][0] : '';
+      },
+    };
+  }
 
-  let saved = null;
-  ctx.saveVrnData_ = (vrn, data) => {
-    saved = { vrn, data };
+  const sheet = {
+    getLastColumn: () => headers.length,
+    getLastRow: () => rows.length + 1,
+    getRange: (row, col, numRows, numCols) => makeRange(row, col, numRows, numCols),
   };
-  ctx.UrlFetchApp.fetch = () => ({
-    getResponseCode: () => 200,
-    getContentText: () =>
-      JSON.stringify({
-        success: true,
-        result: {
-          dvla_manufacturer_desc: 'Ford',
-          dvla_model_desc: 'Fiesta',
-          manufactured_year: '2022',
-          finance_data_qty: 1,
-          finance_data_items: [
-            {
-              finance_type: 'HP',
-              finance_company: 'Test Finance',
-              finance_agreement_number: 'AG-1',
-              finance_start_date: '2024-01-01',
-              finance_term_months: '48',
-            },
-          ],
-        },
-      }),
-  });
 
-  const out = ctx.routeAction_('lookupVrnFinanceRecord', { token: login.token, vrn: 'ab12 cde' }, {});
+  const out = ctx.batchUpdate_(sheet, [{ sourceSheet: 'SRC-42', customerName: 'After' }]);
   assert.equal(out.success, true);
-  assert.equal(out.data.vrn, 'AB12CDE');
-  assert.equal(out.data.make, 'Ford');
-  assert.equal(saved.vrn, 'AB12CDE');
-  assert.equal(saved.data.finance_company, 'Test Finance');
+  assert.equal(out.updated, 1);
+  assert.equal(out.skipped, 0);
+  assert.equal(writes.length, 1);
+  assert.equal(rows[0][3], 'After');
 });

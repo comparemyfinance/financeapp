@@ -9,8 +9,8 @@ const requiredFiles = ['Code.gs', 'Index.html', 'appsscript.json'];
 
 const missingFiles = requiredFiles.filter((file) => !fs.existsSync(path.join(repoRoot, file)));
 
-if (missingFiles.length > 0) {
-  console.error(`Missing required project files: ${missingFiles.join(', ')}`);
+if (missingFiles.length) {
+  console.error(`Sanity check failed. Missing required files: ${missingFiles.join(', ')}`);
   process.exit(1);
 }
 
