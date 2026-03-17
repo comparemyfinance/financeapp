@@ -5,7 +5,7 @@
 This project runs as a **Google Apps Script Web App** (V8 runtime).
 
 - Entry surface: `Code.gs`
-  - `doGet` (UI + optional API GET)
+  - `doGet` (UI shell; authenticated GET compatibility only)
   - `doPost` (HTTP POST API)
   - `handleWebClientRequest` (Apps Script bridge for `google.script.run`)
 - Router and action ownership: `server/router/actions.gs`

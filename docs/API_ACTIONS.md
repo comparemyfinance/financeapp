@@ -17,6 +17,10 @@ This file documents the **current runtime action surface**.
 
 - Apps Script UI/internal calls: `google.script.run.handleWebClientRequest({ action, payload })`
 - HTTP calls: `POST` body with `{ action, payload }`, parsed by `doPost` and delegated to `routeAction_`
+- Read-only GET export path: `GET doGet?api=1&token=...`
+  - Requires a valid auth token in the query string.
+  - Returns the raw deals array on success.
+  - Returns the canonical error envelope on auth/config failure.
 
 ## Response envelope (current)
 
@@ -75,6 +79,8 @@ Router alias normalization in `normalizeAction_`:
 - `searchFolders`
 - `getFolderFiles`
 - `getDelta`
+- `getVrnData`
+- `lookupOneAutoFinance`
 - `validateJigsaw`
 - `submitJigsaw`
 - `validateLenderApplication`
@@ -85,8 +91,9 @@ Router alias normalization in `normalizeAction_`:
 
 ## Config-sensitive actions
 
-- Spreadsheet-dependent: `getDelta`, `getPartnerActivitySummary`, `save`, `delete`, `batchUpdate`
+- Spreadsheet-dependent: `getDelta`, `getPartnerActivitySummary`, `save`, `delete`, `batchUpdate`, `getVrnData`
 - Drive root-dependent: `searchFolders`
+- OneAuto credential-dependent: `lookupOneAutoFinance`
 
 If required config is missing, handlers should preserve specific safe messages such as:
 

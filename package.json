@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Tooling for formatting and CI checks",
   "scripts": {
-    "sanity": "test -f Code.gs && test -f Index.html && test -f appsscript.json",
+    "sanity": "node scripts/sanity-check.mjs",
     "format": "prettier --write \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "format:check": "prettier --check \"*.md\" \"docs/**/*.md\" \"*.json\" \".github/**/*.yml\"",
     "validate:syntax": "node scripts/validate-syntax.mjs",
@@ -12,10 +12,11 @@
     "test": "npm run sanity && npm run validate:syntax && npm run validate:gas-runtime && npm run test:behavioral",
     "hooks:install": "git config core.hooksPath .githooks",
     "check:merge-conflicts": "node scripts/check-merge-conflicts.mjs",
-    "test:behavioral": "node --test tests/contracts tests/smoke",
+    "test:behavioral": "node scripts/run-behavioral-tests.mjs",
     "validate:gas-runtime": "node scripts/validate-gas-runtime.mjs"
   },
   "devDependencies": {
+    "live-server": "^1.2.2",
     "prettier": "^3.6.2"
   }
 }
