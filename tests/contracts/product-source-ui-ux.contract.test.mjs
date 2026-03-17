@@ -24,18 +24,48 @@ for (const file of templates) {
     );
     assert.match(
       html,
-      /id="lenderAppValidateBtn"[\s\S]*id="lenderAppPayloadJson"/,
-      'expected Validate button to appear before payload content in modal markup',
+      /lenderAppStatus[\s\S]{0,900}lenderAppValidateBtn|lenderAppValidateBtn[\s\S]{0,900}lenderAppStatus/,
+      'expected status area to sit beside or near Validate in modal wiring',
     );
     assert.match(
       html,
       /lender-app-modal-body[\s\S]*modal-body-scroll[\s\S]*flex-1/,
       'expected body area to scroll internally',
     );
+    assert.match(
+      html,
+      /lenderAppStatusMessage[\s\S]{0,200}lenderAppStatusSteps/,
+      'expected modal status panel to include message and step log regions',
+    );
+    assert.match(
+      html,
+      /renderLenderModalStatus\([\s\S]{0,200}buildLenderModalPendingSteps/,
+      'expected Validate flow to render pending status steps',
+    );
+    assert.match(
+      html,
+      /Array\.isArray\(res\.steps\) && res\.steps\.length[\s\S]{0,220}res && \(res\.operatorMessage \|\| res\.message/,
+      'expected Validate flow to render returned status steps and operator message',
+    );
+    assert.match(
+      html,
+      /selectedLender,\s*payload:\s*dealPayload/,
+      'expected lender modal Validate flow to pass raw payload to backend normalizer',
+    );
     assert.doesNotMatch(
       html,
       /id="lenderAppSaveBtn"/,
       'expected Save Draft button to be removed from lender apply modal',
+    );
+    assert.match(
+      html,
+      /const LENDER_MODAL_LOGO_URLS = \{/,
+      'expected lender modal logo registry to exist',
+    );
+    assert.match(
+      html,
+      /finclusion:[\s\S]*alphera:[\s\S]*jigsaw:[\s\S]*cf247:[\s\S]*motonovo:/,
+      'expected lender modal logo registry to include mapped lender entries',
     );
   });
 }

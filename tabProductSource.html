@@ -2623,6 +2623,197 @@
           const overlay = getEl("productSourceOverlay");
           if (overlay) overlay.classList.toggle("hidden", !isVisible);
         };
+        const LENDER_MODAL_LOGO_URLS = {
+          finclusion: "https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle",
+          alphera: "https://lh3.googleusercontent.com/d/1enDc6in13kRwGCLEEpIb3Tv448UY4mzO",
+          jigsaw: "https://lh3.googleusercontent.com/d/1d6RHaxg2sZrbQvsQHpn3dahJQa-MdJKq",
+          cf247: "https://lh3.googleusercontent.com/d/1peE5C6blsjVB6QYQzncWoJ2DCpGmwL0G",
+          carmoney: "https://lh3.googleusercontent.com/d/1CZ335Wd6rb1DdSm0huddK_OPiv2Y-fVR",
+          vwfs: "https://lh3.googleusercontent.com/d/1mxHiRlJtYzRePhHET1J-iyRpKA7rSGMX",
+          volkswagenfinancial: "https://lh3.googleusercontent.com/d/1mxHiRlJtYzRePhHET1J-iyRpKA7rSGMX",
+          blackhorse: "https://lh3.googleusercontent.com/d/1eVzeMs5W68A5xf3gN-tO72OFomFa1Di7",
+          gocarcredit: "https://lh3.googleusercontent.com/d/1AFmACCHVoahMbWtK0sW-tdVYudWMfDEk",
+          billing: "https://lh3.googleusercontent.com/d/1AFmACCHVoahMbWtK0sW-tdVYudWMfDEk",
+          advantage: "https://lh3.googleusercontent.com/d/16GzxiKU9FbBZyWMcadB1wj3eV2t5sys-",
+          moneybarn: "https://lh3.googleusercontent.com/d/14myn6YIIOGSqAE3jCaYEMOjgmGpYSaW6",
+          moneyway: "https://lh3.googleusercontent.com/d/1cIyq55IPebKqKpLfjE8LropFutgoaBoW",
+          startline: "https://lh3.googleusercontent.com/d/1z8Z3_JFsssTl0bxsZC4hjFS_9lk0WUA-",
+          oodle: "https://lh3.googleusercontent.com/d/1EFLkjmC6C0k2zlbt40U3NYkKSgQU4gBI",
+          tandem: "https://lh3.googleusercontent.com/d/134K2X1Ou33OZORGabAoaRcz0todGTR8l",
+          zopa: "https://lh3.googleusercontent.com/d/1zi0dI4wpHUtzMjfKeSeoTb2SG6KC80jT",
+          v12: "https://lh3.googleusercontent.com/d/1iS5OLPrVpQRvIOquUg1n3xK1DZD8gnr1",
+          creditagricole: "https://lh3.googleusercontent.com/d/1_x1GkqdFjnN7_Vt-qlOowdrOE6rQwk3P",
+          closebrothers: "https://lh3.googleusercontent.com/d/1HfSlIspZm6kh_JFmhSBjVqby98i9GDoD",
+          northridge: "https://lh3.googleusercontent.com/d/1dyqNIWiKs89r6WzeNLZmubhOC0DRC_Ls",
+          lendable: "https://lh3.googleusercontent.com/d/1nNe3TsxA2zgmrJ1bGghl4u0v053w9JIY",
+          bnpparibas: "https://lh3.googleusercontent.com/d/1j5DD-R8mQ5B02U-qR4tnr8FSPaQ0C6IP",
+          motonovo: "https://lh3.googleusercontent.com/d/1PjzFxzAT9WFmuOlAbb-voHNUGeJD_Imv",
+        };
+        const LENDER_MODAL_DEFAULT_LOGO_URL =
+          "https://lh3.googleusercontent.com/d/1zESgE9OpS1KcJapsFvvwcVyr2Ogykz2j";
+        const buildLenderModalPendingSteps = (selectedLender) => [
+          {
+            key: "start",
+            label: "Validation started",
+            status: "completed",
+            message: `Preparing ${selectedLender} payload`,
+          },
+          {
+            key: "process",
+            label: "Awaiting validation response",
+            status: "active",
+            message: `Running validation for ${selectedLender}`,
+          },
+        ];
+        const buildLenderModalFallbackSteps = (selectedLender, ok, message) => [
+          {
+            key: "start",
+            label: "Validation started",
+            status: "completed",
+            message: `Request sent for ${selectedLender}`,
+          },
+          {
+            key: "result",
+            label: ok ? "Validation complete" : "Validation failed",
+            status: ok ? "completed" : "failed",
+            message:
+              message ||
+              (ok
+                ? `${selectedLender} validation completed`
+                : `${selectedLender} validation failed`),
+          },
+        ];
+        const getLenderModalStepMeta = (status) => {
+          switch (String(status || "").toLowerCase()) {
+            case "completed":
+            case "success":
+              return {
+                badge: "DONE",
+                classes: "border-green-200 bg-green-50 text-green-700",
+              };
+            case "active":
+            case "processing":
+            case "in_progress":
+              return {
+                badge: "LIVE",
+                classes: "border-blue-200 bg-blue-50 text-blue-700",
+              };
+            case "blocked":
+              return {
+                badge: "HOLD",
+                classes: "border-amber-200 bg-amber-50 text-amber-700",
+              };
+            case "failed":
+            case "error":
+              return {
+                badge: "FAIL",
+                classes: "border-red-200 bg-red-50 text-red-700",
+              };
+            default:
+              return {
+                badge: "INFO",
+                classes: "border-slate-200 bg-slate-50 text-slate-700",
+              };
+          }
+        };
+        const clearLenderModalStatus = () => {
+          const statusEl = getEl("lenderAppStatus");
+          const messageEl = getEl("lenderAppStatusMessage");
+          const operatorEl = getEl("lenderAppStatusOperator");
+          const stepsEl = getEl("lenderAppStatusSteps");
+          if (!statusEl || !messageEl || !operatorEl || !stepsEl) return;
+          statusEl.classList.add("hidden");
+          statusEl.classList.remove(
+            "border-slate-200",
+            "bg-slate-50",
+            "text-slate-700",
+            "border-green-200",
+            "bg-green-50",
+            "text-green-700",
+            "border-red-200",
+            "bg-red-50",
+            "text-red-700",
+          );
+          messageEl.textContent = "";
+          operatorEl.textContent = "";
+          operatorEl.classList.add("hidden");
+          stepsEl.replaceChildren();
+        };
+        const renderLenderModalStatus = (
+          message,
+          level,
+          steps,
+          operatorMessage,
+        ) => {
+          const statusEl = getEl("lenderAppStatus");
+          const messageEl = getEl("lenderAppStatusMessage");
+          const operatorEl = getEl("lenderAppStatusOperator");
+          const stepsEl = getEl("lenderAppStatusSteps");
+          if (!statusEl || !messageEl || !operatorEl || !stepsEl) return;
+
+          const tone =
+            level === "success"
+              ? ["border-green-200", "bg-green-50", "text-green-700"]
+              : level === "error"
+                ? ["border-red-200", "bg-red-50", "text-red-700"]
+                : ["border-slate-200", "bg-slate-50", "text-slate-700"];
+
+          statusEl.classList.remove(
+            "hidden",
+            "border-slate-200",
+            "bg-slate-50",
+            "text-slate-700",
+            "border-green-200",
+            "bg-green-50",
+            "text-green-700",
+            "border-red-200",
+            "bg-red-50",
+            "text-red-700",
+          );
+          statusEl.classList.add(...tone);
+          messageEl.textContent = message || "";
+
+          const operatorText =
+            operatorMessage && operatorMessage !== message ? operatorMessage : "";
+          operatorEl.textContent = operatorText;
+          operatorEl.classList.toggle("hidden", !operatorText);
+
+          stepsEl.replaceChildren();
+          (Array.isArray(steps) ? steps : []).forEach((step) => {
+            const meta = getLenderModalStepMeta(step && step.status);
+            const row = document.createElement("div");
+            row.className = "flex items-start gap-2";
+
+            const badge = document.createElement("span");
+            badge.className =
+              "inline-flex min-w-[3.6rem] items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide " +
+              meta.classes;
+            badge.textContent = meta.badge;
+
+            const body = document.createElement("div");
+            body.className = "min-w-0";
+
+            const title = document.createElement("div");
+            title.className = "font-medium leading-5";
+            title.textContent =
+              (step && (step.label || step.key)) || "Validation step";
+            body.appendChild(title);
+
+            const detailParts = [];
+            if (step && step.providerId) detailParts.push(String(step.providerId));
+            if (step && step.message) detailParts.push(String(step.message));
+            if (detailParts.length) {
+              const detail = document.createElement("div");
+              detail.className = "text-[11px] leading-4 opacity-80";
+              detail.textContent = detailParts.join(" - ");
+              body.appendChild(detail);
+            }
+
+            row.appendChild(badge);
+            row.appendChild(body);
+            stepsEl.appendChild(row);
+          });
+        };
         const ensureLenderAppModal = () => {
           let modal = getEl("lenderAppModal");
           if (modal) return modal;
@@ -2634,12 +2825,19 @@
                     <img id="lenderAppLogo" alt="Lender logo" class="w-10 h-10 rounded-md border border-gray-200 object-contain bg-white" src="https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle"/>
                     <h2 class="text-xl font-bold truncate min-w-0" id="lenderAppTitle">Lender Application</h2>
                   </div>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" id="lenderAppValidateBtn" class="bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg hover:bg-blue-700">Validate</button>
-                    <button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button">
-                      <span>Close</span>
-                      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span>
-                    </button>
+                  <div class="flex flex-col gap-2 shrink-0 sm:flex-row sm:items-start">
+                    <div id="lenderAppStatus" class="hidden min-w-[260px] max-w-[340px] rounded-lg border px-3 py-2 text-sm">
+                      <div id="lenderAppStatusMessage" class="font-semibold text-sm text-gray-900"></div>
+                      <div id="lenderAppStatusOperator" class="mt-1 hidden text-xs text-gray-600"></div>
+                      <div id="lenderAppStatusSteps" class="mt-2 space-y-1 text-xs"></div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <button type="button" id="lenderAppValidateBtn" class="bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg hover:bg-blue-700">Validate</button>
+                      <button class="flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white shadow-sm hover:bg-gray-50" id="closeLenderAppModal" type="button">
+                        <span>Close</span>
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-50"><i class="fas fa-times text-red-600"></i></span>
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div class="lender-app-modal-body p-6 space-y-6 modal-content modal-body-scroll flex-1">
@@ -2652,7 +2850,6 @@
                     <div class="px-4 py-2 border-b font-semibold">Active client payload (same source path as Application modal)</div>
                     <pre id="lenderAppPayloadJson" class="p-4 text-xs overflow-auto bg-gray-50">Loading…</pre>
                   </div>
-                  <div id="lenderAppStatus" class="hidden rounded-lg border px-3 py-2 text-sm"></div>
                 </div>
               </div>
             </div>`;
@@ -2664,31 +2861,6 @@
             if (e.target === modal) modal.classList.add("hidden");
           });
 
-          const setLenderModalStatus = (message, level) => {
-            const statusEl = getEl("lenderAppStatus");
-            if (!statusEl) return;
-            statusEl.classList.remove(
-              "hidden",
-              "border-gray-200",
-              "bg-gray-50",
-              "text-gray-700",
-              "border-red-200",
-              "bg-red-50",
-              "text-red-700",
-              "border-green-200",
-              "bg-green-50",
-              "text-green-700",
-            );
-            if (level === "error") {
-              statusEl.classList.add("border-red-200", "bg-red-50", "text-red-700");
-            } else if (level === "success") {
-              statusEl.classList.add("border-green-200", "bg-green-50", "text-green-700");
-            } else {
-              statusEl.classList.add("border-gray-200", "bg-gray-50", "text-gray-700");
-            }
-            statusEl.textContent = message || "";
-          };
-
           const validateBtn = getEl("lenderAppValidateBtn");
           if (validateBtn)
             on(validateBtn, "click", async () => {
@@ -2696,10 +2868,14 @@
               const selectedLender = modalState.selectedLender || "Lender";
               const selectedPayload = modalState.payloadJson || null;
               if (!(window.App && typeof App.apiCall === "function")) {
-                setLenderModalStatus(
-                  `${selectedLender} validation unavailable: API client missing`,
+                const msg = `${selectedLender} validation unavailable: API client missing`;
+                renderLenderModalStatus(
+                  msg,
                   "error",
+                  buildLenderModalFallbackSteps(selectedLender, false, msg),
+                  "API client missing",
                 );
+                showToast(msg, "error");
                 return;
               }
               let token = "";
@@ -2708,9 +2884,11 @@
               } catch (e) {}
               validateBtn.disabled = true;
               validateBtn.classList.add("opacity-60", "cursor-not-allowed");
-              setLenderModalStatus(
-                `Validating ${selectedLender} using placeholder rules...`,
+              renderLenderModalStatus(
+                `${selectedLender} validation started`,
                 "info",
+                buildLenderModalPendingSteps(selectedLender),
+                "Running validation request",
               );
               try {
                 const dealPayload =
@@ -2725,19 +2903,35 @@
                   payload: {
                     token,
                     selectedLender,
-                    deal: dealPayload,
+                    payload: dealPayload,
                   },
                 });
                 const ok = !!(res && res.success);
                 const statusMessage =
                   (res && res.statusMessage) ||
                   `${selectedLender} ${ok ? "validation successful" : "validation failed"}`;
-                setLenderModalStatus(statusMessage, ok ? "success" : "error");
+                renderLenderModalStatus(
+                  statusMessage,
+                  ok ? "success" : "error",
+                  res && Array.isArray(res.steps) && res.steps.length
+                    ? res.steps
+                    : buildLenderModalFallbackSteps(
+                        selectedLender,
+                        ok,
+                        res && (res.operatorMessage || res.message),
+                      ),
+                  res && (res.operatorMessage || res.message || ""),
+                );
                 showToast(statusMessage, ok ? "success" : "error");
               } catch (err) {
                 const msg =
                   (err && err.message) || `${selectedLender} validation failed`;
-                setLenderModalStatus(msg, "error");
+                renderLenderModalStatus(
+                  msg,
+                  "error",
+                  buildLenderModalFallbackSteps(selectedLender, false, msg),
+                  "Validation request failed",
+                );
                 showToast(msg, "error");
               } finally {
                 validateBtn.disabled = false;
@@ -2749,9 +2943,8 @@
         };
 
         const getLenderLogoUrl = (lenderName) => {
-          const key = normalizeLenderName(lenderName);
-          if (key.includes("finclusion")) return "https://lh3.googleusercontent.com/d/1HNY6hqboXtWVjD0lweDcR0lsPzRrHxle";
-          return "https://lh3.googleusercontent.com/d/1zESgE9OpS1KcJapsFvvwcVyr2Ogykz2j";
+          const key = normalizeLenderName(lenderName).replace(/\s+/g, "");
+          return LENDER_MODAL_LOGO_URLS[key] || LENDER_MODAL_DEFAULT_LOGO_URL;
         };
         const openLenderAppModal = async (productIndex) => {
           const p = (window.appState.products || [])[productIndex];
@@ -2775,11 +2968,7 @@
           setTxt("lenderAppClientName", fullName || "—");
           const logo = getEl("lenderAppLogo");
           if (logo) logo.src = getLenderLogoUrl(lender);
-          const statusEl = getEl("lenderAppStatus");
-          if (statusEl) {
-            statusEl.classList.add("hidden");
-            statusEl.textContent = "";
-          }
+          clearLenderModalStatus();
           const validateBtn = getEl("lenderAppValidateBtn");
           if (validateBtn) {
             validateBtn.disabled = true;
