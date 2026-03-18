@@ -3599,6 +3599,7 @@ const initializePSE = () => {
                                           window.appState.preQualAttempted = false;
                                           window.appState.softScoreLoaded = false;
                                       }
+                                      resetPseHydratedFields();
                                       placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
                                       placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
                                       const dns = getEl('demands-and-needs-section');
@@ -4019,6 +4020,62 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
                     return null;
                 }
             };
+            const resetPseHydratedFields = () => {
+                const fieldIds = [
+                    'vrn-status',
+                    'ps_client_firstName',
+                    'ps_client_lastName',
+                    'ps_client_currentPostcode',
+                    'vehicle-make',
+                    'vehicle-model',
+                    'vehicle-year',
+                    'agreement-start-date',
+                    'finance-company',
+                    'agreement-number',
+                    'original-purchase-price',
+                    'deposit-paid',
+                    'original-apr',
+                    'original-term',
+                    'original-final-balloon',
+                    'monthly-payment-display',
+                    'outstanding-balance-display',
+                    'remaining-term-display',
+                    'finance-type',
+                    'ltr_reference-number',
+                    'ltr_client-name',
+                    'ltr_client-address',
+                    'ltr_client-address-street',
+                    'ltr_client-address-town',
+                    'ltr_client-address-postcode',
+                    'ltr_client-email',
+                    'ltr_client-phone',
+                    'ltr_employment-summary',
+                    'ltr_time-in-employment',
+                    'ltr_net-income-monthly',
+                    'ltr_current-term',
+                    'ltr_new-finance-amount',
+                ];
+                fieldIds.forEach((id) => {
+                    const el = getEl(id);
+                    if (!el) return;
+                    if (id === 'vrn-status') {
+                        el.textContent = '';
+                        el.style.color = '';
+                        return;
+                    }
+                    if ('value' in el) el.value = '';
+                });
+                ['monthly-payment-display', 'outstanding-balance-display', 'remaining-term-display', 'original-apr', 'original-final-balloon'].forEach((id) => {
+                    const el = getEl(id);
+                    if (el && el.dataset) delete el.dataset.manuallySet;
+                });
+                try {
+                    window.sourceSheetRaw = {};
+                    window.sourceSheetSettlementTotal = '';
+                    window.sourceSheetReceivedDate = '';
+                    window.sourceSheetTerm = '';
+                } catch (err) {}
+            };
             const applyCrmDealSnapshotToPseUI = (deal) => {
                 if (!deal || typeof deal !== 'object') return false;
                 const parseNumber = (value) => {
@@ -4411,6 +4468,7 @@ const handleVrnLookup = async () => {
                     window.appState.currentLookupCrmSnapshotDealId = '';
                     window.appState.preQualAttempted = false;
                     window.appState.softScoreLoaded = false;
+                    resetPseHydratedFields();
                     const preferredCrmDeal = getPreferredCrmDealForPseLookup(vrn);
                     if (preferredCrmDeal) applyCrmDealSnapshotToPseUI(preferredCrmDeal);
                     syncResultsActionButtons();

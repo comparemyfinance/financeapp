@@ -74,6 +74,20 @@ for (const file of templates) {
   });
 }
 
+for (const file of templates) {
+  test(`${file}: product source clears auto-hydrated fields before each lookup`, () => {
+    const html = readFile(file);
+
+    assert.match(html, /resetPseHydratedFields/);
+    assert.match(html, /sourceSheetRaw = \{\}|sourceSheetRaw = \{\};/);
+    assert.match(html, /delete el\.dataset\.manuallySet/);
+    assert.match(
+      html,
+      /resetPseHydratedFields\(\);[\s\S]{0,240}const preferredCrmDeal = getPreferredCrmDealForPseLookup\(vrn\);|const preferredCrmDeal = getPreferredCrmDealForPseLookup\(vrn\);[\s\S]{0,240}resetPseHydratedFields\(\);/,
+    );
+  });
+}
+
 test('Index.html: app form shortcut routes back through delegated sales-pipeline bridge', () => {
   const html = readFile('Index.html');
 
