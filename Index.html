@@ -3510,7 +3510,7 @@ const ensurePercent = (v) => {
 const initializePSE = () => {
             const GOOGLE_SCRIPT_URL = CONFIG.ENDPOINTS.PSE;
             window.illustratorResultsData = {};
-            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' }, currentLookupVrn: '', currentLookupDealId: '', currentLookupFoundInDeals: false, softScoreLoaded: false };
+            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' }, currentLookupVrn: '', currentLookupDealId: '', currentLookupFoundInDeals: false, preQualAttempted: false, softScoreLoaded: false };
             const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "FINCLUSION", a: 8.9, c: 4, h: true }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
             const f = (v) => parseFloat(v) || 0;
             const i = (v) => parseInt(v, 10) || 0;
@@ -3594,6 +3594,7 @@ const initializePSE = () => {
                                           window.appState.currentLookupVrn = '';
                                           window.appState.currentLookupDealId = '';
                                           window.appState.currentLookupFoundInDeals = false;
+                                          window.appState.preQualAttempted = false;
                                           window.appState.softScoreLoaded = false;
                                       }
                                       placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
@@ -3976,6 +3977,7 @@ const initializePSE = () => {
             const runSoftScoreClient = async () => {
                 const products = window.appState.products || [];
                 if (!products.length) return showToast('Find products before requesting soft-score.', 'error');
+                window.appState.preQualAttempted = true;
                 window.appState.softScoreLoaded = false;
                 syncResultsActionButtons();
                 const btn = getEl('soft-score-client-btn');
@@ -4054,6 +4056,7 @@ const initializePSE = () => {
                 const erc = outBalance > 0 && oApr > 0 ? ((outBalance * (oApr / 100)) / 365) * (remTerm > 12 ? 58 : 28) : 0;
                 const settlement = outBalance + erc;
                 window.appState.financeDetails = { settlementFigure: settlement, totalCostIfKept: (monthly * remTerm) + f(getVal('original-final-balloon')), calculatedMonthlyPayment: monthly, remainingTerm: remTerm, originalRemainingTerm: remTerm, outstandingBalance: outBalance, erc: erc, originalApr: oApr };
+                window.appState.preQualAttempted = false;
                 window.appState.softScoreLoaded = false;
                 syncResultsActionButtons();
                 await processAndSortProducts();
@@ -4125,7 +4128,7 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
                 const appFormBtn = getEl('app-form-client-btn');
                 if (preQualBtn) preQualBtn.classList.toggle('hidden', !hasProducts);
                 if (appFormBtn) {
-                    const canOpenAppForm = hasProducts && !!window.appState.softScoreLoaded && !!window.appState.currentLookupFoundInDeals && !!String(window.appState.currentLookupVrn || '').trim();
+                    const canOpenAppForm = hasProducts && (!!window.appState.preQualAttempted || !!window.appState.softScoreLoaded);
                     appFormBtn.classList.toggle('hidden', !canOpenAppForm);
                     appFormBtn.disabled = !canOpenAppForm;
                 }
@@ -4410,6 +4413,7 @@ const handleVrnLookup = async () => {
                     window.appState.currentLookupVrn = vrn;
                     window.appState.currentLookupDealId = '';
                     window.appState.currentLookupFoundInDeals = false;
+                    window.appState.preQualAttempted = false;
                     window.appState.softScoreLoaded = false;
                     syncResultsActionButtons();
                 const spinner = getEl('vrn-spinner'), text = getEl('vrn-lookup-text'), btn = getEl('vrn-lookup-btn');

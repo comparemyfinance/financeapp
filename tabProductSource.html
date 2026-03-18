@@ -2159,6 +2159,7 @@
           currentLookupVrn: "",
           currentLookupDealId: "",
           currentLookupFoundInDeals: false,
+          preQualAttempted: false,
           softScoreLoaded: false,
         };
         const lenderData = [
@@ -2336,6 +2337,7 @@
               window.appState.currentLookupVrn = "";
               window.appState.currentLookupDealId = "";
               window.appState.currentLookupFoundInDeals = false;
+              window.appState.preQualAttempted = false;
               window.appState.softScoreLoaded = false;
             }
             placeholder(
@@ -3041,6 +3043,7 @@
               "Find products before requesting soft-score.",
               "error",
             );
+          window.appState.preQualAttempted = true;
           window.appState.softScoreLoaded = false;
           syncResultsActionButtons();
           const btn = getEl("soft-score-client-btn");
@@ -3152,6 +3155,7 @@
               erc: erc,
               originalApr: oApr,
             };
+            window.appState.preQualAttempted = false;
             window.appState.softScoreLoaded = false;
             syncResultsActionButtons();
             await processAndSortProducts();
@@ -3231,9 +3235,8 @@
           if (appFormBtn) {
             const canOpenAppForm =
               hasProducts &&
-              !!window.appState.softScoreLoaded &&
-              !!window.appState.currentLookupFoundInDeals &&
-              !!String(window.appState.currentLookupVrn || "").trim();
+              (!!window.appState.preQualAttempted ||
+                !!window.appState.softScoreLoaded);
             appFormBtn.classList.toggle("hidden", !canOpenAppForm);
             appFormBtn.disabled = !canOpenAppForm;
           }
@@ -3759,6 +3762,7 @@
             window.appState.currentLookupVrn = vrn;
             window.appState.currentLookupDealId = "";
             window.appState.currentLookupFoundInDeals = false;
+            window.appState.preQualAttempted = false;
             window.appState.softScoreLoaded = false;
             syncResultsActionButtons();
             const spinner = getEl("vrn-spinner"),
