@@ -5529,8 +5529,97 @@ function applyBankAccountToJigsawPayloadDeal(payloadDeal, formData) {
        mapping intact or the kanban will appear empty.
    ======================================================================= */
 
+const normalizeApplicationShortcutVrn = (value) => String(value || '').toUpperCase().replace(/\s/g, '').trim();
+const normalizeApplicationShortcutDealId = (value) => String(value || '').trim();
+const buildApplicationPseShortcutPayload = () => {
+                let vrn = '';
+                let dealId = '';
+                try {
+                    if (window.App && App.elements && App.elements.customerForm && App.elements.customerForm.elements) {
+                        const formEls = App.elements.customerForm.elements;
+                        const vrnEl = formEls['vrn'];
+                        const dealIdEl = formEls['id'];
+                        if (vrnEl) vrn = vrnEl.value || '';
+                        if (dealIdEl) dealId = dealIdEl.value || '';
+                    }
+                    if (!dealId && window.App && App.elements && App.elements.dealId) {
+                        dealId = App.elements.dealId.value || '';
+                    }
+                    if ((!vrn || !dealId) && window.App && App.ui && typeof App.ui.getFormData === 'function') {
+                        const fd = App.ui.getFormData() || {};
+                        if (!vrn && fd.vrn) vrn = fd.vrn;
+                        if (!dealId && fd.id) dealId = fd.id;
+                    }
+                } catch (err) {}
+                return {
+                    source: 'applicationModal',
+                    requestedAt: Date.now(),
+                    vrn: normalizeApplicationShortcutVrn(vrn),
+                    dealId: normalizeApplicationShortcutDealId(dealId),
+                };
+            };
+const launchApplicationPseShortcut = (payload = {}) => {
+                const vrn = normalizeApplicationShortcutVrn(payload.vrn);
+                if (!vrn) return false;
+                const handoff = {
+                    source: 'applicationModal',
+                    requestedAt: Number(payload.requestedAt || Date.now()),
+                    launchedAt: Date.now(),
+                    saveCompletedAt: Number(payload.saveCompletedAt || 0),
+                    lastApplicationSaveAt: Number(payload.lastApplicationSaveAt || 0),
+                    queuedAfterSave: !!payload.queuedAfterSave,
+                    dealId: normalizeApplicationShortcutDealId(payload.dealId),
+                    vrn,
+                };
+                try { window.__cmfPseShortcutPayload = handoff; } catch (err) {}
+                try { if (typeof window.resetPseProductSourceState === 'function') window.resetPseProductSourceState(); } catch (err) {}
+                try { switchTab('pse'); } catch (err) {}
+                setTimeout(() => {
+                    const vrnInput = document.querySelector('#pse #vrn');
+                    if (vrnInput) {
+                        vrnInput.value = vrn;
+                        vrnInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        vrnInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    const findBtn = document.querySelector('#pse #vrn-lookup-btn');
+                    if (findBtn) findBtn.click();
+                }, 150);
+                return true;
+            };
+const queueApplicationPseShortcutAfterSave = (payload) => {
+                if (!(window.App && App.state) || !payload || !payload.vrn) return false;
+                App.state.pendingPseShortcut = { ...payload, queuedAfterSave: true };
+                if (typeof showNavMessage === 'function') {
+                    showNavMessage('Finishing save before opening Product Source...', 'info', 3500);
+                }
+                return true;
+            };
+const clearPendingApplicationPseShortcut = (message, level = 'warning') => {
+                if (!(window.App && App.state)) return;
+                const hadPending = !!App.state.pendingPseShortcut;
+                App.state.pendingPseShortcut = null;
+                if (hadPending && message && typeof showNavMessage === 'function') {
+                    showNavMessage(message, level, 5000);
+                }
+            };
+const flushPendingApplicationPseShortcutAfterSave = () => {
+                if (!(window.App && App.state)) return false;
+                const pending = App.state.pendingPseShortcut;
+                if (!pending || !pending.vrn) {
+                    App.state.pendingPseShortcut = null;
+                    return false;
+                }
+                App.state.pendingPseShortcut = null;
+                return launchApplicationPseShortcut({
+                    ...pending,
+                    queuedAfterSave: true,
+                    saveCompletedAt: Date.now(),
+                    lastApplicationSaveAt: Number(App.state.lastApplicationSaveAt || Date.now()),
+                });
+            };
+
 const App = {
-                state: { deals: [], stages: [{ id: 'Enquiry', title: 'Enquiry'}, { id: 'Packaging', title: 'Underwriting' }, { id: 'Work In Progress', title: 'Work In Progress' }, { id: 'Ready To Deal', title: 'Ready To Deal' }, { id: 'Awaiting Payout', title: 'Awaiting Payout' }, { id: 'Completed', title: 'Completed' }, { id: 'Not Taken Up', title: 'Not Taken Up' }], parsedDeals: { unique: [], duplicates: [] }, surnameFilter: '', expertFilter: '', selectedContactIds: new Set(), currentView: 'pipeline', sortState: { key: 'receivedDate', direction: 'desc' }, resizersSetup: false, isInitialDataLoading: false, hasCompletedInitialLoad: false },
+                state: { deals: [], stages: [{ id: 'Enquiry', title: 'Enquiry'}, { id: 'Packaging', title: 'Underwriting' }, { id: 'Work In Progress', title: 'Work In Progress' }, { id: 'Ready To Deal', title: 'Ready To Deal' }, { id: 'Awaiting Payout', title: 'Awaiting Payout' }, { id: 'Completed', title: 'Completed' }, { id: 'Not Taken Up', title: 'Not Taken Up' }], parsedDeals: { unique: [], duplicates: [] }, surnameFilter: '', expertFilter: '', selectedContactIds: new Set(), currentView: 'pipeline', sortState: { key: 'receivedDate', direction: 'desc' }, resizersSetup: false, isInitialDataLoading: false, hasCompletedInitialLoad: false, isApplicationSaveInFlight: false, applicationSaveDealId: '', pendingPseShortcut: null, lastApplicationSaveAt: 0 },
                 lock: {
                     enabled: false, // LOCKING DISABLED (desktop/non-collab mode)
                     currentDealId: null,
@@ -6663,6 +6752,10 @@ let dealToSave;
                             dealToSave = { ...formData, id: formData.vrn, dealStage: stage, value: parseInt(formData.settlementTotal) || 0, receivedDate: new Date().toISOString().split('T')[0], stageHistory: [{ dealStage: stage, date: new Date().toISOString() }] };
                         }
                         if (dealToSave) {
+                            const trackedSaveDealId = normalizeApplicationShortcutDealId(dealId || dealToSave.id || formData.id || formData.vrn);
+                            App.state.isApplicationSaveInFlight = true;
+                            App.state.applicationSaveDealId = trackedSaveDealId;
+                            App.state.lastApplicationSaveAt = 0;
                             const _saveBtn = getEl('saveDealBtn');
                             const _origBtnHtml = _saveBtn ? _saveBtn.innerHTML : '';
                             const _setSaving = (isSaving) => {
@@ -6695,13 +6788,18 @@ let dealToSave;
                                 const result = await SaveManager.saveDeal(dealToSave);
                                 if (result && result.success) {
                                     showNavMessage(dealId ? "Deal updated!" : "Deal added!", "success");
+                                    App.state.lastApplicationSaveAt = Date.now();
                                     await App.loadData();
                                     App.ui.closeModal('customer');
+                                    flushPendingApplicationPseShortcutAfterSave();
                                 }
                             } catch (err) {
                                 console.error(err);
+                                clearPendingApplicationPseShortcut('Save failed. Product Source was not opened.', 'error');
                                 showNavMessage(`Save failed: ${err && err.message ? err.message : err}`, 'error', 6000);
                             } finally {
+                                App.state.isApplicationSaveInFlight = false;
+                                App.state.applicationSaveDealId = '';
                                 _setSaving(false);
                             }
                         }
@@ -9304,43 +9402,20 @@ document.body.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     e.stopImmediatePropagation();
 
-                    let vrn = '';
-                    try {
-                        if (window.App && App.elements && App.elements.customerForm && App.elements.customerForm.elements) {
-                            const vrnEl = App.elements.customerForm.elements['vrn'];
-                            if (vrnEl) vrn = vrnEl.value || '';
-                        }
-                        if (!vrn && window.App && App.ui && typeof App.ui.getFormData === 'function') {
-                            const fd = App.ui.getFormData();
-                            vrn = (fd && fd.vrn) ? fd.vrn : '';
-                        }
-                    } catch (err) {}
-
-                    vrn = String(vrn || '').toUpperCase().replace(/\s/g, '').trim();
-                    if (!vrn) {
+                    const payload = buildApplicationPseShortcutPayload();
+                    if (!payload.vrn) {
                         alert('No VRN found in this application.');
+                        return;
+                    }
+
+                    if (window.App && App.state && App.state.isApplicationSaveInFlight) {
+                        queueApplicationPseShortcutAfterSave(payload);
                         return;
                     }
 
                     // Close the modal so the PSE tab is visible
                     try { if (window.App && App.ui && typeof App.ui.closeModal === 'function') App.ui.closeModal('customer'); } catch (err) {}
-
-                    // Clear previous Product Source state before switching to a new client lookup
-                    try { if (typeof window.resetPseProductSourceState === 'function') window.resetPseProductSourceState(); } catch (err) {}
-
-                    // Switch tab then auto-run the VRN lookup
-                    try { switchTab('pse'); } catch (err) {}
-
-                    setTimeout(() => {
-                        const vrnInput = document.querySelector('#pse #vrn');
-                        if (vrnInput) {
-                            vrnInput.value = vrn;
-                            vrnInput.dispatchEvent(new Event('input', { bubbles: true }));
-                            vrnInput.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                        const findBtn = document.querySelector('#pse #vrn-lookup-btn');
-                        if (findBtn) findBtn.click();
-                    }, 150);
+                    launchApplicationPseShortcut(payload);
 
                     return;
                 }
