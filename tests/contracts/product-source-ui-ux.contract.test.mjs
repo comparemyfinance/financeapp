@@ -41,7 +41,7 @@ for (const file of templates) {
 }
 
 for (const file of templates) {
-  test(`${file}: product source exposes app form shortcut with deal-backed soft-score gating`, () => {
+  test(`${file}: product source exposes app form shortcut after pre-qual is attempted`, () => {
     const html = readFile(file);
 
     assert.match(
@@ -51,8 +51,13 @@ for (const file of templates) {
     );
     assert.match(
       html,
-      /currentLookupDealId|currentLookupFoundInDeals|softScoreLoaded/,
-      'expected Product Source runtime state to track deal-backed soft-score routing',
+      /preQualAttempted/,
+      'expected Product Source runtime state to track app form visibility after pre-qual is pressed',
+    );
+    assert.match(
+      html,
+      /preQualAttempted[\s\S]{0,120}softScoreLoaded|softScoreLoaded[\s\S]{0,120}preQualAttempted/,
+      'expected Product Source app form visibility to support pre-qual attempt state with soft-score fallback',
     );
   });
 }
