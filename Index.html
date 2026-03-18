@@ -111,7 +111,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
         #pse .grid-card { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07); animation: fadeIn 0.5s forwards; display: flex; flex-direction: column; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         #pse .section-header { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 25px; border-bottom: 2px solid #D8E4C6; padding-bottom: 10px; }
-        #pse #results-card .section-header > .flex, #pse #comparison-card .section-header > .flex { display: inline-flex; align-items: center; justify-content: center; } #pse #results-card .section-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; } #pse #results-card .section-header > .flex { grid-column: 2; justify-self: center; } #pse #results-card #soft-score-client-btn { grid-column: 3; justify-self: end; position: static; transform: none; margin-left: 16px; } #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
+        #pse #results-card .section-header > .flex, #pse #comparison-card .section-header > .flex { display: inline-flex; align-items: center; justify-content: center; } #pse #results-card .section-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; } #pse #results-card .section-header > .flex { grid-column: 2; justify-self: center; } #pse #results-card .results-actions { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 12px; } #pse #results-card .results-actions button { position: static; transform: none; margin-left: 0; } #pse .section-header img { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; border: 2px solid #004225; object-fit: cover; }
         #pse h2 { color: #004225; text-align: center; margin: 0; font-size: 1.8em; border: none; padding: 0; }
         #pse h3 { color: #004225; margin-top: 0; }
         #pse #finance-form { display: flex; flex-direction: column; flex-grow: 1; }
@@ -1180,7 +1180,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 </form>
 </div>
 <div class="grid-card" id="results-card">
-<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><button class="hidden px-6 py-4 rounded-lg text-white font-semibold text-lg bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse" id="soft-score-client-btn" type="button">Pre-Qual Client</button></div>
+<div class="section-header"><div class="flex items-center"><img alt="colincompare-happy-save" src="https://lh3.googleusercontent.com/d/1Kf2kzoUmPDkHOrj_TkezYe0937VUAqzj"/><h2 class="ml-4">Product Sourcing Results</h2></div><div class="results-actions"><button class="hidden px-6 py-4 rounded-lg text-white font-semibold text-lg bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer btn-press-feedback" id="app-form-client-btn" type="button">APP FORM</button><button class="hidden px-6 py-4 rounded-lg text-white font-semibold text-lg bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer btn-press-feedback prequal-pulse" id="soft-score-client-btn" type="button">Pre-Qual Client</button></div></div>
 
 <div id="results-container"><div class="placeholder-text"><p>New finance products will be displayed here after you submit your current details.</p></div></div>
 </div>
@@ -3510,7 +3510,7 @@ const ensurePercent = (v) => {
 const initializePSE = () => {
             const GOOGLE_SCRIPT_URL = CONFIG.ENDPOINTS.PSE;
             window.illustratorResultsData = {};
-            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' } };
+            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' }, currentLookupVrn: '', currentLookupDealId: '', currentLookupFoundInDeals: false, softScoreLoaded: false };
             const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "FINCLUSION", a: 8.9, c: 4, h: true }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
             const f = (v) => parseFloat(v) || 0;
             const i = (v) => parseInt(v, 10) || 0;
@@ -3591,11 +3591,16 @@ const initializePSE = () => {
                                           window.appState.products = [];
                                           window.appState.selectedProductIndex = null;
                                           window.appState.resultsSort = { key: 'apr', direction: 'asc' };
+                                          window.appState.currentLookupVrn = '';
+                                          window.appState.currentLookupDealId = '';
+                                          window.appState.currentLookupFoundInDeals = false;
+                                          window.appState.softScoreLoaded = false;
                                       }
                                       placeholder('results-container', 'New finance products will be displayed here after you submit your current details.');
                                       placeholder('comparison-container', 'Select a product from the results table above to see a detailed comparison.');
                                       const dns = getEl('demands-and-needs-section');
                                       if (dns) dns.classList.add('hidden');
+                                      syncResultsActionButtons();
                                   } catch (err) {}
                               };
             window.resetPseProductSourceState = resetPseProductSourceState;
@@ -3627,12 +3632,11 @@ const initializePSE = () => {
             };
             const updateResultsTable = () => {
                 const { products, selectedProductIndex, financeDetails } = window.appState;
-                const preQualBtn = getEl('soft-score-client-btn');
                 if (!products.length) {
-                    if (preQualBtn) preQualBtn.classList.add('hidden');
+                    syncResultsActionButtons();
                     return placeholder('results-container', 'No products found. Please check your input.');
                 }
-                if (preQualBtn) preQualBtn.classList.remove('hidden');
+                syncResultsActionButtons();
                 const rows = products.map((p, idx) => {
                     const effectiveApr = getEffectiveApr(p);
                     const aprSourceTag = Number.isFinite(Number(p.aprOffer)) ? '<span class="ml-1 text-[10px] text-purple-700 font-semibold">PQ</span>' : '<span class="ml-1 text-[10px] text-gray-500 font-semibold">STD</span>';
@@ -3832,6 +3836,8 @@ const initializePSE = () => {
             const runSoftScoreClient = async () => {
                 const products = window.appState.products || [];
                 if (!products.length) return showToast('Find products before requesting soft-score.', 'error');
+                window.appState.softScoreLoaded = false;
+                syncResultsActionButtons();
                 const btn = getEl('soft-score-client-btn');
                 if (btn) {
                     btn.disabled = true;
@@ -3879,16 +3885,19 @@ const initializePSE = () => {
                         };
                     });
 
+                    window.appState.softScoreLoaded = true;
                     sortProductsInPlace();
                     showToast('Soft-score placeholder offers loaded.', 'success');
                     updateResultsTable();
                     updateComparisonView();
                     bridgeDataToLetterCreator();
                 } catch (err) {
+                    window.appState.softScoreLoaded = false;
                     console.error('Soft-score request failed', err);
                     showToast('Unable to fetch soft-score offers.', 'error');
                 } finally {
                     toggleProductSourceOverlay(false);
+                    syncResultsActionButtons();
                     if (btn) {
                         btn.disabled = false;
                         btn.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -3905,6 +3914,8 @@ const initializePSE = () => {
                 const erc = outBalance > 0 && oApr > 0 ? ((outBalance * (oApr / 100)) / 365) * (remTerm > 12 ? 58 : 28) : 0;
                 const settlement = outBalance + erc;
                 window.appState.financeDetails = { settlementFigure: settlement, totalCostIfKept: (monthly * remTerm) + f(getVal('original-final-balloon')), calculatedMonthlyPayment: monthly, remainingTerm: remTerm, originalRemainingTerm: remTerm, outstandingBalance: outBalance, erc: erc, originalApr: oApr };
+                window.appState.softScoreLoaded = false;
+                syncResultsActionButtons();
                 await processAndSortProducts();
                 window.appState.selectedProductIndex = null;
                 updateResultsTable();
@@ -3957,6 +3968,28 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
             };
             // Expose for delegated wiring + other modules (exposed for delegated wiring across modules).
             window.fetchVrnPayloadFromSheet = fetchVrnPayloadFromSheet;
+            const getCanonicalDealIdFromPayload = (payloadJson) => {
+                const raw = (payloadJson && payloadJson.raw) || {};
+                const candidates = [payloadJson && payloadJson.deal, payloadJson && payloadJson.dnsPayload, raw];
+                for (const src of candidates) {
+                    if (!src || typeof src !== 'object') continue;
+                    const id = src.id || src.ID || src.Id || src.dealId || src.dealID || src.DealId || src.DealID;
+                    if (String(id || '').trim()) return String(id).trim();
+                }
+                const rawId = rawGet(raw, ['id', 'deal id', 'dealid']);
+                return String(rawId || '').trim();
+            };
+            const syncResultsActionButtons = () => {
+                const hasProducts = Array.isArray(window.appState.products) && window.appState.products.length > 0;
+                const preQualBtn = getEl('soft-score-client-btn');
+                const appFormBtn = getEl('app-form-client-btn');
+                if (preQualBtn) preQualBtn.classList.toggle('hidden', !hasProducts);
+                if (appFormBtn) {
+                    const canOpenAppForm = hasProducts && !!window.appState.softScoreLoaded && !!window.appState.currentLookupFoundInDeals && !!String(window.appState.currentLookupVrn || '').trim();
+                    appFormBtn.classList.toggle('hidden', !canOpenAppForm);
+                    appFormBtn.disabled = !canOpenAppForm;
+                }
+            };
 
             const applyDnsPayloadToUI = (payloadJson) => {
                 if (!payloadJson || !payloadJson.dnsPayload) return;
@@ -4232,8 +4265,13 @@ const handleVrnLookup = async () => {
                 const __ov = getEl('saveDealOverlay');
                 if (__ov) __ov.classList.remove('hidden');
                 try {
-                const vrn = getVal('vrn').toUpperCase().replace(/\s/g, '');
-                if (!vrn) return;
+                    const vrn = getVal('vrn').toUpperCase().replace(/\s/g, '');
+                    if (!vrn) return;
+                    window.appState.currentLookupVrn = vrn;
+                    window.appState.currentLookupDealId = '';
+                    window.appState.currentLookupFoundInDeals = false;
+                    window.appState.softScoreLoaded = false;
+                    syncResultsActionButtons();
                 const spinner = getEl('vrn-spinner'), text = getEl('vrn-lookup-text'), btn = getEl('vrn-lookup-btn');
                 spinner.style.display = 'block'; text.style.display = 'none'; btn.disabled = true;
                 // 1) Payload service (Deals/Backup) MUST run before DB/API lookups
@@ -4241,6 +4279,9 @@ const handleVrnLookup = async () => {
                 try {
                     const payloadJson = await fetchVrnPayloadFromSheet(vrn);
                     if (payloadJson && payloadJson.ok && payloadJson.found) {
+                        window.appState.currentLookupFoundInDeals = !!payloadJson.foundInDeals;
+                        window.appState.currentLookupDealId = getCanonicalDealIdFromPayload(payloadJson);
+                        syncResultsActionButtons();
                         applyDnsPayloadToUI(payloadJson);
                         if (payloadJson.foundInDeals) {
                             setTxt('vrn-status', 'Found in Deal Database.'); getEl('vrn-status').style.color = 'green';
@@ -4249,9 +4290,15 @@ const handleVrnLookup = async () => {
                         }
                         setTxt('vrn-status', 'Found in backup. Proceeding to database/API for vehicle lookup...');
                     } else {
+                        window.appState.currentLookupFoundInDeals = false;
+                        window.appState.currentLookupDealId = '';
+                        syncResultsActionButtons();
                         setTxt('vrn-status', 'Not found in Database. Checking VRN data...');
                     }
                 } catch (e) {
+                    window.appState.currentLookupFoundInDeals = false;
+                    window.appState.currentLookupDealId = '';
+                    syncResultsActionButtons();
                     console.error('Payload service error:', e);
                     setTxt('vrn-status', 'Could not query Deals Database. Checking VRN data...');
                 }
@@ -9289,6 +9336,51 @@ document.body.addEventListener('click', async (e) => {
                         }
                         const findBtn = document.querySelector('#pse #vrn-lookup-btn');
                         if (findBtn) findBtn.click();
+                    }, 150);
+
+                    return;
+                }
+
+                const appFormBtn = e.target.closest('#app-form-client-btn');
+                if (appFormBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+
+                    let vrn = '';
+                    let dealId = '';
+                    try {
+                        const pseVrn = document.querySelector('#pse #vrn');
+                        if (pseVrn) vrn = pseVrn.value || '';
+                        if (!vrn && window.appState) vrn = window.appState.currentLookupVrn || '';
+                        if (window.appState) dealId = window.appState.currentLookupDealId || '';
+                        if (!dealId && window.App && App.state && Array.isArray(App.state.deals) && App.utils) {
+                            const normVrn = String(vrn || '').toUpperCase().replace(/\s/g, '').trim();
+                            const match = App.state.deals.find((d) => String(App.utils.getVrn(d) || '').trim() === normVrn);
+                            if (match) dealId = String(App.utils.getDealId(match) || '').trim();
+                        }
+                    } catch (err) {}
+
+                    vrn = String(vrn || '').toUpperCase().replace(/\s/g, '').trim();
+                    dealId = String(dealId || '').trim();
+                    if (!vrn) {
+                        alert('No live client VRN found in Product Source.');
+                        return;
+                    }
+                    if (!dealId) {
+                        alert('No live client application found for this VRN.');
+                        return;
+                    }
+
+                    try { switchTab('sales-pipeline-crm'); } catch (err) {}
+                    setTimeout(() => {
+                        try {
+                            if (window.App && App.ui && typeof App.ui.openCustomerModalLocked === 'function') {
+                                App.ui.openCustomerModalLocked(dealId);
+                            }
+                        } catch (err) {
+                            console.error('APP FORM shortcut failed:', err);
+                        }
                     }, 150);
 
                     return;
