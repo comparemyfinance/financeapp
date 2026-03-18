@@ -62,6 +62,18 @@ for (const file of templates) {
   });
 }
 
+for (const file of templates) {
+  test(`${file}: product source prefers recent CRM snapshot for application handoff`, () => {
+    const html = readFile(file);
+
+    assert.match(html, /currentLookupPreferCrmSnapshot/);
+    assert.match(html, /getPreferredCrmDealForPseLookup/);
+    assert.match(html, /applyCrmDealSnapshotToPseUI/);
+    assert.match(html, /const preferredCrmDeal = getPreferredCrmDealForPseLookup\(vrn\);/);
+    assert.match(html, /if \(preferredCrmDeal\) applyCrmDealSnapshotToPseUI\(preferredCrmDeal\);/);
+  });
+}
+
 test('Index.html: app form shortcut routes back through delegated sales-pipeline bridge', () => {
   const html = readFile('Index.html');
 

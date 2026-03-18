@@ -3510,7 +3510,7 @@ const ensurePercent = (v) => {
 const initializePSE = () => {
             const GOOGLE_SCRIPT_URL = CONFIG.ENDPOINTS.PSE;
             window.illustratorResultsData = {};
-            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' }, currentLookupVrn: '', currentLookupDealId: '', currentLookupFoundInDeals: false, preQualAttempted: false, softScoreLoaded: false };
+            window.appState = { financeDetails: {}, products: [], selectedProductIndex: null, resultsSort: { key: 'apr', direction: 'asc' }, currentLookupVrn: '', currentLookupDealId: '', currentLookupFoundInDeals: false, currentLookupPreferCrmSnapshot: false, currentLookupCrmSnapshotDealId: '', preQualAttempted: false, softScoreLoaded: false };
             const lenderData = [{ l: "BNP Paribas Finance", a: 12.9, c: 4 }, { l: "Motonovo", a: 11.9, c: 4, h: true }, { l: "V12", a: 15.9, c: 5 }, { l: "Close Brothers", a: 12.9, c: 4.5 }, { l: "Credit Agricole", a: 14.0, c: 3 }, { l: "Northridge Finance", a: 9.9, c: 3.5, h: true }, { l: "Alphera", a: 10.9, c: 4, h: true }, { l: "Zopa", a: 17.9, c: 4 }, { l: "Advantage Finance", a: 31.4, c: 4 }, { l: "Automoney", a: 28.0, c: 4 }, { l: "Moneybarn", a: 33.7, c: 2.6 }, { l: "Moneyway", a: 26.65, c: 4 }, { l: "Oodle", a: 23.1, c: 4 }, { l: "Lendable", a: 29.8, c: 4 }, { l: "Startline Finance", a: 24.3, c: 4 }, { l: "Tandem", a: 22.25, c: 4 }, { l: "FINCLUSION", a: 8.9, c: 4, h: true }, { l: "Billing Finance", a: 35.4, c: 1.3 }];
             const f = (v) => parseFloat(v) || 0;
             const i = (v) => parseInt(v, 10) || 0;
@@ -3594,6 +3594,8 @@ const initializePSE = () => {
                                           window.appState.currentLookupVrn = '';
                                           window.appState.currentLookupDealId = '';
                                           window.appState.currentLookupFoundInDeals = false;
+                                          window.appState.currentLookupPreferCrmSnapshot = false;
+                                          window.appState.currentLookupCrmSnapshotDealId = '';
                                           window.appState.preQualAttempted = false;
                                           window.appState.softScoreLoaded = false;
                                       }
@@ -3993,6 +3995,138 @@ const fetchVrnPayloadFromSheet = async (vrn) => {
                     appFormBtn.disabled = !canOpenAppForm;
                 }
             };
+            const getPreferredCrmDealForPseLookup = (vrn) => {
+                try {
+                    const handoff = window.__cmfPseShortcutPayload || null;
+                    if (!handoff || handoff.source !== 'applicationModal') return null;
+                    const handoffAgeMs = Date.now() - Number(handoff.launchedAt || handoff.requestedAt || 0);
+                    if (!Number.isFinite(handoffAgeMs) || handoffAgeMs > 5 * 60 * 1000) return null;
+                    if (!(window.App && App.state && Array.isArray(App.state.deals) && App.utils)) return null;
+                    const requestedDealId = normalizeApplicationShortcutDealId(handoff.dealId);
+                    const requestedVrn = normalizeApplicationShortcutVrn(vrn || handoff.vrn);
+                    let deal = null;
+                    if (requestedDealId) {
+                        deal = App.state.deals.find((d) => normalizeApplicationShortcutDealId(App.utils.getDealId(d)) === requestedDealId) || null;
+                    }
+                    if (!deal && requestedVrn) {
+                        deal = App.state.deals.find((d) => normalizeApplicationShortcutVrn(App.utils.getVrn(d)) === requestedVrn) || null;
+                    }
+                    if (!deal) return null;
+                    const dealVrn = normalizeApplicationShortcutVrn(App.utils.getVrn(deal));
+                    if (requestedVrn && dealVrn && dealVrn !== requestedVrn) return null;
+                    return deal;
+                } catch (err) {
+                    return null;
+                }
+            };
+            const applyCrmDealSnapshotToPseUI = (deal) => {
+                if (!deal || typeof deal !== 'object') return false;
+                const parseNumber = (value) => {
+                    if (value === null || value === undefined || value === '') return null;
+                    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+                    const cleaned = String(value).replace(/[^0-9.\-]/g, '').trim();
+                    if (!cleaned) return null;
+                    const num = Number(cleaned);
+                    return Number.isFinite(num) ? num : null;
+                };
+                const setManualCalc = (id, value) => {
+                    const el = getEl(id);
+                    if (!el) return false;
+                    el.value = value;
+                    el.dataset.manuallySet = 'true';
+                    return true;
+                };
+                const field = (...keys) => {
+                    for (const key of keys) {
+                        if (!key || !deal || typeof deal !== 'object') continue;
+                        const value = deal[key];
+                        if (value === null || value === undefined) continue;
+                        if (typeof value === 'string' && value.trim() === '') continue;
+                        return value;
+                    }
+                    return '';
+                };
+                let applied = false;
+                const firstName = field('firstName', 'firstname');
+                const lastName = field('lastName', 'lastname');
+                const postcode = field('currentPostcode', 'postcode');
+                const street = [field('currentAddressLine1'), field('currentAddressLine2')].filter(Boolean).join(', ');
+                const city = field('currentCity');
+                const email = field('email');
+                const phone = field('phone');
+                if (firstName !== '') { setVal('ps_client_firstName', firstName); applied = true; }
+                if (lastName !== '') { setVal('ps_client_lastName', lastName); applied = true; }
+                if (postcode !== '') { setVal('ps_client_currentPostcode', postcode); applied = true; }
+                if (getEl('ltr_client-name')) {
+                    const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+                    if (name) { setVal('ltr_client-name', name); applied = true; }
+                }
+                if (getEl('ltr_client-email') && email !== '') { setVal('ltr_client-email', email); applied = true; }
+                if (getEl('ltr_client-phone') && phone !== '') { setVal('ltr_client-phone', phone); applied = true; }
+                if (getEl('ltr_client-address')) {
+                    const address = [street, city, postcode].filter(Boolean).join(', ');
+                    if (address) { setVal('ltr_client-address', address); applied = true; }
+                }
+                if (getEl('ltr_client-address-street') && field('currentAddressLine1') !== '') { setVal('ltr_client-address-street', field('currentAddressLine1')); applied = true; }
+                if (getEl('ltr_client-address-town') && city !== '') { setVal('ltr_client-address-town', city); applied = true; }
+                if (getEl('ltr_client-address-postcode') && postcode !== '') { setVal('ltr_client-address-postcode', postcode); applied = true; }
+                if (getEl('ltr_employment-summary') && field('employmentStatus') !== '') { setVal('ltr_employment-summary', field('employmentStatus')); applied = true; }
+                const employmentYears = parseInt(field('employmentYears') || 0, 10) || 0;
+                const employmentMonths = parseInt(field('employmentMonths') || 0, 10) || 0;
+                const totalEmploymentMonths = (employmentYears * 12) + employmentMonths;
+                if (getEl('ltr_time-in-employment') && totalEmploymentMonths > 0) {
+                    setVal('ltr_time-in-employment', `${totalEmploymentMonths} month${totalEmploymentMonths === 1 ? '' : 's'}`);
+                    applied = true;
+                }
+                const netIncomeMonthly = parseNumber(field('monthlyTakeHomePay'));
+                if (getEl('ltr_net-income-monthly') && netIncomeMonthly != null) {
+                    setVal('ltr_net-income-monthly', toFixed2(netIncomeMonthly));
+                    applied = true;
+                }
+                const oldPayment = parseNumber(field('oldPayment', 'monthlyPayment'));
+                if (oldPayment != null && setManualCalc('monthly-payment-display', toFixed2(oldPayment))) applied = true;
+                const settlementTotal = parseNumber(field('settlementTotal', 'settlement'));
+                if (settlementTotal != null && setManualCalc('outstanding-balance-display', toFixed2(settlementTotal))) applied = true;
+                const remainingTerm = parseNumber(field('term', 'remainingTerm'));
+                if (remainingTerm != null && setManualCalc('remaining-term-display', String(Math.round(remainingTerm) + 1))) applied = true;
+                const financeCompany = field('financeCompany');
+                if (financeCompany !== '') { setVal('finance-company', financeCompany); applied = true; }
+                const agreementNumber = field('agreementNumber');
+                if (agreementNumber !== '') { setVal('agreement-number', agreementNumber); applied = true; }
+                const purchasePrice = parseNumber(field('price', 'purchasePrice'));
+                if (purchasePrice != null) { setVal('original-purchase-price', toFixed2(purchasePrice)); applied = true; }
+                const depositPaid = parseNumber(field('deposit', 'depositPaid'));
+                if (depositPaid != null) { setVal('deposit-paid', toFixed2(depositPaid)); applied = true; }
+                const currentApr = parseNumber(field('currentApr'));
+                if (currentApr != null && getEl('original-apr')) {
+                    setVal('original-apr', formatApr(currentApr));
+                    applied = true;
+                }
+                const originalTerm = parseNumber(field('originalTerm'));
+                if (originalTerm != null && getEl('original-term')) {
+                    setVal('original-term', String(Math.round(originalTerm)));
+                    applied = true;
+                }
+                const financeType = String(field('financeType') || '').trim();
+                if (financeType && getEl('finance-type')) {
+                    const normType = financeType.toUpperCase();
+                    if (normType.includes('PCP')) setVal('finance-type', 'PCP');
+                    else if (normType.includes('HP') || normType.includes('HIRE PURCHASE')) setVal('finance-type', 'HP');
+                    else setVal('finance-type', financeType);
+                    if (typeof handleFinanceTypeChange === 'function') handleFinanceTypeChange();
+                    applied = true;
+                }
+                const crmDealId = (window.App && App.utils && typeof App.utils.getDealId === 'function')
+                    ? normalizeApplicationShortcutDealId(App.utils.getDealId(deal))
+                    : normalizeApplicationShortcutDealId(deal.id || '');
+                if (window.appState) {
+                    window.appState.currentLookupPreferCrmSnapshot = applied;
+                    window.appState.currentLookupCrmSnapshotDealId = applied ? crmDealId : '';
+                    if (applied && crmDealId) window.appState.currentLookupDealId = crmDealId;
+                    if (applied) window.appState.currentLookupFoundInDeals = true;
+                }
+                return applied;
+            };
 
             const applyDnsPayloadToUI = (payloadJson) => {
                 if (!payloadJson || !payloadJson.dnsPayload) return;
@@ -4273,8 +4407,12 @@ const handleVrnLookup = async () => {
                     window.appState.currentLookupVrn = vrn;
                     window.appState.currentLookupDealId = '';
                     window.appState.currentLookupFoundInDeals = false;
+                    window.appState.currentLookupPreferCrmSnapshot = false;
+                    window.appState.currentLookupCrmSnapshotDealId = '';
                     window.appState.preQualAttempted = false;
                     window.appState.softScoreLoaded = false;
+                    const preferredCrmDeal = getPreferredCrmDealForPseLookup(vrn);
+                    if (preferredCrmDeal) applyCrmDealSnapshotToPseUI(preferredCrmDeal);
                     syncResultsActionButtons();
                 const spinner = getEl('vrn-spinner'), text = getEl('vrn-lookup-text'), btn = getEl('vrn-lookup-btn');
                 spinner.style.display = 'block'; text.style.display = 'none'; btn.disabled = true;
@@ -4287,6 +4425,7 @@ const handleVrnLookup = async () => {
                         window.appState.currentLookupDealId = getCanonicalDealIdFromPayload(payloadJson);
                         syncResultsActionButtons();
                         applyDnsPayloadToUI(payloadJson);
+                        if (preferredCrmDeal) applyCrmDealSnapshotToPseUI(preferredCrmDeal);
                         if (payloadJson.foundInDeals) {
                             setTxt('vrn-status', 'Found in Deal Database.'); getEl('vrn-status').style.color = 'green';
                             spinner.style.display = 'none'; text.style.display = 'block'; btn.disabled = false;
