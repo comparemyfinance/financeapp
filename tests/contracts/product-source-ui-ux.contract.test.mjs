@@ -71,6 +71,16 @@ test('Index.html: app form shortcut routes back through delegated sales-pipeline
   assert.match(html, /No live client application found for this VRN\./);
 });
 
+test('Index.html: application PSE shortcut queues behind in-flight saves and stores a handoff payload', () => {
+  const html = readFile('Index.html');
+
+  assert.match(html, /pendingPseShortcut/);
+  assert.match(html, /isApplicationSaveInFlight/);
+  assert.match(html, /window\.__cmfPseShortcutPayload = handoff;/);
+  assert.match(html, /queueApplicationPseShortcutAfterSave\(payload\)/);
+  assert.match(html, /flushPendingApplicationPseShortcutAfterSave\(\);/);
+});
+
 test('lender broker rows use a shared helper and pastel purple class styling', () => {
   const html = readFile('tabProductSource.html');
 
