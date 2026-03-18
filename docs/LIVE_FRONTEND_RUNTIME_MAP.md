@@ -6,6 +6,7 @@ Use this first for Product Source/front-end runtime edits.
 
 - Product Source renderer: `Index.html` (Product Source table/render/update path)
 - Lender Apply modal runtime: `Index.html` (`ensureLenderAppModal` / `openLenderAppModal` path)
+- Cross-tab Product Source/Application shortcuts: `Index.html` (delegated click wiring)
 - Session/bootstrap: `Index.html` (`window.CMFSession`)
 - Shared API wrapper: `Index.html` (`App.apiCall`)
 
