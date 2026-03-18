@@ -9790,8 +9790,6 @@ document.body.addEventListener('click', async (e) => {
 
                     try { window.__cmfDocUploadPayload = { surname, postcode, ts: Date.now() }; } catch (err) {}
                     try { switchTab('document-upload'); } catch (err) {}
-                    setTimeout(() => { try { if (typeof window.applyDocumentUploadPayload === 'function') window.applyDocumentUploadPayload(); } catch (err) {} }, 150);
-                    setTimeout(() => { try { if (typeof window.applyDocumentUploadPayload === 'function') window.applyDocumentUploadPayload(); } catch (err) {} }, 2300);
                     return;
                 }
 
@@ -10612,7 +10610,6 @@ function loadCustomerUploadIframe(){
       if (payload) {
         next += '&surname=' + encodeURIComponent(payload.surname || '') + '&postcode=' + encodeURIComponent(payload.postcode || '');
       }
-      next += '&cb=' + Date.now();
       // Only set when first load OR when currently blank/about:blank
       if(!ifr.dataset.loaded || !ifr.src || ifr.src === 'about:blank'){
         ifr.src = next;
@@ -10904,36 +10901,6 @@ function loadCustomerUploadIframe(){
   }
 
 })();
-</script>
-<script>
-// CMF_DOCUPLOAD_REFRESH_V1: refresh Document Upload iframe on tab click (prevents stale webapp assets)
-(function(){
-  const frame = document.getElementById('customer-upload-iframe');
-  if(!frame) return;
-
-  const base = frame.getAttribute('data-base-src') || frame.getAttribute('src') || '';
-  if(base && !frame.getAttribute('data-base-src')) frame.setAttribute('data-base-src', base);
-
-  function bust(){
-    const b = frame.getAttribute('data-base-src') || base;
-    if(!b) return;
-    const payload = window.__cmfDocUploadPayload || null;
-    let next = b;
-    if (payload) {
-      const psep = next.includes('?') ? '&' : '?';
-      next = next + psep + 'surname=' + encodeURIComponent(payload.surname || '') + '&postcode=' + encodeURIComponent(payload.postcode || '');
-    }
-    const sep = next.includes('?') ? '&' : '?';
-    frame.src = next + sep + 'cb=' + Date.now();
-  }
-
-  const triggers = Array.from(document.querySelectorAll('[data-tab="document-upload"], button, a, [role="tab"], .tab, .tab-btn'))
-    .filter(el => (el.getAttribute('data-tab') === 'document-upload') || ((el.textContent || '').trim().toLowerCase() === 'document upload'));
-
-  triggers.forEach(t => t.addEventListener('click', ()=>{ setTimeout(bust, 0); }));
-  if (!frame.src || frame.src === 'about:blank') bust();
-})();
-
 </script>
 <script id="cmf-application-pdf-v1">
 (function(){
