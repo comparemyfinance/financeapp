@@ -15,7 +15,7 @@ What matters most in this repo:
 - **Server runtime (Apps Script):**
   - `Code.gs` – API routing, sheet CRUD, locking, Drive folder/file helpers, Jigsaw integration/webhooks.
   - `Auth.js` – token-based auth helpers.
-  - `Lenderapi.gs` – lender list/quote calculations (placeholder + helper math).
+  - `Lenderapi.gs` – lender list/quote calculations plus lender/provider outbound integration helpers.
 - **UI runtime (Apps Script HTML templates):**
   - `Index.html` – main template shell and shared scripts.
   - `tab*.html` – feature tab templates/partials.
@@ -56,9 +56,9 @@ A task is complete only if:
 
 ## File ownership / boundaries
 
-- `Code.gs`: server routing/integration logic only. Avoid adding large UI snippets here.
+- `Code.gs`: server routing/transport logic only. Avoid adding large UI snippets here.
 - `Auth.js`: auth/session logic only.
-- `Lenderapi.gs`: lender quote math and lender-data helpers only.
+- `Lenderapi.gs`: lender quote math, provider mapping, and lender outbound integration helpers.
 - `Index.html`: shared shell + cross-tab wiring.
 - `tab*.html`: feature-specific UI; keep tab behavior isolated where possible.
 - `docs/`: canonical engineering docs; add/update docs here instead of comments-only guidance.
@@ -76,7 +76,7 @@ A task is complete only if:
 
 - `Code.gs` router and write paths (`save`, `delete`, `batchUpdate`) because they affect all deal persistence.
 - Auth/session flows (`Auth.js`, token usage in templates) because stale token behavior can lock users out.
-- Jigsaw integration/webhook code in `Code.gs` because it handles external calls, signatures, and deal updates.
+- Jigsaw webhook entry/writeback code in `Code.gs` and lender outbound transport in `Lenderapi.gs` because they handle external calls, signatures, and deal updates.
 - Large inline scripts in `Index.html` / `tabSalesPipeline.html` due to high coupling and duplication risk.
 
 ## Canonical sources
