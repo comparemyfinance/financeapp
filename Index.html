@@ -9042,9 +9042,16 @@ getFormData(
               const pEl  = document.getElementById('loginPassword');
               const errEl= document.getElementById('loginError');
               const btn  = document.getElementById('loginBtn');
+              const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+              const IDLE_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+              let idleTimerId = null;
+              let idleWatcherBound = false;
+              let idleWatcherActive = false;
+              let idleLogoutInFlight = false;
 
               function showLogin(msg){
                 try { if (errEl){ errEl.textContent = msg || ''; errEl.classList.toggle('hidden', !msg); } } catch(e){}
+                stopIdleWatcher();
                 // Show login, hide app
                 if (overlay){ overlay.style.display = 'flex'; overlay.classList.remove('hidden'); }
                 if (appRoot){ appRoot.classList.add('hidden'); }
@@ -9055,8 +9062,11 @@ getFormData(
                 if (overlay){ overlay.style.display = 'none'; overlay.classList.add('hidden'); }
                 if (appRoot){ appRoot.classList.remove('hidden'); }
                 try { activateSalesPipeline(); } catch(e){}
+                startIdleWatcher();
 
               }
+              window.showLogin = showLogin;
+              window.hideLogin = hideLogin;
 
               function activateSalesPipeline(){
                 try {
@@ -9082,13 +9092,62 @@ getFormData(
                 } catch(e){}
               }
 
+              function clearIdleTimer(){
+                if (idleTimerId) {
+                  clearTimeout(idleTimerId);
+                  idleTimerId = null;
+                }
+              }
+
+              function stopIdleWatcher(){
+                idleWatcherActive = false;
+                clearIdleTimer();
+              }
+
+              function scheduleIdleTimeout(){
+                clearIdleTimer();
+                if (!idleWatcherActive || idleLogoutInFlight) return;
+                idleTimerId = window.setTimeout(() => {
+                  logoutToLogin('Logged out after 15 minutes of inactivity.', {
+                    bestEffortServerLogout: true,
+                    releaseLock: true,
+                  });
+                }, IDLE_TIMEOUT_MS);
+              }
+
+              function markIdleActivity(){
+                if (!idleWatcherActive || idleLogoutInFlight) return;
+                scheduleIdleTimeout();
+              }
+
+              function bindIdleWatcher(){
+                if (idleWatcherBound) return;
+                idleWatcherBound = true;
+                IDLE_ACTIVITY_EVENTS.forEach((eventName) => {
+                  const options = eventName === 'scroll' ? { passive: true, capture: true } : { passive: true };
+                  window.addEventListener(eventName, markIdleActivity, options);
+                });
+                document.addEventListener('visibilitychange', () => {
+                  if (!idleWatcherActive || idleLogoutInFlight) return;
+                  if (document.visibilityState === 'visible') markIdleActivity();
+                });
+              }
+
+              function startIdleWatcher(){
+                bindIdleWatcher();
+                idleWatcherActive = true;
+                scheduleIdleTimeout();
+              }
+
 
               // Global hook used by apiCall() when server returns AUTH_REQUIRED
               window.__cmfHandleAuthRequired = function(resp){
                 if (!resp) return false;
                 if (resp.authRequired || resp.error === 'AUTH_REQUIRED') {
-                  try { window.CMFSession.clearToken(); } catch(e){}
-                  showLogin('Session expired. Please sign in again.');
+                  logoutToLogin('Session expired. Please sign in again.', {
+                    bestEffortServerLogout: false,
+                    releaseLock: true,
+                  });
                   return true;
                 }
                 return false;
@@ -9110,6 +9169,57 @@ getFormData(
                     .withFailureHandler(e => reject(e))
                     .handleWebClientRequest({ action: action, payload: payload || {} });
                 });
+              }
+
+              async function releaseActiveDealLockBestEffort(){
+                try {
+                  if (!(window.App && App.lock)) return;
+                  const currentDealId = String(
+                    App.lock.currentDealId ||
+                    (App.elements && App.elements.dealId ? App.elements.dealId.value : '') ||
+                    ''
+                  ).trim();
+                  if (currentDealId && typeof App.lock.release === 'function') {
+                    await App.lock.release(currentDealId);
+                    return;
+                  }
+                  if (typeof App.lock.stopHeartbeat === 'function') App.lock.stopHeartbeat();
+                  if (Object.prototype.hasOwnProperty.call(App.lock, 'currentDealId')) {
+                    App.lock.currentDealId = null;
+                  }
+                } catch (e) {
+                  try {
+                    if (window.App && App.lock && typeof App.lock.stopHeartbeat === 'function') {
+                      App.lock.stopHeartbeat();
+                    }
+                    if (window.App && App.lock && Object.prototype.hasOwnProperty.call(App.lock, 'currentDealId')) {
+                      App.lock.currentDealId = null;
+                    }
+                  } catch (_e) {}
+                }
+              }
+
+              async function logoutToLogin(message, options){
+                if (idleLogoutInFlight) return;
+                idleLogoutInFlight = true;
+                stopIdleWatcher();
+                const opts = options || {};
+                try {
+                  if (opts.releaseLock !== false) {
+                    await releaseActiveDealLockBestEffort();
+                  }
+                  if (opts.bestEffortServerLogout !== false) {
+                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
+                    if (token) {
+                      try { await callAction('authLogout', { token }); } catch(e) {}
+                    }
+                  }
+                } finally {
+                  try { window.CMFSession.clearToken(); } catch(e){}
+                  showLogin(message || 'Signed out.');
+                  try { activateSalesPipeline(); } catch(e){}
+                  idleLogoutInFlight = false;
+                }
               }
 
               async function checkSession(){
@@ -9167,15 +9277,10 @@ getFormData(
                 logoutBtn.addEventListener('click', async (ev) => {
                   ev.preventDefault();
                   try { if (btn) btn.disabled = false; } catch(e) {}
-                  try {
-                    const token = (window.CMFSession ? window.CMFSession.readToken() : '');
-                    // Tell server to invalidate token (best-effort)
-                    try { await callAction('authLogout', { token }); } catch(e) {}
-                  } finally {
-                    try { window.CMFSession.clearToken(); } catch(e){}
-                    showLogin('Signed out.');
-                    try { activateSalesPipeline(); } catch(e){}
-                  }
+                  await logoutToLogin('Signed out.', {
+                    bestEffortServerLogout: true,
+                    releaseLock: true,
+                  });
                 });
               }
               // Boot gate: only init when authenticated
