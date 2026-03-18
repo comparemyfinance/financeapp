@@ -20,14 +20,32 @@ This document defines the canonical frontend auth/session path and backend auth 
 - auth payload construction
 - unauthenticated fallback behavior
 
+## Canonical idle session manager
+
+- Canonical owner: `Index.html` auth bootstrap
+- Idle timeout: 15 minutes
+- Activity sources reset the timer:
+  - `pointerdown`
+  - `keydown`
+  - `touchstart`
+  - `scroll`
+  - `visibilitychange` when the app becomes visible again
+- On timeout, the frontend:
+  - best-effort releases any active deal lock / heartbeat
+  - best-effort calls `authLogout`
+  - clears the local token
+  - returns to the login overlay with an inactivity message
+
 ## Frontend flow
 
 1. Login submits credentials via `authLogin`.
 2. On success, token is stored via `CMFSession.writeToken(...)`.
 3. API calls use `CMFSession.authPayload(...)` for token injection.
 4. Before protected calls, `CMFSession.isFresh()` can short-circuit stale sessions.
-5. When auth-required is detected, `CMFSession.onUnauthenticated(...)` clears token and triggers login fallback.
-6. Logout calls `authLogout` and clears token via `CMFSession.clearToken()`.
+5. An idle watcher runs only while the authenticated app shell is visible.
+6. When auth-required is detected, `CMFSession.onUnauthenticated(...)` clears token and triggers login fallback.
+7. Manual logout calls `authLogout` and clears token via `CMFSession.clearToken()`.
+8. Inactivity logout follows the same logout path after 15 minutes with no tracked activity.
 
 ## Backend auth flow
 
