@@ -9,6 +9,7 @@ Use this first for Product Source/front-end runtime edits.
 - Cross-tab Product Source/Application shortcuts: `Index.html` (delegated click wiring)
 - Application -> PSE save guard: `Index.html` (queues Product Source launch until explicit Application save + CRM reload complete)
 - Application -> PSE shared-field precedence: `Index.html` (prefer fresh CRM deal snapshot for shared client/application fields, then enrich from payload supplier)
+- Product Source hydrated-field reset: `Index.html` (clear auto-populated client/finance/letter fields before every lookup to avoid stale carry-over)
 - Session/bootstrap: `Index.html` (`window.CMFSession`)
 - Shared API wrapper: `Index.html` (`App.apiCall`)
 
