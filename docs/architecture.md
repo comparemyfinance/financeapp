@@ -30,6 +30,7 @@ This project runs as a **Google Apps Script Web App** (V8 runtime).
 - Primary shell: `Index.html` (served by `createTemplateFromFile('Index')`)
 - Feature templates: `tab*.html`
 - Current reality: both `Index.html` and `tabSalesPipeline.html` still contain substantial API/session logic; canonical/delegated guidance is in `docs/CANONICAL_FILES.md` and `docs/KNOWN_AMBIGUITIES.md`.
+- Current CRM tab change: the live sidebar slot previously labeled WhatsApp now serves the in-progress Application tab flow in `Index.html`, with a chooser screen and shared application iframe shell replacing the old embedded WhatsApp `srcdoc` app.
 
 ## Product Source DNS mapping
 
