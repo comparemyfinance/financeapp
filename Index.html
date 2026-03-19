@@ -2788,24 +2788,32 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <div class="w-full h-full flex flex-col">
 <div class="bg-[#004225] rounded-2xl shadow border border-emerald-950/20 h-full overflow-hidden">
 <div class="h-full overflow-auto p-6 md:p-8">
-<div class="mx-auto flex min-h-full max-w-6xl flex-col gap-6">
-<div class="rounded-3xl border border-white/15 bg-white/10 p-8 text-white shadow-xl">
-<div class="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold tracking-wider text-emerald-100">Application Hub</div>
-<div class="mt-4 max-w-3xl text-3xl font-bold tracking-wide text-white">Customer application entry point</div>
-<p class="mt-3 max-w-3xl text-sm text-emerald-50">The previous inline WhatsApp workspace has been removed from the live CRM shell. This tab now acts as the dedicated Application hub and will be wired to the two external customer form flows in follow-up PRs.</p>
+<div class="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center gap-8">
+<div class="w-full max-w-3xl text-center text-white">
+<div class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-semibold tracking-wider text-emerald-100">Application</div>
+<div class="mt-4 text-3xl font-bold tracking-wide text-white">Select the customer application flow</div>
+<p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM. Launch behavior will be connected in the next PR.</p>
 </div>
-<div class="grid flex-1 grid-cols-1 gap-6 md:grid-cols-2">
-<section class="rounded-3xl bg-white p-8 text-[#004225] shadow-xl">
-<div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#004225] text-xl font-bold text-white">SA</div>
-<div class="mt-6 text-xl font-bold tracking-wide">Sales Agent Apply</div>
-<p class="mt-3 text-sm text-emerald-900">Reserved for the Sales Agent application launch flow.</p>
-<div class="mt-6 rounded-2xl border border-dashed border-emerald-200 px-5 py-3 text-sm font-medium text-emerald-900">This PR only replaces the tab panel structure. Form-launch wiring is intentionally deferred.</div>
+<div class="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
+<section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
+<div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
+<div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
+<div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
+<img alt="Sales Agent Apply" class="h-24 w-24 rounded-2xl object-cover shadow-md" src="https://lh3.googleusercontent.com/d/1zESgE9OpS1KcJapsFvvwcVyr2Ogykz2j"/>
+<div class="text-center text-xl font-bold tracking-wider text-[#004225]">SALES AGENT APPLY</div>
+</div>
+</div>
+</div>
 </section>
-<section class="rounded-3xl bg-white p-8 text-[#004225] shadow-xl">
-<div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#004225] text-xl font-bold text-white">RD</div>
-<div class="mt-6 text-xl font-bold tracking-wide">Refi Direct Apply</div>
-<p class="mt-3 text-sm text-emerald-900">Reserved for the Refi Direct application launch flow.</p>
-<div class="mt-6 rounded-2xl border border-dashed border-emerald-200 px-5 py-3 text-sm font-medium text-emerald-900">The existing tab slot stays the same. Only the live panel body has been converted into an Application hub shell.</div>
+<section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
+<div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
+<div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
+<div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
+<img alt="Refi Direct Apply" class="h-24 w-24 rounded-2xl object-cover shadow-md" src="https://lh3.googleusercontent.com/d/1pN87QOTcrMHpJM6o16psBV5ZuwetFFYH"/>
+<div class="text-center text-xl font-bold tracking-wider text-[#004225]">REFI DIRECT APPLY</div>
+</div>
+</div>
+</div>
 </section>
 </div>
 </div>
