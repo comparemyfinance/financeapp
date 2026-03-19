@@ -2789,13 +2789,14 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <div class="bg-[#004225] rounded-2xl shadow border border-emerald-950/20 h-full overflow-hidden">
 <div class="h-full overflow-auto p-6 md:p-8">
 <div class="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center gap-8">
+<div class="w-full flex flex-col items-center gap-8" id="application-hub-chooser-view">
 <div class="w-full max-w-3xl text-center text-white">
 <div class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-semibold tracking-wider text-emerald-100">Application</div>
 <div class="mt-4 text-3xl font-bold tracking-wide text-white">Select the customer application flow</div>
-<p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM. The selected form will render in the shared application frame below.</p>
+<p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM.</p>
 </div>
 <div class="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2" id="application-form-chooser">
-<section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
+<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-url="https://script.google.com/macros/s/AKfycbyIPCTxFa1D_0ff2cfcPlDV3Zc49m-yYQ8jQEn9XS119akHU9ZkKLWDVWqzS1PF8zqq/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this.getAttribute('data-app-url')) : false;" type="button">
 <div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
 <div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
 <div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
@@ -2804,8 +2805,8 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </div>
-</section>
-<section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
+</button>
+<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-url="https://script.google.com/macros/s/AKfycbx2qsErYPiL-28OvrjOPtfXNmoKpVDReXH1GPPTSuIYzp0f8k9Xo4CVLZTjfib9DHrOtw/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this.getAttribute('data-app-url')) : false;" type="button">
 <div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
 <div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
 <div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
@@ -2814,28 +2815,27 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </div>
-</section>
+</button>
 </div>
-<div class="w-full rounded-3xl bg-white p-4 shadow-xl">
-<div class="mb-3 flex items-center justify-between gap-3 px-2">
-<div class="text-sm font-semibold tracking-wide text-[#004225]">Application Frame</div>
-<div class="flex items-center gap-3">
+</div>
+<div class="w-full max-w-6xl" id="application-hub-frame-view" style="display:none;">
+<div class="mb-4 flex items-center justify-end gap-3">
 <button
-  class="rounded-full border border-[#004225] px-3 py-1.5 text-xs font-semibold tracking-wide text-[#004225] hover:bg-[#004225] hover:text-white"
-  onclick="var chooser = document.getElementById('application-form-chooser'); if (chooser) chooser.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false;"
+  class="rounded-full border border-white/50 bg-white px-4 py-2 text-sm font-semibold tracking-wide text-[#004225] hover:bg-[#f3f6f4]"
+  id="application-change-form-btn"
+  onclick="return window.returnToApplicationChooser ? window.returnToApplicationChooser() : false;"
   type="button"
 >
   Change Form
 </button>
-<div class="text-xs font-medium text-gray-500">Shared embedded view</div>
 </div>
-</div>
-<div class="bg-white rounded-2xl shadow p-0 border border-gray-200 overflow-hidden" style="min-height: 42rem;">
+<div class="bg-white rounded-2xl shadow p-0 border border-gray-200 h-full overflow-hidden">
 <iframe
   allow="camera; microphone; autoplay; encrypted-media"
+  data-base-src=""
   id="application-hub-iframe"
   src="about:blank"
-  style="width: 100%; height: 42rem; border: 0; background: #fff"
+  style="width: 100%; height: 72vh; min-height: 42rem; border: 0; background: #fff"
   title="Customer Application"
 >
 </iframe>
@@ -10103,14 +10103,65 @@ function loadCustomerUploadIframe(){
 
 
   window.loadCustomerUploadIframe = loadCustomerUploadIframe;
+  function setApplicationHubMode(mode){
+    try{
+      var chooser = document.getElementById('application-hub-chooser-view');
+      var frame = document.getElementById('application-hub-frame-view');
+      var showFrame = mode === 'frame';
+      if (chooser) chooser.style.display = showFrame ? 'none' : 'flex';
+      if (frame) frame.style.display = showFrame ? 'block' : 'none';
+    }catch(e){}
+  }
+
+  function selectApplicationHubForm(url){
+    try{
+      var target = String(url || '').trim();
+      if (!target) return false;
+      window.__cmfApplicationTargetUrl = target;
+      var ifr = document.getElementById('application-hub-iframe');
+      if (ifr) {
+        try { delete ifr.dataset.loaded; } catch(e) { ifr.dataset.loaded = ''; }
+        ifr.src = 'about:blank';
+      }
+      setApplicationHubMode('frame');
+      loadApplicationHubIframe();
+    }catch(e){}
+    return false;
+  }
+
+  function returnToApplicationChooser(){
+    try{
+      window.__cmfApplicationTargetUrl = '';
+      var ifr = document.getElementById('application-hub-iframe');
+      if (ifr) {
+        ifr.src = 'about:blank';
+        try {
+          delete ifr.dataset.loaded;
+          delete ifr.dataset.currentSrc;
+        } catch(e) {
+          ifr.dataset.loaded = '';
+          ifr.dataset.currentSrc = '';
+        }
+      }
+      setApplicationHubMode('chooser');
+      var chooser = document.getElementById('application-form-chooser');
+      if (chooser && typeof chooser.scrollIntoView === 'function') {
+        chooser.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }catch(e){}
+    return false;
+  }
+
   function loadApplicationHubIframe(){
     try{
       var ifr = document.getElementById('application-hub-iframe');
       if(!ifr) return;
       var target = (window.__cmfApplicationTargetUrl || ifr.getAttribute('data-base-src') || '').trim();
       if(!target){
+        setApplicationHubMode('chooser');
         return;
       }
+      setApplicationHubMode('frame');
       if(!ifr.dataset.loaded || !ifr.src || ifr.src === 'about:blank' || ifr.dataset.currentSrc !== target){
         ifr.src = target;
         ifr.dataset.loaded = '1';
@@ -10121,6 +10172,8 @@ function loadCustomerUploadIframe(){
 
 
   window.loadApplicationHubIframe = loadApplicationHubIframe;
+  window.selectApplicationHubForm = selectApplicationHubForm;
+  window.returnToApplicationChooser = returnToApplicationChooser;
   function ensureLazyIframes(panel) {
     if (!panel || !panel.id) return;
 
