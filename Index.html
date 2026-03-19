@@ -995,7 +995,7 @@ input::placeholder, textarea::placeholder { color: rgba(107, 114, 128, 0.75); }
 <body>
 <!-- LLM EDITING GUIDE:
 - This file is a single-page UI with multiple tabs. Navigation links use <a class="tab-link" data-tab="..."> and must match the corresponding content container id.
-- Two tabs render inside iframes via <template id="calc-v18-srcdoc"> and <template id="whatsapp-messenger-srcdoc">. If you change global CSS, consider whether those srcdoc templates also need the same CSS injected.
+- The comparison calculator renders inside an iframe via <template id="calc-v18-srcdoc">. If you change global CSS, consider whether that srcdoc template also needs the same CSS injected.
 - Tailwind is precompiled and inlined (search: <style id="tailwind-built">). Do NOT use https://cdn.tailwindcss.com or tailwind.config (runtime) in production.
 - Form control look/feel is normalized via <style id="forms-lite"> and <style id="ui-polish-patches">. If borders/focus rings look wrong, adjust these blocks (prefer small overrides over editing compiled Tailwind).
 - Key modals: #customerModal (Application), #dealModal, #notesModal (if present). Keep IDs stable; JS binds events by id.
@@ -2812,6 +2812,13 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <img alt="Refi Direct Apply" class="h-24 w-24 rounded-2xl object-cover shadow-md" src="https://lh3.googleusercontent.com/d/1pN87QOTcrMHpJM6o16psBV5ZuwetFFYH"/>
 <div class="text-center text-xl font-bold tracking-wider text-[#004225]">REFI DIRECT APPLY</div>
 </div>
+</section>
+<section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
+<div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
+<div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
+<div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
+<img alt="Refi Direct Apply" class="h-24 w-24 rounded-2xl object-cover shadow-md" src="https://lh3.googleusercontent.com/d/1pN87QOTcrMHpJM6o16psBV5ZuwetFFYH"/>
+<div class="text-center text-xl font-bold tracking-wider text-[#004225]">REFI DIRECT APPLY</div>
 </div>
 </div>
 </section>
@@ -2829,6 +2836,15 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </button>
 <div class="text-xs font-medium text-gray-500">Shared embedded view</div>
 </div>
+<div class="bg-white rounded-2xl shadow p-0 border border-gray-200 overflow-hidden" style="min-height: 42rem;">
+<iframe
+  allow="camera; microphone; autoplay; encrypted-media"
+  id="application-hub-iframe"
+  src="about:blank"
+  style="width: 100%; height: 42rem; border: 0; background: #fff"
+  title="Customer Application"
+>
+</iframe>
 </div>
 <div class="bg-white rounded-2xl shadow p-0 border border-gray-200 overflow-hidden" style="min-height: 42rem;">
 <iframe
@@ -2840,7 +2856,6 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 >
 </iframe>
 </div>
-</section>
 </div>
 </div>
 </div>
@@ -2983,12 +2998,7 @@ const ensurePercent = (v) => {
                     }
 
                     if (activeContent.id === 'whatsapp-messenger') {
-                        const ifr = document.getElementById('whatsapp-messenger-iframe');
-                        const tpl = document.getElementById('whatsapp-messenger-srcdoc');
-                        if (ifr && tpl && !ifr.dataset.loaded) {
-                            ifr.srcdoc = tpl.innerHTML;
-                            ifr.dataset.loaded = '1';
-                        }
+                        try { if (typeof window.loadApplicationHubIframe === 'function') window.loadApplicationHubIframe(); } catch(e){}
                     }
                 }
             }));
@@ -9126,14 +9136,7 @@ getFormData(
                 }
 
                 if (targetId === 'whatsapp-messenger') {
-                    try {
-                        const ifr = document.getElementById('whatsapp-messenger-iframe');
-                        const tpl = document.getElementById('whatsapp-messenger-srcdoc');
-                        if (ifr && tpl && !ifr.dataset.loaded) {
-                            ifr.srcdoc = tpl.innerHTML;
-                            ifr.dataset.loaded = '1';
-                        }
-                    } catch(e){}
+                    try { if (typeof window.loadApplicationHubIframe === 'function') window.loadApplicationHubIframe(); } catch(e){}
                 }
             };
 
@@ -10116,6 +10119,24 @@ function loadCustomerUploadIframe(){
 
 
   window.loadCustomerUploadIframe = loadCustomerUploadIframe;
+  function loadApplicationHubIframe(){
+    try{
+      var ifr = document.getElementById('application-hub-iframe');
+      if(!ifr) return;
+      var target = (window.__cmfApplicationTargetUrl || ifr.getAttribute('data-base-src') || '').trim();
+      if(!target){
+        return;
+      }
+      if(!ifr.dataset.loaded || !ifr.src || ifr.src === 'about:blank' || ifr.dataset.currentSrc !== target){
+        ifr.src = target;
+        ifr.dataset.loaded = '1';
+        ifr.dataset.currentSrc = target;
+      }
+    }catch(e){}
+  }
+
+
+  window.loadApplicationHubIframe = loadApplicationHubIframe;
   function ensureLazyIframes(panel) {
     if (!panel || !panel.id) return;
 
@@ -10132,69 +10153,11 @@ function loadCustomerUploadIframe(){
       } catch (e) {}
     }
 
-    // WhatsApp messenger iframe (lazy loads srcdoc)
+    // Application iframe (lazy loads selected external form)
     if (panel.id === 'whatsapp-messenger') {
-      var wIfr = document.getElementById('whatsapp-messenger-iframe');
-      var wTpl = document.getElementById('whatsapp-messenger-srcdoc');
-      if (wIfr && wTpl && !wIfr.dataset.loaded) {
-        wIfr.srcdoc = wTpl.innerHTML;
-        wIfr.dataset.loaded = '1';
-      }
+      loadApplicationHubIframe();
     }
   }
-
-  function reloadWhatsAppMessenger(resetState) {
-    try {
-      if (resetState) {
-        localStorage.removeItem('whatsappPinned');
-        localStorage.removeItem('whatsappSettings');
-      }
-    } catch (e) {}
-
-    var wIfr = document.getElementById('whatsapp-messenger-iframe');
-    var wTpl = document.getElementById('whatsapp-messenger-srcdoc');
-    if (wIfr && wTpl) {
-      try { delete wIfr.dataset.loaded; } catch(e) { wIfr.dataset.loaded = ''; }
-      wIfr.srcdoc = wTpl.innerHTML;
-      wIfr.dataset.loaded = '1';
-    }
-  }
-
-  // WhatsApp toolbar buttons
-  (function initWhatsAppToolbar(){
-    var reloadBtn = document.getElementById('whatsapp-reload-btn');
-    if (reloadBtn && !reloadBtn.dataset.bound) {
-      reloadBtn.addEventListener('click', function(){ reloadWhatsAppMessenger(false); });
-      reloadBtn.dataset.bound = '1';
-    }
-    var resetBtn = document.getElementById('whatsapp-reset-btn');
-    if (resetBtn && !resetBtn.dataset.bound) {
-      resetBtn.addEventListener('click', function(){ reloadWhatsAppMessenger(true); });
-      resetBtn.dataset.bound = '1';
-    }
-
-    function cmfCopy(text){
-      try{
-        if (navigator.clipboard && window.isSecureContext){
-          return navigator.clipboard.writeText(text);
-        }
-      }catch(e){}
-      return new Promise(function(resolve,reject){
-        try{
-          var ta=document.createElement('textarea');
-          ta.value=text;
-          ta.style.position='fixed';
-          ta.style.left='-9999px';
-          document.body.appendChild(ta);
-          ta.focus(); ta.select();
-          var ok=document.execCommand('copy');
-          document.body.removeChild(ta);
-          ok?resolve():reject(new Error('copy failed'));
-        }catch(err){reject(err);}
-      });
-    }
-
-  })();
 
   function showTab(tabEl) {
     var tabs = $all('.tab-link');
