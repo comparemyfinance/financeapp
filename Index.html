@@ -2792,7 +2792,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <div class="w-full max-w-3xl text-center text-white">
 <div class="inline-flex items-center justify-center rounded-full bg-white/10 px-4 py-2 text-sm font-semibold tracking-wider text-emerald-100">Application</div>
 <div class="mt-4 text-3xl font-bold tracking-wide text-white">Select the customer application flow</div>
-<p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM. Launch behavior will be connected in the next PR.</p>
+<p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM. The selected form will render in the shared application frame below.</p>
 </div>
 <div class="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
 <section class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl">
@@ -2815,6 +2815,22 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </section>
+</div>
+<div class="w-full rounded-3xl bg-white p-4 shadow-xl">
+<div class="mb-3 flex items-center justify-between gap-3 px-2">
+<div class="text-sm font-semibold tracking-wide text-[#004225]">Application Frame</div>
+<div class="text-xs font-medium text-gray-500">Shared embedded view</div>
+</div>
+<div class="bg-white rounded-2xl shadow p-0 border border-gray-200 overflow-hidden" style="min-height: 42rem;">
+<iframe
+  allow="camera; microphone; autoplay; encrypted-media"
+  id="application-hub-iframe"
+  src="about:blank"
+  style="width: 100%; height: 42rem; border: 0; background: #fff"
+  title="Customer Application"
+>
+</iframe>
+</div>
 </div>
 </div>
 </div>
