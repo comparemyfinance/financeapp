@@ -17,7 +17,6 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
 | `JIGSAW_USERNAME`      | Jigsaw API username                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_PASSWORD`      | Jigsaw API password                                               | None (required for Jigsaw actions)       |
 | `JIGSAW_SHARED_SECRET` | Webhook signature verification secret                             | None (required for webhook verification) |
-| `ONEAUTO_API_KEY`      | Server-side OneAuto/Experian VRN finance lookup key               | None (required for external VRN lookup)  |
 
 ## Optional properties
 
@@ -49,3 +48,4 @@ Google Apps Script Editor -> **Project Settings** -> **Script properties**.
 - Setup helpers may write placeholder values only; replace placeholders before use.
 - Any new required property must be added here and to `docs/ENVIRONMENT.md`.
 - Keep `appsscript.json` web app access at `ANYONE_ANONYMOUS`; this app uses its own login screen and token auth after the initial page load.
+- Embedded external forms have separate deployment/auth constraints; see `docs/EMBEDDING_AND_EXTERNAL_FORMS.md` and `docs/application-embed-validation.md`.

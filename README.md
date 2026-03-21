@@ -2,7 +2,7 @@
 
 Google Apps Script CRM and vehicle-finance workflow application used to manage leads/deals, run quote comparisons, and support lender/integration flows.
 
-## What this repo is
+## What This Repo Is
 
 This repo contains:
 
@@ -11,7 +11,7 @@ This repo contains:
 - CI quality gates and deployment automation to Google Apps Script
 - Architecture and change-safety docs under `docs/`
 
-## 90-second setup
+## 90-Second Setup
 
 ### Prerequisites
 
@@ -25,7 +25,7 @@ npm ci
 npm run hooks:install
 ```
 
-### Validate locally
+### Validate Locally
 
 ```bash
 npm run sanity
@@ -35,30 +35,30 @@ npm test
 npm run test:behavioral
 ```
 
-## How to run
+## How To Run
 
-This app runs as a deployed Google Apps Script Web App (not a local Node server).
+This app runs as a deployed Google Apps Script Web App, not a local Node server.
 
-Local development workflow is:
+Local development workflow:
 
 1. Edit `.gs`, `.js`, `.html`, and docs files.
 2. Run lint/tests locally.
-3. Open/update Apps Script deployment using CI deploy workflow (push to `main`).
+3. Deploy via the Apps Script CI workflow by pushing to `main`.
 
-## Top-level structure
+## Top-Level Structure
 
-- `Code.gs` – runtime entrypoints (`doGet`/`doPost`/bridge)
-- `server/` – extracted backend modules (`router/`, `shared/`)
-- `Auth.js` – auth/session helpers
-- `Lenderapi.gs` – lender quote data/calculation helpers
-- `Index.html` – main UI shell template
-- `tab*.html` – tab-specific UI partials
-- `appsscript.json` – Apps Script manifest
-- `scripts/` – repo validation scripts
-- `docs/` – architecture/domain/change guidance
-- `.github/workflows/` – CI and deployment workflows
+- `Code.gs` - runtime entrypoints (`doGet`/`doPost`/bridge)
+- `server/` - extracted backend modules (`router/`, `shared/`)
+- `Auth.js` - auth/session helpers
+- `Lenderapi.gs` - lender quote data/calculation helpers
+- `Index.html` - main UI shell template
+- `tab*.html` - tab-specific UI partials
+- `appsscript.json` - Apps Script manifest
+- `scripts/` - repo validation scripts
+- `docs/` - architecture/domain/change guidance
+- `.github/workflows/` - CI and deployment workflows
 
-## Main workflows
+## Main Workflows
 
 - **Quality gate (local/CI):**
   - `npm run lint` (format check + syntax validation)
@@ -67,7 +67,7 @@ Local development workflow is:
 - **Post-merge checks:** `.github/workflows/post-merge-quality.yml`
 - **Deploy to Apps Script:** `.github/workflows/deploy.yml` on push to `main`
 
-## Where to learn more
+## Where To Learn More
 
 - Agent and contributor expectations: `AGENTS.md`
 - Architecture map: `docs/architecture.md`
@@ -81,9 +81,12 @@ Local development workflow is:
 - Test strategy and refactor gates: `docs/TEST_STRATEGY.md`
 - Ambiguity/dedup decisions: `docs/DEDUP_MAP.md`
 - Canonical auth/session flow: `docs/AUTH_FLOW.md`
+- Frontend runtime ownership: `docs/LIVE_FRONTEND_RUNTIME_MAP.md`
+- Embed/external form guidance: `docs/EMBEDDING_AND_EXTERNAL_FORMS.md`
+- Current Application tab iframe validation: `docs/application-embed-validation.md`
 - Historical audit context: `docs/audit.md`, `docs/audit-report.md`
 
-## Deployment secrets (GitHub)
+## Deployment Secrets (GitHub)
 
 Required for deploy workflow:
 
@@ -91,9 +94,8 @@ Required for deploy workflow:
 - `CLASP_SCRIPT_ID`
 - `GAS_DEPLOYMENT_ID`
 
-## Contributor notes
+## Contributor Notes
 
 - Keep Apps Script entry template as `Index.html` unless backend template loading changes too.
 - Prefer updating package scripts for checks rather than adding workflow-only one-off commands.
 - Do not commit credentials or new hardcoded secrets.
-  Codex local connection test
