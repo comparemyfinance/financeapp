@@ -67,6 +67,7 @@ Router alias normalization in `normalizeAction_`:
 - `authStatus`
 - `authLogout`
 - `runtimeDiagnostics` _(temporary diagnostic action; see `docs/KNOWN_AMBIGUITIES.md`)_
+- `lookupVrnFinanceRecords`
 
 ## Protected actions (auth required)
 
@@ -96,6 +97,7 @@ Router alias normalization in `normalizeAction_`:
 - Spreadsheet-dependent: `getDelta`, `getPartnerActivitySummary`, `save`, `delete`, `batchUpdate`, `getVrnData`
 - Drive root-dependent: `searchFolders`
 - OneAuto credential-dependent: `lookupOneAutoFinance`
+- OneAuto credential-dependent and currently public: `lookupVrnFinanceRecords`
 
 If required config is missing, handlers should preserve specific safe messages such as:
 
