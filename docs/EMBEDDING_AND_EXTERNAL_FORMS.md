@@ -12,7 +12,7 @@ Use this before changing:
 
 ## Current Runtime Reality
 
-- The CRM contains an Application chooser in `Index.html` that can select an external form URL and load it into `#application-hub-iframe`.
+- The CRM contains an Application chooser in `Index.html` that can select an external form URL and load a launch fallback for it.
 - The current chooser targets two external Apps Script web apps:
   - Sales Agent Apply
   - Refi Direct Apply
@@ -39,7 +39,7 @@ For external Apps Script forms, the safe default is:
 - user opens the target form in a new tab/window
 - CRM explains why the form opens separately
 
-Do not treat the existence of an iframe shell in `Index.html` as proof that the target form is safely embeddable.
+Do not treat the existence of an Application launcher shell in `Index.html` as proof that the target form is safely embeddable.
 
 ### 2. Keep auth and privileged API access server-side
 
@@ -67,7 +67,7 @@ If another subproject must run in an iframe or on an external website, document:
 
 ### 4. Do not assume Apps Script iframe behavior matches ordinary hosting
 
-Apps Script web apps can still fail embedding even when CRM HTML itself uses `ALLOWALL`, because the **embedded target app** must also permit framing and avoid redirecting into a Google-controlled sign-in page.
+Apps Script web apps can still fail embedding even when CRM HTML itself uses `ALLOWALL`, because the embedded target app must also permit framing and avoid redirecting into a Google-controlled sign-in page.
 
 For a target app to be considered iframe-safe, verify all of the following:
 
@@ -104,7 +104,7 @@ If this mode is adopted, add:
 - the message-passing contract if used
 - fallback behavior when the iframe cannot load
 
-### Mode C: Host-page shell + backend proxy
+### Mode C: Host-page shell plus backend proxy
 
 Use when:
 
@@ -128,7 +128,7 @@ In this model, the host page owns the shell and calls its own backend, rather th
 - There is no formal `postMessage` contract documented for the Application tab.
 - There is no documented supported-host allowlist for embedded subprojects.
 - There is no repo-level guide for how the external Sales Agent / Refi Direct projects should expose an iframe-safe build.
-- There is no documented square.online-specific compatibility matrix yet.
+- There is no documented `square.online` compatibility matrix yet.
 
 ## Source References
 
