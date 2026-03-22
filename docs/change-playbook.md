@@ -44,6 +44,7 @@ npm test
 - Keep API contracts backward compatible unless explicitly planned and documented.
 - No secrets in source.
 - Prefer additive compatibility fallbacks over hard cutovers.
+- For Markdown/config formatting drift, format touched files when required by checks, but keep repo-wide normalization in a separate cleanup PR rather than mixing it into behavior fixes.
 
 ## High-risk areas
 
