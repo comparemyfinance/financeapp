@@ -58,4 +58,4 @@ Alternative fallback:
 ## Notes
 
 - No server/API contract changes are required for this validation PR.
-- No CRM UI changes were made in this step by design.
+- Follow-up UI status: the CRM should use the chooser + open-in-new-tab fallback until the external deployments are revalidated as iframe-safe.

@@ -2796,7 +2796,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <p class="mt-3 text-sm text-emerald-50">Choose which application journey you want to open from the CRM.</p>
 </div>
 <div class="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2" id="application-form-chooser">
-<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-url="https://script.google.com/macros/s/AKfycbyIPCTxFa1D_0ff2cfcPlDV3Zc49m-yYQ8jQEn9XS119akHU9ZkKLWDVWqzS1PF8zqq/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this.getAttribute('data-app-url')) : false;" type="button">
+<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-name="Sales Agent Apply" data-app-url="https://script.google.com/macros/s/AKfycbyIPCTxFa1D_0ff2cfcPlDV3Zc49m-yYQ8jQEn9XS119akHU9ZkKLWDVWqzS1PF8zqq/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this) : false;" type="button">
 <div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
 <div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
 <div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
@@ -2806,7 +2806,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </div>
 </div>
 </button>
-<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-url="https://script.google.com/macros/s/AKfycbx2qsErYPiL-28OvrjOPtfXNmoKpVDReXH1GPPTSuIYzp0f8k9Xo4CVLZTjfib9DHrOtw/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this.getAttribute('data-app-url')) : false;" type="button">
+<button class="bg-white rounded-3xl p-6 text-[#004225] shadow-xl transition-transform hover:scale-[1.01]" data-app-name="Refi Direct Apply" data-app-url="https://script.google.com/macros/s/AKfycbx2qsErYPiL-28OvrjOPtfXNmoKpVDReXH1GPPTSuIYzp0f8k9Xo4CVLZTjfib9DHrOtw/exec" onclick="return window.selectApplicationHubForm ? window.selectApplicationHubForm(this) : false;" type="button">
 <div class="mx-auto flex w-full max-w-[22rem] flex-col items-center">
 <div class="w-full rounded-3xl bg-white shadow-sm" style="aspect-ratio: 1 / 1; border: 1px solid rgba(0, 66, 37, 0.08);">
 <div class="flex h-full w-full flex-col items-center justify-center gap-6 p-6">
@@ -2818,7 +2818,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </button>
 </div>
 </div>
-<div class="w-full max-w-6xl" id="application-hub-frame-view" style="display:none;">
+<div class="w-full max-w-4xl" id="application-hub-launch-view" style="display:none;">
 <div class="mb-4 flex items-center justify-end gap-3">
 <button
   class="rounded-full border border-white/50 bg-white px-4 py-2 text-sm font-semibold tracking-wide text-[#004225] hover:bg-[#f3f6f4]"
@@ -2829,16 +2829,40 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
   Change Form
 </button>
 </div>
-<div class="bg-white rounded-2xl shadow p-0 border border-gray-200 h-full overflow-hidden">
-<iframe
-  allow="camera; microphone; autoplay; encrypted-media"
-  data-base-src=""
-  id="application-hub-iframe"
-  src="about:blank"
-  style="width: 100%; height: 72vh; min-height: 42rem; border: 0; background: #fff"
-  title="Customer Application"
->
-</iframe>
+<div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 text-[#004225]">
+<div class="mx-auto flex max-w-2xl flex-col items-center gap-5 text-center">
+<div class="inline-flex items-center justify-center rounded-full bg-[#eff6f1] px-4 py-2 text-sm font-semibold tracking-wide text-[#004225]">
+  External Form Launch
+</div>
+<h3 class="text-2xl font-bold tracking-wide" id="application-launch-title">Open application form in a new tab</h3>
+<p class="max-w-xl text-sm leading-relaxed text-slate-700">
+  This application currently opens outside the CRM because the external Apps Script deployment is not reliably iframe-safe. Your CRM state stays here; the form opens in a separate tab/window.
+</p>
+<div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+  If the new tab does not open, use the launch button again and allow popups for this site if prompted.
+</div>
+<div class="flex flex-wrap items-center justify-center gap-3">
+  <a
+    class="inline-flex items-center justify-center rounded-full bg-[#004225] px-6 py-3 text-sm font-semibold tracking-wide text-white hover:bg-[#00331e]"
+    href="#"
+    id="application-launch-link"
+    rel="noopener noreferrer"
+    target="_blank"
+  >
+    Open selected form
+  </a>
+  <button
+    class="rounded-full border border-[#004225]/15 bg-white px-5 py-3 text-sm font-semibold tracking-wide text-[#004225] hover:bg-[#f3f6f4]"
+    onclick="return window.returnToApplicationChooser ? window.returnToApplicationChooser() : false;"
+    type="button"
+  >
+    Choose a different form
+  </button>
+</div>
+<p class="text-xs tracking-wide text-slate-500 uppercase" id="application-launch-caption">
+  Opens in a new tab/window
+</p>
+</div>
 </div>
 </div>
 </div>
@@ -10106,25 +10130,51 @@ function loadCustomerUploadIframe(){
   function setApplicationHubMode(mode){
     try{
       var chooser = document.getElementById('application-hub-chooser-view');
-      var frame = document.getElementById('application-hub-frame-view');
-      var showFrame = mode === 'frame';
-      if (chooser) chooser.style.display = showFrame ? 'none' : 'flex';
-      if (frame) frame.style.display = showFrame ? 'block' : 'none';
+      var launchView = document.getElementById('application-hub-launch-view');
+      var showLaunch = mode === 'launch';
+      if (chooser) chooser.style.display = showLaunch ? 'none' : 'flex';
+      if (launchView) launchView.style.display = showLaunch ? 'block' : 'none';
     }catch(e){}
   }
 
-  function selectApplicationHubForm(url){
+  function syncApplicationHubLaunchState(){
     try{
-      var target = String(url || '').trim();
+      var target = String(window.__cmfApplicationTargetUrl || '').trim();
+      var label = String(window.__cmfApplicationTargetName || 'selected application form').trim();
+      var launchLink = document.getElementById('application-launch-link');
+      var launchTitle = document.getElementById('application-launch-title');
+      var launchCaption = document.getElementById('application-launch-caption');
+      if (!target) {
+        if (launchLink) launchLink.setAttribute('href', '#');
+        if (launchTitle) launchTitle.textContent = 'Open application form in a new tab';
+        if (launchCaption) launchCaption.textContent = 'Opens in a new tab/window';
+        setApplicationHubMode('chooser');
+        return;
+      }
+      if (launchLink) {
+        launchLink.setAttribute('href', target);
+        launchLink.setAttribute('aria-label', 'Open ' + label + ' in a new tab');
+      }
+      if (launchTitle) launchTitle.textContent = 'Open ' + label + ' in a new tab';
+      if (launchCaption) launchCaption.textContent = label + ' opens in a new tab/window';
+      setApplicationHubMode('launch');
+    }catch(e){}
+  }
+
+  function selectApplicationHubForm(source){
+    try{
+      var target = '';
+      var label = '';
+      if (source && source.nodeType === 1) {
+        target = String(source.getAttribute('data-app-url') || '').trim();
+        label = String(source.getAttribute('data-app-name') || source.textContent || '').trim();
+      } else {
+        target = String(source || '').trim();
+      }
       if (!target) return false;
       window.__cmfApplicationTargetUrl = target;
-      var ifr = document.getElementById('application-hub-iframe');
-      if (ifr) {
-        try { delete ifr.dataset.loaded; } catch(e) { ifr.dataset.loaded = ''; }
-        ifr.src = 'about:blank';
-      }
-      setApplicationHubMode('frame');
-      loadApplicationHubIframe();
+      window.__cmfApplicationTargetName = label || 'selected application form';
+      syncApplicationHubLaunchState();
     }catch(e){}
     return false;
   }
@@ -10132,18 +10182,8 @@ function loadCustomerUploadIframe(){
   function returnToApplicationChooser(){
     try{
       window.__cmfApplicationTargetUrl = '';
-      var ifr = document.getElementById('application-hub-iframe');
-      if (ifr) {
-        ifr.src = 'about:blank';
-        try {
-          delete ifr.dataset.loaded;
-          delete ifr.dataset.currentSrc;
-        } catch(e) {
-          ifr.dataset.loaded = '';
-          ifr.dataset.currentSrc = '';
-        }
-      }
-      setApplicationHubMode('chooser');
+      window.__cmfApplicationTargetName = '';
+      syncApplicationHubLaunchState();
       var chooser = document.getElementById('application-form-chooser');
       if (chooser && typeof chooser.scrollIntoView === 'function') {
         chooser.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -10152,26 +10192,7 @@ function loadCustomerUploadIframe(){
     return false;
   }
 
-  function loadApplicationHubIframe(){
-    try{
-      var ifr = document.getElementById('application-hub-iframe');
-      if(!ifr) return;
-      var target = (window.__cmfApplicationTargetUrl || ifr.getAttribute('data-base-src') || '').trim();
-      if(!target){
-        setApplicationHubMode('chooser');
-        return;
-      }
-      setApplicationHubMode('frame');
-      if(!ifr.dataset.loaded || !ifr.src || ifr.src === 'about:blank' || ifr.dataset.currentSrc !== target){
-        ifr.src = target;
-        ifr.dataset.loaded = '1';
-        ifr.dataset.currentSrc = target;
-      }
-    }catch(e){}
-  }
-
-
-  window.loadApplicationHubIframe = loadApplicationHubIframe;
+  window.syncApplicationHubLaunchState = syncApplicationHubLaunchState;
   window.selectApplicationHubForm = selectApplicationHubForm;
   window.returnToApplicationChooser = returnToApplicationChooser;
   function ensureLazyIframes(panel) {
@@ -10190,9 +10211,9 @@ function loadCustomerUploadIframe(){
       } catch (e) {}
     }
 
-    // Application iframe (lazy loads selected external form)
+    // Application launcher state
     if (panel.id === 'whatsapp-messenger') {
-      loadApplicationHubIframe();
+      syncApplicationHubLaunchState();
     }
   }
 
